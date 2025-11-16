@@ -36,8 +36,5 @@ endif()
 
 find_package(cpm CONFIG REQUIRED)
 
-if (USE_BASS_PROXY_LIB)
-    add_subdirectory(src)
-endif()
-
+add_subdirectory(src)
 add_subdirectory(2.06)

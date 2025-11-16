@@ -10,6 +10,13 @@ set_target_properties(
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     POSITION_INDEPENDENT_CODE ON
+    PREFIX "" # no "lib" prefix
     )
+
+target_link_options(
+    bass_proxy
+    PRIVATE
+    -static
+    -s)
 
 target_link_libraries(bass_proxy PRIVATE imgui_opengl3 dwmapi glm)
