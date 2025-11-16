@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 add_custom_target(
-    deploy_symlink
+    deploy_symlink ALL
     COMMENT "symlinking runtime deps => ${CMAKE_CURRENT_BINARY_DIR}")
 
 add_custom_command(
@@ -9,11 +9,7 @@ add_custom_command(
     PRE_BUILD
     COMMAND
         ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_LIST_DIR}/data"
-        "${CMAKE_CURRENT_BINARY_DIR}/data")
-
-add_custom_command(
-    TARGET deploy_symlink
-    PRE_BUILD
+        "${CMAKE_CURRENT_BINARY_DIR}/data"
     COMMAND
         ${CMAKE_COMMAND} -E create_symlink
         "${CMAKE_CURRENT_LIST_DIR}/as3d2.exe"
@@ -34,19 +30,11 @@ else()
         COMMAND
             ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/bass_real.dll")
-
-    add_custom_command(
-        TARGET deploy_symlink
-        PRE_BUILD
+            "${CMAKE_CURRENT_BINARY_DIR}/bass_real.dll"
         COMMAND
             ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/_bass_real.dll")
-
-    add_custom_command(
-        TARGET deploy_symlink
-        POST_BUILD
+            "${CMAKE_CURRENT_BINARY_DIR}/_bass_real.dll"
         COMMAND
             ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:bass_proxy>"
             "${CMAKE_CURRENT_BINARY_DIR}/bass.dll")

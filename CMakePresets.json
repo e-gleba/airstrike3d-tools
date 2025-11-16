@@ -97,13 +97,15 @@
       "name": "llvm-mingw-i686",
       "displayName": "LLVM-MinGW Win32 Build",
       "configurePreset": "llvm-mingw-i686",
-      "configuration": "Release"
+      "configuration": "Release",
+      "jobs": 1
     },
     {
       "name": "llvm-mingw-x86_64",
       "displayName": "LLVM-MinGW Win64 Build",
       "configurePreset": "llvm-mingw-x86_64",
-      "configuration": "Release"
+      "configuration": "Release",
+      "jobs": 1
     }
   ],
   "testPresets": [

@@ -4,7 +4,7 @@
 
 ![gamelogo](.github/logo.jpg)
 
-[PCGamingWiki](https://www.pcgamingwiki.com/wiki/AirStrike_2) -  [Original Game](https://en.wikipedia.org/wiki/AirStrike_3D)
+[PCGamingWiki](https://www.pcgamingwiki.com/wiki/AirStrike_2) - [Original Game](https://en.wikipedia.org/wiki/AirStrike_3D)
 
 ## 🎮 About
 
@@ -78,6 +78,22 @@ Add this to the game's launch options in Steam.
 3. Browse extracted files in the created directory
 4. Convert audio files as needed
 
+### build
+
+1. download llvm-mingw from <https://github.com/mstorsjo/llvm-mingw/releases>:
+- `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for win10+ (ucrt)
+- `llvm-mingw-YYYYMMDD-msvcrt-ubuntu-20.04-x86_64.tar.xz` for win7+ (legacy crt)
+
+2. extract to repository root in dir `llvm-mingw`
+
+3. Run
+```bash
+cmake --preset llvm-mingw-i686
+cmake --build --preset llvm-mingw-i686
+```
+
+> **note**: preset uses `jobs=1` due to lld linker deadlock on parallel linking in mingw context
+
 ## 🏴‍☠️ Ghidra Project
 
 🔒 Since the project uses **ASProtect 1.0**, I decided on Linux using a simple debugger to just walk until we get some kind of loop. The game seems to unpack itself creating some thread, so even the debugger detaches at some moment in `ntdll` magic 🪄, so we need just to pause at any moment and get the address of the desired function (loop).
@@ -85,6 +101,7 @@ Add this to the game's launch options in Steam.
 🎯 The next step is using **x64dbg** with **DumpEx** plugin—dump with the address of main loop function. And that's all!
 
 📊 **Stats:**
+
 - 📦 Game weights: **31.2 MB**
 - 🔍 In Ghidra project I've marked some of the interesting places:
   - 🎮 Loading models
@@ -92,6 +109,7 @@ Add this to the game's launch options in Steam.
   - 🔧 Core game mechanics
 
 🚀 **Usage:**
+
 > Just clone and open with Ghidra—the project is ready to explore yourself!
 
 Maybe some time someone will reverse it completely 😏 🦀⚡

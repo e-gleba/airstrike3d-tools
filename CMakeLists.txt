@@ -8,6 +8,7 @@ project(
     LANGUAGES C CXX)
 
 option(BUILD_DOCS OFF)
+option(USE_BASS_PROXY_LIB ON)
 
 list(
     APPEND
@@ -35,5 +36,8 @@ endif()
 
 find_package(cpm CONFIG REQUIRED)
 
-add_subdirectory(src)
+if (USE_BASS_PROXY_LIB)
+    add_subdirectory(src)
+endif()
+
 add_subdirectory(2.06)
