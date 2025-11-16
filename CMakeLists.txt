@@ -7,6 +7,8 @@ project(
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
 
+option(BUILD_DOCS OFF)
+
 list(
     APPEND
     CMAKE_PREFIX_PATH
@@ -26,9 +28,12 @@ find_package(warnings CONFIG REQUIRED)
 find_package(clang_format CONFIG REQUIRED)
 find_package(clang_tidy CONFIG REQUIRED)
 find_package(clang_doc CONFIG REQUIRED)
-find_package(doxygen CONFIG REQUIRED)
+
+if (BUILD_DOCS)
+    find_package(doxygen CONFIG REQUIRED)
+endif()
 
 find_package(cpm CONFIG REQUIRED)
 
-add_subdirectory(2.06)
 add_subdirectory(src)
+add_subdirectory(2.06)

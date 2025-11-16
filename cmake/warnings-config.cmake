@@ -6,8 +6,7 @@ target_compile_options(
         "$<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall;-Wextra;-Wpedantic;-Wconversion
               >"
         "$<$<CXX_COMPILER_ID:MSVC>:/W4;/wd4100;/wd4505
-    >"
-)
+    >")
 
 set_target_properties(warnings PROPERTIES CMAKE_COMPILE_WARNINGS_AS_ERROR TRUE)
 
@@ -27,5 +26,4 @@ target_compile_options(
         "$<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:MSVC>>:/O2;/fp:fast>"
         # Warnings as errors
         "$<$<CXX_COMPILER_ID:MSVC>:/WX>"
-        "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Werror>"
-)
+        "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Werror>")
