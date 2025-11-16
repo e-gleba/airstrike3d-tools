@@ -17,9 +17,6 @@
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_COLOR_DIAGNOSTICS": "ON"
-      },
-      "environment": {
-        "NINJA_STATUS": "[%f/%t] "
       }
     },
     {
@@ -40,9 +37,6 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
       }
     },
     {
@@ -52,12 +46,7 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic"
-      },
-      "environment": {
-        "CC": "clang",
-        "CXX": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++"
       }
     },
     {
@@ -67,12 +56,7 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++",
-        "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic -fdiagnostics-color=always"
-      },
-      "environment": {
-        "CC": "gcc",
-        "CXX": "g++"
+        "CMAKE_CXX_COMPILER": "g++"
       }
     }
   ],
@@ -145,13 +129,13 @@
       "name": "msvc-package",
       "displayName": "MSVC Package",
       "configurePreset": "msvc",
-      "generators": ["ZIP", "NSIS"]
+      "generators": ["ZIP"]
     },
     {
       "name": "clang-package",
       "displayName": "Clang Package",
       "configurePreset": "clang",
-      "generators": ["TGZ", "DEB"]
+      "generators": ["TGZ", "RPM"]
     },
     {
       "name": "gcc-package",
