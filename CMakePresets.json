@@ -163,13 +163,13 @@
       "name": "llvm-mingw-i686-package",
       "displayName": "LLVM-MinGW Win32 Package",
       "configurePreset": "llvm-mingw-i686",
-      "generators": ["ZIP"]
+      "generators": ["TXZ"]
     },
     {
       "name": "llvm-mingw-x86_64-package",
       "displayName": "LLVM-MinGW Win64 Package",
       "configurePreset": "llvm-mingw-x86_64",
-      "generators": ["ZIP"]
+      "generators": ["TXZ"]
     }
   ],
   "workflowPresets": [

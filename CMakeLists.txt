@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     as3d_reverse_toolkit
-    VERSION 1.0.0
+    VERSION 1.0.3
     DESCRIPTION "Airstrike divo games reverse engineering toolkit"
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
