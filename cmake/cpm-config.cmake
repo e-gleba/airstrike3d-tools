@@ -27,6 +27,5 @@ set(CPM_USE_LOCAL_PACKAGES ON)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR}/cpm)
 
 find_package(freetype CONFIG REQUIRED)
-find_package(imgui CONFIG REQUIRED)
-find_package(glad CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)

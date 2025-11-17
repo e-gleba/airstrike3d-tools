@@ -34,6 +34,7 @@ if (BUILD_DOCS)
     find_package(doxygen CONFIG REQUIRED)
 endif()
 
+add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
 add_subdirectory(src)

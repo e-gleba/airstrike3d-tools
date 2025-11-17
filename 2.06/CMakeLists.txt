@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.28)
-
 add_custom_target(
     deploy_game ALL
     COMMENT "deploying runtime deps => ${CMAKE_CURRENT_BINARY_DIR}")

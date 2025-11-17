@@ -41,6 +41,6 @@ target_sources(
     imgui_opengl3 PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
                           ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 
-target_include_directories(imgui_opengl3 PUBLIC ${imgui_SOURCE_DIR}/backends)
+target_include_directories(imgui_opengl3 SYSTEM PUBLIC ${imgui_SOURCE_DIR}/backends)
 
 target_link_libraries(imgui_opengl3 PUBLIC imgui glad opengl32)

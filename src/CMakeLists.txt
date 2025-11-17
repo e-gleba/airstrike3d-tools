@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.25)
-
 add_library(bass_proxy SHARED bass_proxy.cpp bass_proxy.def
                                       dll_main.cpp)
 target_include_directories(bass_proxy PRIVATE ${CMAKE_CURRENT_LIST_DIR})
@@ -19,4 +17,4 @@ target_link_options(
     -static
     -s)
 
-target_link_libraries(bass_proxy PRIVATE imgui_opengl3 dwmapi glm)
+target_link_libraries(bass_proxy PUBLIC imgui_opengl3 dwmapi glm)
