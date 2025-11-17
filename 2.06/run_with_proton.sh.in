@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+exe_name="@game_exe_name@"
+exe_dir="$(dirname "$(realpath "$0")")"
+
+steam_root="$HOME/.steam/root"
+proton_path="$steam_root/steamapps/common/Proton - Experimental"
+runtime_path="$steam_root/steamapps/common/SteamLinuxRuntime_sniper"
+prefix_root="$HOME/.proton_prefixes"
+prefix_dir="$prefix_root/$exe_name/pfx"
+
+mkdir -p "$prefix_dir"
+
+export STEAM_COMPAT_DATA_PATH="$prefix_dir/.."
+export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_root"
+export MESA_EXTENSION_MAX_YEAR=2003
+
+cd "$exe_dir" || exit 1
+
+"$runtime_path/_v2-entry-point" --verb=run -- "$proton_path/proton" run "$exe_name" "$@"

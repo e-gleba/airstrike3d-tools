@@ -5,12 +5,14 @@ cpmaddpackage(
     GITHUB_REPOSITORY aseprite/freetype2
     GIT_TAG VER-2-10-0
     VERSION 2.10.0
+    EXCLUDE_FROM_ALL YES
 )
 
 set_target_properties(
     freetype
     PROPERTIES
         CMAKE_RC_FLAGS "$<$<C_COMPILER_ID:MSVC>:${CMAKE_RC_FLAGS} /c65001>"
+        EXCLUDE_FROM_ALL TRUE
 )
 
 target_compile_options(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:/c65001>")
