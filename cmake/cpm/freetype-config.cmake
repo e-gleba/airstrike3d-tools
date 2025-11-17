@@ -26,9 +26,6 @@ set_target_properties(
                EXCLUDE_FROM_ALL TRUE)
 
 target_compile_options(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:/c65001>")
-# Or, if you want to append, use a generator expression to only apply for MSVC:
-# target_compile_options(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:${CMAKE_CXX_FLAGS} /c65001>")
-
 target_compile_definitions(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:_UNICODE>")
 
 add_library(Freetype::Freetype ALIAS freetype)

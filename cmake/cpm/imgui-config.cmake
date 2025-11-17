@@ -1,4 +1,3 @@
-# ImGui
 cpmaddpackage(
     NAME
     imgui

@@ -29,7 +29,6 @@ static WNDPROC           orig_wnd_proc = nullptr;
 static std::atomic<bool> imgui_ready   = false;
 static std::atomic<bool> shutting_down = false;
 static BYTE              original_bytes[5];
-static bool              dark_theme   = true;
 static ImVec4            clear_color  = ImVec4(0, 0, 0, 0);
 static bool              enable_clear = false;
 static bool              wireframe    = false;
@@ -246,7 +245,8 @@ static void init_system_info()
     log_msg("processor count: %lu", si.dwNumberOfProcessors);
     log_msg("page size: %lu bytes", si.dwPageSize);
 
-    MEMORYSTATUSEX ms{ sizeof(ms) };
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof(ms);
     if (GlobalMemoryStatusEx(&ms))
     {
         g_sysinfo.total_ram =
