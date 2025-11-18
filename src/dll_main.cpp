@@ -9,7 +9,7 @@ void safe_install() noexcept
 {
     try
     {
-        install_hook();
+        install_hooks();
     }
     catch (...)
     {
@@ -52,7 +52,7 @@ extern "C" BOOL APIENTRY DllMain(HMODULE h_module,
             // dynamically (FreeLibrary).
             if (reserved == nullptr)
             {
-                remove_hooks();
+                uninstall_hooks();
             }
             break;
         }

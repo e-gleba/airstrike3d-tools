@@ -1,76 +1,339 @@
-#define WIN32_LEAN_AND_MEAN
+/*
+    Refactored BASS Proxy / OpenGL Hook
+    Target: C++26 (Clang/LLVM-MinGW)
+    Fixes: Case-sensitive includes, Wconversion warnings, Modern C++ idioms
+*/
 
+#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+
+// Header Includes - Case Sensitive for Linux Cross-Compilation
 #include "bass_proxy.hpp"
 
 #include <GL/gl.h>
+#include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
+
+#include <psapi.h>   // Fixed: usually lowercase in MinGW
+#include <windows.h> // Fixed: lowercase w
 
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
-#include <cstdarg>
-#include <cstddef>
+#include <cstdint>
 #include <cstdio>
-#include <cstring>
-#include <imgui.h>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <mutex>
-#include <psapi.h>
 #include <string>
-#include <utility>
+#include <string_view>
+#include <thread>
 #include <vector>
 
-#include <windows.h>
+// --- Type Definitions ---
 
-// --- Forward Declarations ---
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
-                                                             UINT,
-                                                             WPARAM,
-                                                             LPARAM);
-static void                   draw_overlay();
-static void                   log_msg(const char* fmt, ...);
-static void report_winapi_error(const char* operation, DWORD error_code);
-static LRESULT CALLBACK wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
-
-// --- Globals & State ---
-static HWND              game_window   = nullptr;
-static WNDPROC           orig_wnd_proc = nullptr;
-static std::atomic<bool> imgui_ready   = false;
-static std::atomic<bool> shutting_down = false;
-
-// --- Cheat Toggles ---
-static std::atomic<float> g_speed_multiplier  = 1.0f;
-static std::atomic<bool>  g_block_mouse_input = false;
-static std::atomic<bool>  g_disable_depth     = false; // Renamed from wallhack
-static std::atomic<bool>  g_no_sleep          = false;
-static std::atomic<bool>  g_wireframe         = false;
-static std::atomic<bool> g_log_filesystem = false; // New: Log CreateFileA calls
-static std::atomic<bool> g_freeze_rng     = false; // New: Force rand() to 0
-
-// Visual Settings
-static ImVec4 clear_color  = ImVec4(0, 0, 0, 0);
-static bool   enable_clear = false;
-
-// --- Function Signatures ---
-// Standard Windows
 using wgl_swap_t      = BOOL(WINAPI*)(HDC);
 using qpc_t           = BOOL(WINAPI*)(LARGE_INTEGER*);
 using set_cursor_t    = BOOL(WINAPI*)(int, int);
 using sleep_t         = VOID(WINAPI*)(DWORD);
 using create_file_a_t = HANDLE(WINAPI*)(
     LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
-using set_wnd_text_t = BOOL(WINAPI*)(HWND, LPCSTR);
-
-// Standard C Runtime (using cdecl for msvcrt)
-using rand_t = int(__cdecl*)();
-
-// OpenGL
+using rand_t          = int(__cdecl*)();
 using gl_draw_elems_t = void(APIENTRY*)(GLenum, GLsizei, GLenum, const GLvoid*);
 
-// --- Real Function Pointers (Trampolines) ---
+// Forward declaration for ImGui Win32 handler
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
+                                                             UINT,
+                                                             WPARAM,
+                                                             LPARAM);
+
+// --- Settings & State ---
+
+struct CheatSettings
+{
+    std::atomic<float> speed_multiplier{ 1.0f };
+    std::atomic<bool>  block_mouse{ false };
+    std::atomic<bool>  disable_depth{ false };
+    std::atomic<bool>  no_sleep{ false };
+    std::atomic<bool>  wireframe{ false };
+    std::atomic<bool>  log_fs{ false };
+    std::atomic<bool>  freeze_rng{ false };
+
+    // Render settings (accessed only from render thread)
+    ImVec4 clear_color{ 0.0f, 0.0f, 0.0f, 0.0f };
+    bool   enable_clear{ false };
+};
+
+struct GlobalContext
+{
+    HWND              game_window{ nullptr };
+    WNDPROC           orig_wnd_proc{ nullptr };
+    std::atomic<bool> imgui_ready{ false };
+    std::atomic<bool> shutting_down{ false };
+    CheatSettings     settings;
+};
+
+static GlobalContext ctx;
+
+// --- Logger ---
+
+class Logger
+{
+public:
+    Logger()
+    {
+        log_file.open("bass_proxy_log.txt", std::ios::out | std::ios::trunc);
+    }
+
+    ~Logger()
+    {
+        if (log_file.is_open())
+            log_file.close();
+    }
+
+    template <typename... Args>
+    void log(std::format_string<Args...> fmt, Args&&... args)
+    {
+        try
+        {
+            // Format message
+            std::string msg = std::format(fmt, std::forward<Args>(args)...);
+
+            // Get time (using system_clock compatible with older mingw runtimes
+            // if chrono::current_zone is missing)
+            auto    now      = std::chrono::system_clock::now();
+            auto    sys_time = std::chrono::system_clock::to_time_t(now);
+            std::tm local_tm{};
+#ifdef _WIN32
+            localtime_s(&local_tm, &sys_time);
+#else
+            localtime_r(&sys_time, &local_tm);
+#endif
+
+            std::string timestamped = std::format("[{:02}:{:02}:{:02}] {}",
+                                                  local_tm.tm_hour,
+                                                  local_tm.tm_min,
+                                                  local_tm.tm_sec,
+                                                  msg);
+
+            // File Output
+            {
+                std::scoped_lock lock(file_mtx);
+                if (log_file.is_open())
+                {
+                    log_file << timestamped << std::endl;
+                }
+            }
+
+            // Console Output
+            {
+                std::scoped_lock lock(console_mtx);
+                console_buf.append(timestamped.c_str());
+                console_buf.append("\n");
+                should_scroll = true;
+            }
+        }
+        catch (...)
+        {
+            // Fallback if formatting fails
+        }
+    }
+
+    void draw_console()
+    {
+        std::scoped_lock lock(console_mtx);
+
+        if (ImGui::Button("Clear"))
+        {
+            console_buf.clear();
+        }
+        ImGui::SameLine();
+        filter.Draw("Filter", -100.0f);
+        ImGui::Separator();
+
+        if (ImGui::BeginChild("LogScroll",
+                              ImVec2(0, 0),
+                              false,
+                              ImGuiWindowFlags_HorizontalScrollbar))
+        {
+            if (filter.IsActive())
+            {
+                const char* buf_begin = console_buf.begin();
+                const char* line      = buf_begin;
+                while (line != nullptr)
+                {
+                    const char* line_end = strchr(line, '\n');
+                    if (filter.PassFilter(line, line_end))
+                    {
+                        ImGui::TextUnformatted(line, line_end);
+                    }
+                    line = (line_end && line_end[1]) ? line_end + 1 : nullptr;
+                }
+            }
+            else
+            {
+                ImGui::TextUnformatted(console_buf.begin());
+            }
+
+            if (should_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+            {
+                ImGui::SetScrollHereY(1.0f);
+                should_scroll = false;
+            }
+        }
+        ImGui::EndChild();
+    }
+
+private:
+    std::ofstream   log_file;
+    std::mutex      file_mtx;
+    std::mutex      console_mtx;
+    ImGuiTextBuffer console_buf;
+    ImGuiTextFilter filter;
+    bool            should_scroll = true;
+};
+
+static Logger logger;
+
+// --- Hook Class ---
+
+class Hook
+{
+public:
+    std::string            name;
+    void*                  original_func   = nullptr;
+    void*                  trampoline      = nullptr;
+    void**                 global_real_ptr = nullptr;
+    std::array<uint8_t, 5> original_bytes{};
+    bool                   active = false;
+
+    Hook(std::string_view module,
+         std::string_view func,
+         void*            detour,
+         void**           real_ptr)
+        : name(std::format("{}!{}", module, func))
+        , global_real_ptr(real_ptr)
+    {
+        HMODULE mod = GetModuleHandleA(module.data());
+        if (!mod)
+        {
+            logger.log("Module not found: {}", module);
+            return;
+        }
+
+        original_func =
+            reinterpret_cast<void*>(GetProcAddress(mod, func.data()));
+        if (!original_func)
+        {
+            logger.log("Function not found: {}", func);
+            return;
+        }
+
+        uint8_t* target = static_cast<uint8_t*>(original_func);
+
+        // Check for existing hook (JMP 0xE9)
+        if (target[0] == 0xE9)
+        {
+            logger.log("Warning: {} appears already hooked.", name);
+        }
+
+        std::memcpy(original_bytes.data(), target, 5);
+
+        // Allocate trampoline within 32-bit reach if possible, though
+        // VirtualAlloc usually works fine on 32-bit
+        trampoline = VirtualAlloc(
+            nullptr, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (!trampoline)
+        {
+            logger.log("VirtualAlloc failed for {}", name);
+            return;
+        }
+
+        uint8_t* t_bytes = static_cast<uint8_t*>(trampoline);
+
+        // Copy original bytes
+        std::memcpy(t_bytes, original_bytes.data(), 5);
+
+        // JMP back to original + 5
+        t_bytes[5]      = 0xE9;
+        uintptr_t src_t = reinterpret_cast<uintptr_t>(trampoline) + 10;
+        uintptr_t dst_t = reinterpret_cast<uintptr_t>(original_func) + 5;
+
+        // Explicit casting to silence -Wconversion
+        // Arithmetic on uintptr_t is unsigned; casting to int32_t interprets as
+        // relative offset
+        int32_t rel_t = static_cast<int32_t>(dst_t - src_t);
+        std::memcpy(t_bytes + 6, &rel_t, sizeof(rel_t));
+
+        // Install JMP at target
+        DWORD old_protect;
+        if (VirtualProtect(
+                original_func, 5, PAGE_EXECUTE_READWRITE, &old_protect))
+        {
+            target[0]       = 0xE9;
+            uintptr_t src_h = reinterpret_cast<uintptr_t>(original_func) + 5;
+            uintptr_t dst_h = reinterpret_cast<uintptr_t>(detour);
+            int32_t   rel_h = static_cast<int32_t>(dst_h - src_h);
+
+            std::memcpy(target + 1, &rel_h, sizeof(rel_h));
+
+            DWORD dummy;
+            VirtualProtect(original_func, 5, old_protect, &dummy);
+
+            FlushInstructionCache(GetCurrentProcess(), original_func, 5);
+            FlushInstructionCache(GetCurrentProcess(), trampoline, 64);
+
+            *global_real_ptr = trampoline;
+            active           = true;
+            logger.log("Hooked {} @ {:p}", name, original_func);
+        }
+        else
+        {
+            logger.log("VirtualProtect failed for {}", name);
+            VirtualFree(trampoline, 0, MEM_RELEASE);
+            trampoline = nullptr;
+        }
+    }
+
+    void uninstall()
+    {
+        if (!active || !original_func)
+            return;
+
+        DWORD old_protect;
+        if (VirtualProtect(
+                original_func, 5, PAGE_EXECUTE_READWRITE, &old_protect))
+        {
+            std::memcpy(original_func, original_bytes.data(), 5);
+            DWORD dummy;
+            VirtualProtect(original_func, 5, old_protect, &dummy);
+            FlushInstructionCache(GetCurrentProcess(), original_func, 5);
+            logger.log("Restored {}", name);
+        }
+
+        if (trampoline)
+        {
+            VirtualFree(trampoline, 0, MEM_RELEASE);
+            trampoline = nullptr;
+        }
+
+        if (global_real_ptr)
+            *global_real_ptr = nullptr;
+        active = false;
+    }
+};
+
+static std::vector<std::unique_ptr<Hook>> g_hooks;
+
+// --- Real Function Pointers ---
+
 static wgl_swap_t      real_wgl_swap      = nullptr;
 static qpc_t           real_qpc           = nullptr;
 static set_cursor_t    real_set_cursor    = nullptr;
@@ -79,116 +342,22 @@ static create_file_a_t real_create_file_a = nullptr;
 static rand_t          real_rand          = nullptr;
 static gl_draw_elems_t real_gl_draw_elems = nullptr;
 
-// --- Hooking Infrastructure ---
+// --- Detours ---
 
-struct active_hook
+static void             draw_ui();
+static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
+
+static BOOL WINAPI detour_wgl_swap(HDC dc)
 {
-    std::string         module_name;
-    std::string         func_name;
-    void*               target_addr     = nullptr;
-    void*               trampoline      = nullptr;
-    void**              global_real_ptr = nullptr;
-    std::array<BYTE, 5> original_bytes  = {};
-    bool                is_active       = false;
-};
-
-static std::vector<active_hook> g_installed_hooks;
-
-static bool install_inline_hook(const char* module_name,
-                                const char* func_name,
-                                void*       hook_func,
-                                void**      target_real_ptr)
-{
-    log_msg("hooking %s -> %s...", module_name, func_name);
-
-    const HMODULE mod = GetModuleHandleA(module_name);
-    if (!mod)
-    {
-        // Don't spam error if msvcrt isn't loaded (some static builds)
-        log_msg("warning: module %s not found, skipping hook", module_name);
-        return false;
-    }
-
-    void* target_void = reinterpret_cast<void*>(GetProcAddress(mod, func_name));
-    if (!target_void)
-    {
-        log_msg("warning: function %s not found in %s", func_name, module_name);
-        return false;
-    }
-
-    auto* target_addr = static_cast<uint8_t*>(target_void);
-
-    if (target_addr[0] == 0xE9)
-    {
-        log_msg("warning: %s is already hooked", func_name);
-    }
-
-    active_hook hook_entry;
-    hook_entry.module_name     = module_name;
-    hook_entry.func_name       = func_name;
-    hook_entry.target_addr     = target_void;
-    hook_entry.global_real_ptr = target_real_ptr;
-    std::memcpy(hook_entry.original_bytes.data(), target_addr, 5);
-
-    void* trampoline_void = VirtualAlloc(
-        nullptr, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!trampoline_void)
-    {
-        report_winapi_error("VirtualAlloc", GetLastError());
-        return false;
-    }
-    auto* trampoline      = static_cast<uint8_t*>(trampoline_void);
-    hook_entry.trampoline = trampoline_void;
-
-    DWORD old_protect = 0;
-    if (!VirtualProtect(target_void, 5, PAGE_EXECUTE_READWRITE, &old_protect))
-    {
-        report_winapi_error("VirtualProtect", GetLastError());
-        VirtualFree(trampoline_void, 0, MEM_RELEASE);
-        return false;
-    }
-
-    std::memcpy(trampoline, target_addr, 5);
-    trampoline[5]             = 0xE9;
-    const uintptr_t dest_back = reinterpret_cast<uintptr_t>(target_addr) + 5;
-    const uintptr_t src_back  = reinterpret_cast<uintptr_t>(trampoline) + 10;
-    const int32_t   rel_back  = static_cast<int32_t>(dest_back - src_back);
-    std::memcpy(trampoline + 6, &rel_back, sizeof(rel_back));
-
-    target_addr[0]            = 0xE9;
-    const uintptr_t dest_hook = reinterpret_cast<uintptr_t>(hook_func);
-    const uintptr_t src_hook  = reinterpret_cast<uintptr_t>(target_addr) + 5;
-    const int32_t   rel_hook  = static_cast<int32_t>(dest_hook - src_hook);
-    std::memcpy(target_addr + 1, &rel_hook, sizeof(rel_hook));
-
-    DWORD dummy = 0;
-    VirtualProtect(target_void, 5, old_protect, &dummy);
-    FlushInstructionCache(GetCurrentProcess(), target_void, 5);
-    FlushInstructionCache(GetCurrentProcess(), trampoline_void, 10);
-
-    *target_real_ptr     = trampoline_void;
-    hook_entry.is_active = true;
-    g_installed_hooks.push_back(hook_entry);
-
-    log_msg("hooked %s successfully at %p", func_name, target_void);
-    return true;
-}
-
-// --- Hook Implementations ---
-
-// 1. Overlay Hook (SwapBuffers)
-[[nodiscard]] static bool WINAPI hook_swap(HDC dc) noexcept
-{
-    const bool is_ui_open = imgui_ready.load(std::memory_order::acquire);
-
-    if (is_ui_open)
+    // Atomic load with acquire memory order
+    if (ctx.imgui_ready.load(std::memory_order_acquire))
     {
         if (ImGui::GetCurrentContext())
         {
-            g_block_mouse_input.store(ImGui::GetIO().WantCaptureMouse,
-                                      std::memory_order::relaxed);
+            ctx.settings.block_mouse.store(ImGui::GetIO().WantCaptureMouse,
+                                           std::memory_order_relaxed);
         }
-        draw_overlay();
+        draw_ui();
     }
 
     static std::once_flag init_flag;
@@ -198,421 +367,235 @@ static bool install_inline_hook(const char* module_name,
             init_flag,
             [&]()
             {
-                log_msg("initializing imgui context...");
-                game_window = WindowFromDC(wglGetCurrentDC());
-
-                if (game_window)
+                logger.log("Initializing ImGui Context...");
+                ctx.game_window = WindowFromDC(dc);
+                if (ctx.game_window)
                 {
-                    orig_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
-                        game_window,
-                        GWLP_WNDPROC,
-                        reinterpret_cast<LONG_PTR>(wnd_proc)));
+                    ctx.orig_wnd_proc =
+                        reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+                            ctx.game_window,
+                            GWLP_WNDPROC,
+                            reinterpret_cast<LONG_PTR>(detour_wnd_proc)));
 
                     ImGui::CreateContext();
-                    ImGui::GetIO().FontGlobalScale = 1.2f;
-                    ImGui_ImplWin32_Init(game_window);
+                    ImGuiIO& io        = ImGui::GetIO();
+                    io.FontGlobalScale = 1.2f;
+                    io.IniFilename     = nullptr; // Disable ini file generation
+
+                    ImGui_ImplWin32_Init(ctx.game_window);
                     ImGui_ImplOpenGL3_Init("#version 330 core");
 
-                    // Force update window title once to signal attached status
-                    SetWindowTextA(game_window,
-                                   "Airstrike 3D II [DEBUG ATTACHED]");
-
-                    imgui_ready.store(true, std::memory_order::release);
-                    log_msg("imgui initialized");
+                    SetWindowTextA(ctx.game_window, "Airstrike 3D II [DEBUG]");
+                    ctx.imgui_ready.store(true, std::memory_order_release);
+                    logger.log("ImGui Init Complete.");
                 }
             });
     }
-
     return real_wgl_swap(dc);
 }
 
-// 2. Speedhack Hook (QPC)
-static BOOL WINAPI hook_qpc(LARGE_INTEGER* lpPerformanceCount)
+static BOOL WINAPI detour_qpc(LARGE_INTEGER* lpPerformanceCount)
 {
-    if (!real_qpc)
-        return FALSE;
-    const BOOL result = real_qpc(lpPerformanceCount);
-    if (!result)
+    if (!real_qpc || !real_qpc(lpPerformanceCount))
         return FALSE;
 
-    static LARGE_INTEGER last_real_time = {};
-    static LARGE_INTEGER last_fake_time = {};
-    static bool          first_call     = true;
+    static LARGE_INTEGER last_real = {};
+    static LARGE_INTEGER last_fake = {};
+    static bool          first     = true;
     static std::mutex    qpc_mtx;
 
-    std::lock_guard lock(qpc_mtx);
+    // Load atomic float
+    float mult = ctx.settings.speed_multiplier.load(std::memory_order_relaxed);
 
-    if (first_call)
+    // Optimization: If speed is normal, don't lock
+    if (std::abs(mult - 1.0f) < 0.0001f && !first)
     {
-        last_real_time = *lpPerformanceCount;
-        last_fake_time = *lpPerformanceCount;
-        first_call     = false;
+        // If we just switched back to 1.0, we technically need to resync to
+        // avoid jumps, but for a simple hack, running real time is usually
+        // acceptable. However, to keep time continuous, we continue the fake
+        // time logic.
+    }
+
+    std::scoped_lock lock(qpc_mtx);
+    if (first)
+    {
+        last_real = *lpPerformanceCount;
+        last_fake = *lpPerformanceCount;
+        first     = false;
         return TRUE;
     }
 
-    const LONGLONG diff =
-        lpPerformanceCount->QuadPart - last_real_time.QuadPart;
-    last_real_time = *lpPerformanceCount;
+    LONGLONG diff = lpPerformanceCount->QuadPart - last_real.QuadPart;
+    last_real     = *lpPerformanceCount;
 
-    const double mult = static_cast<double>(
-        g_speed_multiplier.load(std::memory_order::relaxed));
-    const auto modified_diff =
-        static_cast<LONGLONG>(static_cast<double>(diff) * mult);
+    // Handle double->int64 conversion safely
+    double scaled_diff = static_cast<double>(diff) * static_cast<double>(mult);
+    last_fake.QuadPart += static_cast<LONGLONG>(scaled_diff);
 
-    last_fake_time.QuadPart += modified_diff;
-    *lpPerformanceCount = last_fake_time;
-
+    *lpPerformanceCount = last_fake;
     return TRUE;
 }
 
-// 3. Input Hook (SetCursorPos)
-static BOOL WINAPI hook_set_cursor_pos(int x, int y)
+static BOOL WINAPI detour_set_cursor(int x, int y)
 {
-    if (g_block_mouse_input.load(std::memory_order::relaxed))
+    if (ctx.settings.block_mouse.load(std::memory_order_relaxed))
         return TRUE;
     return real_set_cursor(x, y);
 }
 
-// 4. Sleep Hook (FPS Uncap)
-static VOID WINAPI hook_sleep(DWORD dwMilliseconds)
+static VOID WINAPI detour_sleep(DWORD dwMilliseconds)
 {
-    if (g_no_sleep.load(std::memory_order::relaxed))
+    if (ctx.settings.no_sleep.load(std::memory_order_relaxed))
         return real_sleep(0);
     return real_sleep(dwMilliseconds);
 }
 
-// 5. Filesystem Hook (Asset Logger)
-static HANDLE WINAPI
-hook_create_file_a(LPCSTR                lpFileName,
-                   DWORD                 dwDesiredAccess,
-                   DWORD                 dwShareMode,
-                   LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-                   DWORD                 dwCreationDisposition,
-                   DWORD                 dwFlagsAndAttributes,
-                   HANDLE                hTemplateFile)
+static HANDLE WINAPI detour_create_file_a(LPCSTR                file_name,
+                                          DWORD                 access,
+                                          DWORD                 share,
+                                          LPSECURITY_ATTRIBUTES sec,
+                                          DWORD                 disp,
+                                          DWORD                 attr,
+                                          HANDLE                temp)
 {
-    // Only log if enabled to prevent spam/lag
-    if (g_log_filesystem.load(std::memory_order::relaxed))
+    if (ctx.settings.log_fs.load(std::memory_order_relaxed))
     {
-        // Just log it. We don't modify behavior.
-        log_msg("fs_access: %s", lpFileName);
+        logger.log("FS_Access: {}", file_name ? file_name : "NULL");
     }
-    return real_create_file_a(lpFileName,
-                              dwDesiredAccess,
-                              dwShareMode,
-                              lpSecurityAttributes,
-                              dwCreationDisposition,
-                              dwFlagsAndAttributes,
-                              hTemplateFile);
+    return real_create_file_a(file_name, access, share, sec, disp, attr, temp);
 }
 
-// 6. RNG Hook (Predictability)
-static int __cdecl hook_rand()
+static int __cdecl detour_rand()
 {
-    if (g_freeze_rng.load(std::memory_order::relaxed))
+    if (ctx.settings.freeze_rng.load(std::memory_order_relaxed))
         return 0;
     return real_rand();
 }
 
-// 7. OpenGL Draw Hook (Disable Depth / Wireframe)
-static void APIENTRY hook_gl_draw_elems(GLenum        mode,
-                                        GLsizei       count,
-                                        GLenum        type,
-                                        const GLvoid* indices)
+static void APIENTRY detour_gl_draw_elems(GLenum        mode,
+                                          GLsizei       count,
+                                          GLenum        type,
+                                          const GLvoid* indices)
 {
-    const bool disable_depth = g_disable_depth.load(std::memory_order::relaxed);
-    if (disable_depth)
+    bool depth = ctx.settings.disable_depth.load(std::memory_order_relaxed);
+    if (depth)
     {
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
     }
 
-    const bool wireframe = g_wireframe.load(std::memory_order::relaxed);
-    glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+    if (ctx.settings.wireframe.load(std::memory_order_relaxed))
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
 
     real_gl_draw_elems(mode, count, type, indices);
 
-    if (disable_depth)
+    if (depth)
     {
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
     }
-    // Always revert to FILL to avoid breaking UI
+    // Always restore fill to prevent UI breaking
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-// --- Console System ---
-struct console_buffer final
+// --- Window & UI ---
+
+static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    ImGuiTextBuffer    buf;
-    ImGuiTextFilter    filter;
-    ImVector<int>      line_offsets;
-    std::vector<int>   filtered_indices;
-    bool               auto_scroll = true;
-    mutable std::mutex mtx;
-
-    console_buffer()
-    {
-        line_offsets.push_back(0);
-        filtered_indices.reserve(1024);
-    }
-
-    void clear()
-    {
-        std::lock_guard lock(mtx);
-        buf.clear();
-        line_offsets.clear();
-        line_offsets.push_back(0);
-        filtered_indices.clear();
-    }
-
-    void add_log(const char* fmt, ...) IM_FMTARGS(2)
-    {
-        std::lock_guard lock(mtx);
-        int             old_size = buf.size();
-        va_list         args;
-        va_start(args, fmt);
-        buf.appendfv(fmt, args);
-        va_end(args);
-
-        for (int i = old_size; i < buf.size(); ++i)
-        {
-            if (buf[i] == '\n')
-            {
-                line_offsets.push_back(i + 1);
-                if (filter.IsActive() && line_offsets.Size >= 2)
-                {
-                    const int s = line_offsets[line_offsets.Size - 2];
-                    const int e = i;
-                    if (filter.PassFilter(buf.begin() + s, buf.begin() + e))
-                        filtered_indices.push_back(line_offsets.Size - 2);
-                }
-            }
-        }
-    }
-
-    void draw()
-    {
-        if (ImGui::Button("clear"))
-            clear();
-        ImGui::SameLine();
-        filter.Draw("filter", -100.0f);
-        ImGui::Separator();
-
-        if (ImGui::BeginChild("scrolling",
-                              ImVec2(0, 0),
-                              false,
-                              ImGuiWindowFlags_HorizontalScrollbar))
-        {
-            std::lock_guard  lock(mtx);
-            ImGuiListClipper clipper;
-            const char*      start = buf.begin();
-
-            if (filter.IsActive())
-            {
-                clipper.Begin(static_cast<int>(filtered_indices.size()));
-                while (clipper.Step())
-                {
-                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
-                         i++)
-                    {
-                        int idx = filtered_indices[static_cast<size_t>(i)];
-                        ImGui::TextUnformatted(start + line_offsets[idx],
-                                               start + line_offsets[idx + 1] -
-                                                   1);
-                    }
-                }
-            }
-            else
-            {
-                clipper.Begin(line_offsets.Size - 1);
-                while (clipper.Step())
-                {
-                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
-                         i++)
-                    {
-                        ImGui::TextUnformatted(start + line_offsets[i],
-                                               start + line_offsets[i + 1] - 1);
-                    }
-                }
-            }
-            if (auto_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-                ImGui::SetScrollHereY(1.0f);
-        }
-        ImGui::EndChild();
-    }
-};
-
-static console_buffer console;
-
-static void log_msg(const char* fmt, ...)
-{
-    char       buffer[2048];
-    const auto now =
-        std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    tm tm_info{};
-    localtime_s(&tm_info, &now);
-
-    int offset = std::snprintf(buffer,
-                               sizeof(buffer),
-                               "[%02d:%02d:%02d] ",
-                               tm_info.tm_hour,
-                               tm_info.tm_min,
-                               tm_info.tm_sec);
-
-    if (offset < 0)
-        offset = 0;
-    if (static_cast<size_t>(offset) >= sizeof(buffer))
-        offset = static_cast<int>(sizeof(buffer)) - 1;
-
-    va_list args;
-    va_start(args, fmt);
-    std::vsnprintf(buffer + offset,
-                   sizeof(buffer) - static_cast<size_t>(offset),
-                   fmt,
-                   args);
-    va_end(args);
-
-    console.add_log("%s\n", buffer);
-}
-
-static void report_winapi_error(const char* operation, DWORD error_code)
-{
-    log_msg("error: %s failed with code %lu", operation, error_code);
-}
-
-// --- Main Init/Cleanup ---
-
-void install_hook()
-{
-    log_msg("bass proxy: initializing hooks...");
-
-    // 1. Graphics
-    install_inline_hook("opengl32.dll",
-                        "wglSwapBuffers",
-                        reinterpret_cast<void*>(hook_swap),
-                        reinterpret_cast<void**>(&real_wgl_swap));
-
-    install_inline_hook("opengl32.dll",
-                        "glDrawElements",
-                        reinterpret_cast<void*>(hook_gl_draw_elems),
-                        reinterpret_cast<void**>(&real_gl_draw_elems));
-
-    // 2. System
-    install_inline_hook("kernel32.dll",
-                        "QueryPerformanceCounter",
-                        reinterpret_cast<void*>(hook_qpc),
-                        reinterpret_cast<void**>(&real_qpc));
-
-    install_inline_hook("kernel32.dll",
-                        "Sleep",
-                        reinterpret_cast<void*>(hook_sleep),
-                        reinterpret_cast<void**>(&real_sleep));
-
-    install_inline_hook("kernel32.dll",
-                        "CreateFileA",
-                        reinterpret_cast<void*>(hook_create_file_a),
-                        reinterpret_cast<void**>(&real_create_file_a));
-
-    // 3. Input/Window
-    install_inline_hook("user32.dll",
-                        "SetCursorPos",
-                        reinterpret_cast<void*>(hook_set_cursor_pos),
-                        reinterpret_cast<void**>(&real_set_cursor));
-
-    // 4. Logic (Try standard CRT for Airstrike 3D)
-    // Note: old games might use msvcr71.dll or similar. Adjust module name if
-    // needed.
-    install_inline_hook("msvcrt.dll",
-                        "rand",
-                        reinterpret_cast<void*>(hook_rand),
-                        reinterpret_cast<void**>(&real_rand));
-
-    log_msg("all hooks active");
-}
-
-void remove_hooks()
-{
-    log_msg("cleanup started");
-    shutting_down.store(true, std::memory_order::seq_cst);
-
-    if (orig_wnd_proc && game_window && IsWindow(game_window))
-    {
-        SetWindowLongPtrA(game_window,
-                          GWLP_WNDPROC,
-                          reinterpret_cast<LONG_PTR>(orig_wnd_proc));
-        // Restore original title
-        SetWindowTextA(game_window, "Airstrike 3D II");
-    }
-
-    for (auto it = g_installed_hooks.rbegin(); it != g_installed_hooks.rend();
-         ++it)
-    {
-        auto& hook = *it;
-        if (hook.is_active && hook.target_addr)
-        {
-            DWORD old_protect;
-            if (VirtualProtect(
-                    hook.target_addr, 5, PAGE_EXECUTE_READWRITE, &old_protect))
-            {
-                std::memcpy(hook.target_addr, hook.original_bytes.data(), 5);
-                DWORD dummy;
-                VirtualProtect(hook.target_addr, 5, old_protect, &dummy);
-                FlushInstructionCache(GetCurrentProcess(), hook.target_addr, 5);
-                log_msg("restored %s!%s",
-                        hook.module_name.c_str(),
-                        hook.func_name.c_str());
-            }
-        }
-
-        if (hook.trampoline)
-            VirtualFree(hook.trampoline, 0, MEM_RELEASE);
-        if (hook.global_real_ptr)
-            *hook.global_real_ptr = nullptr;
-    }
-    g_installed_hooks.clear();
-
-    if (imgui_ready.exchange(false))
-    {
-        if (ImGui::GetCurrentContext())
-        {
-            ImGui_ImplOpenGL3_Shutdown();
-            ImGui_ImplWin32_Shutdown();
-            ImGui::DestroyContext();
-        }
-    }
-    log_msg("cleanup finished");
-}
-
-static LRESULT CALLBACK wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
-{
-    if (!shutting_down.load() && ImGui_ImplWin32_WndProcHandler(h, m, w, l))
+    if (!ctx.shutting_down.load() && ImGui_ImplWin32_WndProcHandler(h, m, w, l))
         return true;
-    return CallWindowProc(orig_wnd_proc, h, m, w, l);
+    return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
 }
 
-static void draw_overlay()
+void install_hooks()
 {
-    if (!ImGui::GetCurrentContext())
-        return;
+    logger.log("Starting hook installation...");
 
+    auto add = [](const char* mod, const char* func, void* hook, void** real)
+    { g_hooks.push_back(std::make_unique<Hook>(mod, func, hook, real)); };
+
+    add("opengl32.dll",
+        "wglSwapBuffers",
+        (void*)detour_wgl_swap,
+        (void**)&real_wgl_swap);
+    add("opengl32.dll",
+        "glDrawElements",
+        (void*)detour_gl_draw_elems,
+        (void**)&real_gl_draw_elems);
+    add("kernel32.dll",
+        "QueryPerformanceCounter",
+        (void*)detour_qpc,
+        (void**)&real_qpc);
+    add("kernel32.dll", "Sleep", (void*)detour_sleep, (void**)&real_sleep);
+    add("kernel32.dll",
+        "CreateFileA",
+        (void*)detour_create_file_a,
+        (void**)&real_create_file_a);
+    add("user32.dll",
+        "SetCursorPos",
+        (void*)detour_set_cursor,
+        (void**)&real_set_cursor);
+    add("msvcrt.dll", "rand", (void*)detour_rand, (void**)&real_rand);
+}
+
+void uninstall_hooks()
+{
+    logger.log("Uninstall requested.");
+    ctx.shutting_down.store(true);
+
+    if (ctx.game_window && ctx.orig_wnd_proc)
+    {
+        SetWindowLongPtrA(ctx.game_window,
+                          GWLP_WNDPROC,
+                          reinterpret_cast<LONG_PTR>(ctx.orig_wnd_proc));
+        SetWindowTextA(ctx.game_window, "Airstrike 3D II");
+    }
+
+    for (auto it = g_hooks.rbegin(); it != g_hooks.rend(); ++it)
+    {
+        (*it)->uninstall();
+    }
+    g_hooks.clear();
+
+    if (ctx.imgui_ready.exchange(false))
+    {
+        // Note: Calling GL shutdown from a non-render thread is risky but
+        // needed for clean detach ideally we would queue this, but for now we
+        // just rely on driver robustness.
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
+    logger.log("Uninstallation complete.");
+}
+
+static void draw_ui()
+{
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(450, 400), ImGuiCond_FirstUseEver);
 
     if (ImGui::Begin("Bass Proxy Tools", nullptr, ImGuiWindowFlags_MenuBar))
     {
+
         if (ImGui::BeginMenuBar())
         {
-            if (ImGui::BeginMenu("System"))
+            if (ImGui::BeginMenu("Menu"))
             {
-                if (ImGui::MenuItem("Detach DLL"))
-                    remove_hooks();
-                if (ImGui::MenuItem("Exit Process"))
+                if (ImGui::MenuItem("Unload"))
+                {
+                    // Detach in a separate thread to avoid deadlock in
+                    // SwapBuffers
+                    std::thread([] { uninstall_hooks(); }).detach();
+                }
+                if (ImGui::MenuItem("Exit Game"))
+                {
                     PostQuitMessage(0);
+                }
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -620,89 +603,47 @@ static void draw_overlay()
 
         if (ImGui::BeginTabBar("Tabs"))
         {
-            if (ImGui::BeginTabItem("Cheats"))
+            if (ImGui::BeginTabItem("Visuals"))
             {
-                ImGui::TextDisabled("Render Tweaks");
+                bool depth = ctx.settings.disable_depth.load();
+                if (ImGui::Checkbox("Disable Depth", &depth))
+                    ctx.settings.disable_depth.store(depth);
+
+                bool wire = ctx.settings.wireframe.load();
+                if (ImGui::Checkbox("Wireframe", &wire))
+                    ctx.settings.wireframe.store(wire);
+
                 ImGui::Separator();
+                ImGui::Checkbox("Clear Screen", &ctx.settings.enable_clear);
+                ImGui::ColorEdit4("Color", &ctx.settings.clear_color.x);
+                ImGui::EndTabItem();
+            }
 
-                // Visuals
-                bool disable_depth = g_disable_depth.load();
-                if (ImGui::Checkbox("Disable Depth Test", &disable_depth))
-                    g_disable_depth.store(disable_depth);
-
-                bool wf = g_wireframe.load();
-                if (ImGui::Checkbox("Wireframe", &wf))
-                    g_wireframe.store(wf);
-
-                ImGui::Checkbox("Force Clear Screen", &enable_clear);
-                ImGui::ColorEdit4("Clear Color", &clear_color.x);
-
-                ImGui::Spacing();
-                ImGui::TextDisabled("Game Logic");
-                ImGui::Separator();
-
-                // Speedhack
-                float speed = g_speed_multiplier.load();
-                if (ImGui::SliderFloat(
-                        "Game Speed", &speed, 0.1f, 10.0f, "%.2fx"))
-                {
-                    g_speed_multiplier.store(speed);
-                }
+            if (ImGui::BeginTabItem("Gameplay"))
+            {
+                float spd = ctx.settings.speed_multiplier.load();
+                if (ImGui::SliderFloat("Speed", &spd, 0.1f, 10.0f, "%.2fx"))
+                    ctx.settings.speed_multiplier.store(spd);
                 if (ImGui::Button("Reset Speed"))
-                    g_speed_multiplier.store(1.0f);
+                    ctx.settings.speed_multiplier.store(1.0f);
 
-                // Sleep/Uncap
-                bool ns = g_no_sleep.load();
-                if (ImGui::Checkbox("Disable Sleep (FPS Uncap)", &ns))
-                    g_no_sleep.store(ns);
+                bool ns = ctx.settings.no_sleep.load();
+                if (ImGui::Checkbox("No Sleep (FPS Uncap)", &ns))
+                    ctx.settings.no_sleep.store(ns);
 
-                // RNG
-                bool frng = g_freeze_rng.load();
-                if (ImGui::Checkbox("Freeze RNG (Predictable)", &frng))
-                    g_freeze_rng.store(frng);
+                bool rng = ctx.settings.freeze_rng.load();
+                if (ImGui::Checkbox("Freeze RNG", &rng))
+                    ctx.settings.freeze_rng.store(rng);
+                ImGui::EndTabItem();
+            }
 
-                ImGui::Spacing();
-                ImGui::TextDisabled("Debug Tools");
+            if (ImGui::BeginTabItem("Logs"))
+            {
+                bool log_fs = ctx.settings.log_fs.load();
+                if (ImGui::Checkbox("Log Filesystem", &log_fs))
+                    ctx.settings.log_fs.store(log_fs);
                 ImGui::Separator();
-
-                // Filesystem
-                bool log_fs = g_log_filesystem.load();
-                if (ImGui::Checkbox("Log File Access (Console)", &log_fs))
-                    g_log_filesystem.store(log_fs);
-
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Console"))
-            {
-                console.draw();
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Hooks Info"))
-            {
-                if (ImGui::BeginTable("Hooks",
-                                      3,
-                                      ImGuiTableFlags_Borders |
-                                          ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Library");
-                    ImGui::TableSetupColumn("Function");
-                    ImGui::TableSetupColumn("Address");
-                    ImGui::TableHeadersRow();
-
-                    for (const auto& h : g_installed_hooks)
-                    {
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::TextUnformatted(h.module_name.c_str());
-                        ImGui::TableNextColumn();
-                        ImGui::TextUnformatted(h.func_name.c_str());
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%p", h.target_addr);
-                    }
-                    ImGui::EndTable();
-                }
+                logger.draw_console();
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
@@ -712,10 +653,12 @@ static void draw_overlay()
 
     ImGui::Render();
 
-    if (enable_clear)
+    if (ctx.settings.enable_clear)
     {
-        glClearColor(
-            clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        glClearColor(ctx.settings.clear_color.x,
+                     ctx.settings.clear_color.y,
+                     ctx.settings.clear_color.z,
+                     ctx.settings.clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
     }
 

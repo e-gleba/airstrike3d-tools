@@ -1,5 +1,5 @@
 #pragma once
 
-void install_hook();
+void install_hooks();
 
-void remove_hooks();
+void uninstall_hooks();
