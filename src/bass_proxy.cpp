@@ -6,6 +6,7 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -32,7 +33,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
 static void                   draw_overlay();
 static void                   log_msg(const char* fmt, ...);
 static void report_winapi_error(const char* operation, DWORD error_code);
-// FIX 1: Forward declare wnd_proc so hook_swap can see it
 static LRESULT CALLBACK wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
 
 // --- Globals & State ---
@@ -41,22 +41,43 @@ static WNDPROC           orig_wnd_proc = nullptr;
 static std::atomic<bool> imgui_ready   = false;
 static std::atomic<bool> shutting_down = false;
 
-// Cheat States
-static ImVec4             clear_color         = ImVec4(0, 0, 0, 0);
-static bool               enable_clear        = false;
-static bool               wireframe           = false;
+// --- Cheat Toggles ---
 static std::atomic<float> g_speed_multiplier  = 1.0f;
 static std::atomic<bool>  g_block_mouse_input = false;
+static std::atomic<bool>  g_disable_depth     = false; // Renamed from wallhack
+static std::atomic<bool>  g_no_sleep          = false;
+static std::atomic<bool>  g_wireframe         = false;
+static std::atomic<bool> g_log_filesystem = false; // New: Log CreateFileA calls
+static std::atomic<bool> g_freeze_rng     = false; // New: Force rand() to 0
+
+// Visual Settings
+static ImVec4 clear_color  = ImVec4(0, 0, 0, 0);
+static bool   enable_clear = false;
 
 // --- Function Signatures ---
-using wgl_swap_t   = BOOL(WINAPI*)(HDC);
-using qpc_t        = BOOL(WINAPI*)(LARGE_INTEGER*);
-using set_cursor_t = BOOL(WINAPI*)(int, int);
+// Standard Windows
+using wgl_swap_t      = BOOL(WINAPI*)(HDC);
+using qpc_t           = BOOL(WINAPI*)(LARGE_INTEGER*);
+using set_cursor_t    = BOOL(WINAPI*)(int, int);
+using sleep_t         = VOID(WINAPI*)(DWORD);
+using create_file_a_t = HANDLE(WINAPI*)(
+    LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+using set_wnd_text_t = BOOL(WINAPI*)(HWND, LPCSTR);
+
+// Standard C Runtime (using cdecl for msvcrt)
+using rand_t = int(__cdecl*)();
+
+// OpenGL
+using gl_draw_elems_t = void(APIENTRY*)(GLenum, GLsizei, GLenum, const GLvoid*);
 
 // --- Real Function Pointers (Trampolines) ---
-static wgl_swap_t   real_wgl_swap   = nullptr;
-static qpc_t        real_qpc        = nullptr;
-static set_cursor_t real_set_cursor = nullptr;
+static wgl_swap_t      real_wgl_swap      = nullptr;
+static qpc_t           real_qpc           = nullptr;
+static set_cursor_t    real_set_cursor    = nullptr;
+static sleep_t         real_sleep         = nullptr;
+static create_file_a_t real_create_file_a = nullptr;
+static rand_t          real_rand          = nullptr;
+static gl_draw_elems_t real_gl_draw_elems = nullptr;
 
 // --- Hooking Infrastructure ---
 
@@ -83,14 +104,15 @@ static bool install_inline_hook(const char* module_name,
     const HMODULE mod = GetModuleHandleA(module_name);
     if (!mod)
     {
-        report_winapi_error("GetModuleHandleA", GetLastError());
+        // Don't spam error if msvcrt isn't loaded (some static builds)
+        log_msg("warning: module %s not found, skipping hook", module_name);
         return false;
     }
 
     void* target_void = reinterpret_cast<void*>(GetProcAddress(mod, func_name));
     if (!target_void)
     {
-        report_winapi_error("GetProcAddress", GetLastError());
+        log_msg("warning: function %s not found in %s", func_name, module_name);
         return false;
     }
 
@@ -154,6 +176,7 @@ static bool install_inline_hook(const char* module_name,
 
 // --- Hook Implementations ---
 
+// 1. Overlay Hook (SwapBuffers)
 [[nodiscard]] static bool WINAPI hook_swap(HDC dc) noexcept
 {
     const bool is_ui_open = imgui_ready.load(std::memory_order::acquire);
@@ -190,6 +213,10 @@ static bool install_inline_hook(const char* module_name,
                     ImGui_ImplWin32_Init(game_window);
                     ImGui_ImplOpenGL3_Init("#version 330 core");
 
+                    // Force update window title once to signal attached status
+                    SetWindowTextA(game_window,
+                                   "Airstrike 3D II [DEBUG ATTACHED]");
+
                     imgui_ready.store(true, std::memory_order::release);
                     log_msg("imgui initialized");
                 }
@@ -199,11 +226,11 @@ static bool install_inline_hook(const char* module_name,
     return real_wgl_swap(dc);
 }
 
+// 2. Speedhack Hook (QPC)
 static BOOL WINAPI hook_qpc(LARGE_INTEGER* lpPerformanceCount)
 {
     if (!real_qpc)
         return FALSE;
-
     const BOOL result = real_qpc(lpPerformanceCount);
     if (!result)
         return FALSE;
@@ -238,13 +265,80 @@ static BOOL WINAPI hook_qpc(LARGE_INTEGER* lpPerformanceCount)
     return TRUE;
 }
 
+// 3. Input Hook (SetCursorPos)
 static BOOL WINAPI hook_set_cursor_pos(int x, int y)
 {
     if (g_block_mouse_input.load(std::memory_order::relaxed))
-    {
         return TRUE;
-    }
     return real_set_cursor(x, y);
+}
+
+// 4. Sleep Hook (FPS Uncap)
+static VOID WINAPI hook_sleep(DWORD dwMilliseconds)
+{
+    if (g_no_sleep.load(std::memory_order::relaxed))
+        return real_sleep(0);
+    return real_sleep(dwMilliseconds);
+}
+
+// 5. Filesystem Hook (Asset Logger)
+static HANDLE WINAPI
+hook_create_file_a(LPCSTR                lpFileName,
+                   DWORD                 dwDesiredAccess,
+                   DWORD                 dwShareMode,
+                   LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+                   DWORD                 dwCreationDisposition,
+                   DWORD                 dwFlagsAndAttributes,
+                   HANDLE                hTemplateFile)
+{
+    // Only log if enabled to prevent spam/lag
+    if (g_log_filesystem.load(std::memory_order::relaxed))
+    {
+        // Just log it. We don't modify behavior.
+        log_msg("fs_access: %s", lpFileName);
+    }
+    return real_create_file_a(lpFileName,
+                              dwDesiredAccess,
+                              dwShareMode,
+                              lpSecurityAttributes,
+                              dwCreationDisposition,
+                              dwFlagsAndAttributes,
+                              hTemplateFile);
+}
+
+// 6. RNG Hook (Predictability)
+static int __cdecl hook_rand()
+{
+    if (g_freeze_rng.load(std::memory_order::relaxed))
+        return 0;
+    return real_rand();
+}
+
+// 7. OpenGL Draw Hook (Disable Depth / Wireframe)
+static void APIENTRY hook_gl_draw_elems(GLenum        mode,
+                                        GLsizei       count,
+                                        GLenum        type,
+                                        const GLvoid* indices)
+{
+    const bool disable_depth = g_disable_depth.load(std::memory_order::relaxed);
+    if (disable_depth)
+    {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+    }
+
+    const bool wireframe = g_wireframe.load(std::memory_order::relaxed);
+    glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+
+    real_gl_draw_elems(mode, count, type, indices);
+
+    if (disable_depth)
+    {
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+    }
+    // Always revert to FILL to avoid breaking UI
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 // --- Console System ---
@@ -322,8 +416,6 @@ struct console_buffer final
                     for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
                          i++)
                     {
-                        // FIX 2: Explicit static_cast<size_t>(i) for vector
-                        // indexing
                         int idx = filtered_indices[static_cast<size_t>(i)];
                         ImGui::TextUnformatted(start + line_offsets[idx],
                                                start + line_offsets[idx + 1] -
@@ -375,8 +467,6 @@ static void log_msg(const char* fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-
-    // FIX 3: Explicit static_cast<size_t>(offset) for subtraction
     std::vsnprintf(buffer + offset,
                    sizeof(buffer) - static_cast<size_t>(offset),
                    fmt,
@@ -395,36 +485,50 @@ static void report_winapi_error(const char* operation, DWORD error_code)
 
 void install_hook()
 {
-    log_msg("bass proxy: core systems loading...");
+    log_msg("bass proxy: initializing hooks...");
 
-    // Hook 1: OpenGL Swap Buffers
-    if (!install_inline_hook("opengl32.dll",
-                             "wglSwapBuffers",
-                             reinterpret_cast<void*>(hook_swap),
-                             reinterpret_cast<void**>(&real_wgl_swap)))
-    {
-        log_msg("critical error: failed to hook wglSwapBuffers");
-    }
+    // 1. Graphics
+    install_inline_hook("opengl32.dll",
+                        "wglSwapBuffers",
+                        reinterpret_cast<void*>(hook_swap),
+                        reinterpret_cast<void**>(&real_wgl_swap));
 
-    // Hook 2: Kernel32 Speedhack
-    if (install_inline_hook("kernel32.dll",
-                            "QueryPerformanceCounter",
-                            reinterpret_cast<void*>(hook_qpc),
-                            reinterpret_cast<void**>(&real_qpc)))
-    {
-        log_msg("speedhack subsystem active");
-    }
+    install_inline_hook("opengl32.dll",
+                        "glDrawElements",
+                        reinterpret_cast<void*>(hook_gl_draw_elems),
+                        reinterpret_cast<void**>(&real_gl_draw_elems));
 
-    // Hook 3: User32 Input Blocking
-    if (install_inline_hook("user32.dll",
-                            "SetCursorPos",
-                            reinterpret_cast<void*>(hook_set_cursor_pos),
-                            reinterpret_cast<void**>(&real_set_cursor)))
-    {
-        log_msg("input blocking subsystem active");
-    }
+    // 2. System
+    install_inline_hook("kernel32.dll",
+                        "QueryPerformanceCounter",
+                        reinterpret_cast<void*>(hook_qpc),
+                        reinterpret_cast<void**>(&real_qpc));
 
-    log_msg("all hooks installed");
+    install_inline_hook("kernel32.dll",
+                        "Sleep",
+                        reinterpret_cast<void*>(hook_sleep),
+                        reinterpret_cast<void**>(&real_sleep));
+
+    install_inline_hook("kernel32.dll",
+                        "CreateFileA",
+                        reinterpret_cast<void*>(hook_create_file_a),
+                        reinterpret_cast<void**>(&real_create_file_a));
+
+    // 3. Input/Window
+    install_inline_hook("user32.dll",
+                        "SetCursorPos",
+                        reinterpret_cast<void*>(hook_set_cursor_pos),
+                        reinterpret_cast<void**>(&real_set_cursor));
+
+    // 4. Logic (Try standard CRT for Airstrike 3D)
+    // Note: old games might use msvcr71.dll or similar. Adjust module name if
+    // needed.
+    install_inline_hook("msvcrt.dll",
+                        "rand",
+                        reinterpret_cast<void*>(hook_rand),
+                        reinterpret_cast<void**>(&real_rand));
+
+    log_msg("all hooks active");
 }
 
 void remove_hooks()
@@ -437,6 +541,8 @@ void remove_hooks()
         SetWindowLongPtrA(game_window,
                           GWLP_WNDPROC,
                           reinterpret_cast<LONG_PTR>(orig_wnd_proc));
+        // Restore original title
+        SetWindowTextA(game_window, "Airstrike 3D II");
     }
 
     for (auto it = g_installed_hooks.rbegin(); it != g_installed_hooks.rend();
@@ -460,14 +566,9 @@ void remove_hooks()
         }
 
         if (hook.trampoline)
-        {
             VirtualFree(hook.trampoline, 0, MEM_RELEASE);
-        }
-
         if (hook.global_real_ptr)
-        {
             *hook.global_real_ptr = nullptr;
-        }
     }
     g_installed_hooks.clear();
 
@@ -480,7 +581,6 @@ void remove_hooks()
             ImGui::DestroyContext();
         }
     }
-
     log_msg("cleanup finished");
 }
 
@@ -501,14 +601,16 @@ static void draw_overlay()
     ImGui::NewFrame();
 
     ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
 
     if (ImGui::Begin("Bass Proxy Tools", nullptr, ImGuiWindowFlags_MenuBar))
     {
         if (ImGui::BeginMenuBar())
         {
-            if (ImGui::BeginMenu("Game"))
+            if (ImGui::BeginMenu("System"))
             {
+                if (ImGui::MenuItem("Detach DLL"))
+                    remove_hooks();
                 if (ImGui::MenuItem("Exit Process"))
                     PostQuitMessage(0);
                 ImGui::EndMenu();
@@ -520,27 +622,53 @@ static void draw_overlay()
         {
             if (ImGui::BeginTabItem("Cheats"))
             {
-                ImGui::TextDisabled("Gameplay Modifiers");
+                ImGui::TextDisabled("Render Tweaks");
                 ImGui::Separator();
 
-                ImGui::Text("Time Scale (Speedhack)");
+                // Visuals
+                bool disable_depth = g_disable_depth.load();
+                if (ImGui::Checkbox("Disable Depth Test", &disable_depth))
+                    g_disable_depth.store(disable_depth);
+
+                bool wf = g_wireframe.load();
+                if (ImGui::Checkbox("Wireframe", &wf))
+                    g_wireframe.store(wf);
+
+                ImGui::Checkbox("Force Clear Screen", &enable_clear);
+                ImGui::ColorEdit4("Clear Color", &clear_color.x);
+
+                ImGui::Spacing();
+                ImGui::TextDisabled("Game Logic");
+                ImGui::Separator();
+
+                // Speedhack
                 float speed = g_speed_multiplier.load();
-                if (ImGui::SliderFloat("##speed", &speed, 0.1f, 5.0f, "%.2fx"))
+                if (ImGui::SliderFloat(
+                        "Game Speed", &speed, 0.1f, 10.0f, "%.2fx"))
                 {
                     g_speed_multiplier.store(speed);
                 }
                 if (ImGui::Button("Reset Speed"))
                     g_speed_multiplier.store(1.0f);
 
+                // Sleep/Uncap
+                bool ns = g_no_sleep.load();
+                if (ImGui::Checkbox("Disable Sleep (FPS Uncap)", &ns))
+                    g_no_sleep.store(ns);
+
+                // RNG
+                bool frng = g_freeze_rng.load();
+                if (ImGui::Checkbox("Freeze RNG (Predictable)", &frng))
+                    g_freeze_rng.store(frng);
+
                 ImGui::Spacing();
+                ImGui::TextDisabled("Debug Tools");
                 ImGui::Separator();
 
-                ImGui::Text("Visuals");
-                ImGui::Checkbox("Wireframe Mode", &wireframe);
-                glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
-
-                ImGui::Checkbox("Force Clear Screen", &enable_clear);
-                ImGui::ColorEdit4("Clear Color", &clear_color.x);
+                // Filesystem
+                bool log_fs = g_log_filesystem.load();
+                if (ImGui::Checkbox("Log File Access (Console)", &log_fs))
+                    g_log_filesystem.store(log_fs);
 
                 ImGui::EndTabItem();
             }
