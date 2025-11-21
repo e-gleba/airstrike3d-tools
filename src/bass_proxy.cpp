@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -541,9 +542,9 @@ void uninstall_hooks()
         SetWindowTextA(ctx.game_window, "Airstrike 3D II");
     }
 
-    for (auto it = g_hooks.rbegin(); it != g_hooks.rend(); ++it)
+    for (auto& g_hook : std::ranges::reverse_view(g_hooks))
     {
-        (*it)->uninstall();
+        g_hook->uninstall();
     }
     g_hooks.clear();
 
