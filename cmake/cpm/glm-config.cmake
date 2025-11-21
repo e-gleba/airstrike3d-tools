@@ -6,6 +6,8 @@ cpmaddpackage(
     GIT_TAG
     1.0.2
     OPTIONS
-        "GLM_TEST_ENABLE OFF"
-        "BUILD_TESTING OFF"
+        "GLM_BUILD_TESTS OFF"
+        "GLM_BUILD_INSTALL OFF"
+        "GLM_ENABLE_CXX_20 ON"
+        "GLM_ENABLE_LANG_EXTENSIONS ON"
 EXCLUDE_FROM_ALL YES)

@@ -2,7 +2,7 @@ cpmaddpackage(
     NAME
     imgui
     VERSION
-    1.92.4
+    1.92.5
     GITHUB_REPOSITORY
     ocornut/imgui
     DOWNLOAD_ONLY

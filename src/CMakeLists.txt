@@ -26,7 +26,7 @@ function(generate_proxy_def input_dll output_var)
            "[0-9]+[ \t]+0x[0-9a-fA-F]+[ \t]+[^ \t\r\n]+"
            raw_exports "${dump_output}")
 
-    set(content "LIBRARY \"${dll_stem}\"\nEXPORTS\n")
+    set(content "LIBRARY \"${dll_stem}.dll\"\nEXPORTS\n")
 
     foreach(row IN LISTS raw_exports)
         # Extract Name (group 2) and Ordinal (group 1)
@@ -57,7 +57,6 @@ set_target_properties(
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
     PREFIX "" # no "lib" prefix
     )
 
@@ -67,4 +66,4 @@ target_link_options(
     -static
     -s)
 
-target_link_libraries(bass_proxy PRIVATE warnings imgui_opengl3 dwmapi glm)
+target_link_libraries(bass_proxy PRIVATE warnings imgui_opengl3 dwmapi glm minhook)

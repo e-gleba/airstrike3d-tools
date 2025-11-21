@@ -43,11 +43,11 @@ else()
         COMMAND
             ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/bass_real.dll"
+            "${CMAKE_CURRENT_BINARY_DIR}/original.dll"
         COMMAND
             ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/_bass_real.dll"
+            "${CMAKE_CURRENT_BINARY_DIR}/_original.dll"
         COMMAND
             ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bass_proxy>"
             "${CMAKE_CURRENT_BINARY_DIR}/bass.dll")
