@@ -1,13 +1,6 @@
-/*
-    Refactored BASS Proxy / OpenGL Hook
-    Target: C++26 (Clang/LLVM-MinGW)
-    Fixes: Case-sensitive includes, Wconversion warnings, Modern C++ idioms
-*/
-
 #define WIN32_LEAN_AND_MEAN
 #define _CRT_SECURE_NO_WARNINGS
 
-// Header Includes - Case Sensitive for Linux Cross-Compilation
 #include "bass_proxy.hpp"
 
 #include <GL/gl.h>
@@ -15,20 +8,16 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
 
-#include <psapi.h>   // Fixed: usually lowercase in MinGW
-#include <windows.h> // Fixed: lowercase w
+#include <psapi.h>
+#include <windows.h>
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
-#include <filesystem>
 #include <format>
 #include <fstream>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -36,8 +25,6 @@
 #include <string_view>
 #include <thread>
 #include <vector>
-
-// --- Type Definitions ---
 
 using wgl_swap_t      = BOOL(WINAPI*)(HDC);
 using qpc_t           = BOOL(WINAPI*)(LARGE_INTEGER*);
@@ -48,15 +35,12 @@ using create_file_a_t = HANDLE(WINAPI*)(
 using rand_t          = int(__cdecl*)();
 using gl_draw_elems_t = void(APIENTRY*)(GLenum, GLsizei, GLenum, const GLvoid*);
 
-// Forward declaration for ImGui Win32 handler
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
                                                              UINT,
                                                              WPARAM,
                                                              LPARAM);
 
-// --- Settings & State ---
-
-struct CheatSettings
+struct cheat_settings final
 {
     std::atomic<float> speed_multiplier{ 1.0f };
     std::atomic<bool>  block_mouse{ false };
@@ -66,36 +50,35 @@ struct CheatSettings
     std::atomic<bool>  log_fs{ false };
     std::atomic<bool>  freeze_rng{ false };
 
-    // Render settings (accessed only from render thread)
     ImVec4 clear_color{ 0.0f, 0.0f, 0.0f, 0.0f };
     bool   enable_clear{ false };
 };
 
-struct GlobalContext
+struct global_context final
 {
     HWND              game_window{ nullptr };
     WNDPROC           orig_wnd_proc{ nullptr };
     std::atomic<bool> imgui_ready{ false };
     std::atomic<bool> shutting_down{ false };
-    CheatSettings     settings;
+    cheat_settings    settings;
 };
 
-static GlobalContext ctx;
+static global_context ctx;
 
-// --- Logger ---
-
-class Logger
+class logger final
 {
 public:
-    Logger()
+    logger()
     {
         log_file.open("bass_proxy_log.txt", std::ios::out | std::ios::trunc);
     }
 
-    ~Logger()
+    ~logger()
     {
         if (log_file.is_open())
+        {
             log_file.close();
+        }
     }
 
     template <typename... Args>
@@ -103,8 +86,8 @@ public:
     {
         try
         {
-            // Format message
-            std::string msg = std::format(fmt, std::forward<Args>(args)...);
+            const std::string msg =
+                std::format(fmt, std::forward<Args>(args)...);
 
             // Get time (using system_clock compatible with older mingw runtimes
             // if chrono::current_zone is missing)
@@ -117,13 +100,13 @@ public:
             localtime_r(&sys_time, &local_tm);
 #endif
 
-            std::string timestamped = std::format("[{:02}:{:02}:{:02}] {}",
-                                                  local_tm.tm_hour,
-                                                  local_tm.tm_min,
-                                                  local_tm.tm_sec,
-                                                  msg);
+            const std::string timestamped =
+                std::format("[{:02}:{:02}:{:02}] {}",
+                            local_tm.tm_hour,
+                            local_tm.tm_min,
+                            local_tm.tm_sec,
+                            msg);
 
-            // File Output
             {
                 std::scoped_lock lock(file_mtx);
                 if (log_file.is_open())
@@ -132,7 +115,6 @@ public:
                 }
             }
 
-            // Console Output
             {
                 std::scoped_lock lock(console_mtx);
                 console_buf.append(timestamped.c_str());
@@ -142,7 +124,6 @@ public:
         }
         catch (...)
         {
-            // Fallback if formatting fails
         }
     }
 
@@ -200,11 +181,9 @@ private:
     bool            should_scroll = true;
 };
 
-static Logger logger;
+static logger logger;
 
-// --- Hook Class ---
-
-class Hook
+class trampoline_hook final
 {
 public:
     std::string            name;
@@ -214,14 +193,14 @@ public:
     std::array<uint8_t, 5> original_bytes{};
     bool                   active = false;
 
-    Hook(std::string_view module,
-         std::string_view func,
-         void*            detour,
-         void**           real_ptr)
+    trampoline_hook(std::string_view module,
+                    std::string_view func,
+                    void*            detour,
+                    void**           real_ptr)
         : name(std::format("{}!{}", module, func))
         , global_real_ptr(real_ptr)
     {
-        HMODULE mod = GetModuleHandleA(module.data());
+        const HMODULE mod = GetModuleHandleA(module.data());
         if (!mod)
         {
             logger.log("Module not found: {}", module);
@@ -236,7 +215,7 @@ public:
             return;
         }
 
-        uint8_t* target = static_cast<uint8_t*>(original_func);
+        auto target = static_cast<uint8_t*>(original_func);
 
         // Check for existing hook (JMP 0xE9)
         if (target[0] == 0xE9)
@@ -256,35 +235,33 @@ public:
             return;
         }
 
-        uint8_t* t_bytes = static_cast<uint8_t*>(trampoline);
+        const auto t_bytes = static_cast<uint8_t*>(trampoline);
 
-        // Copy original bytes
         std::memcpy(t_bytes, original_bytes.data(), 5);
 
         // JMP back to original + 5
-        t_bytes[5]      = 0xE9;
-        uintptr_t src_t = reinterpret_cast<uintptr_t>(trampoline) + 10;
-        uintptr_t dst_t = reinterpret_cast<uintptr_t>(original_func) + 5;
+        t_bytes[5]       = 0xE9;
+        const auto src_t = reinterpret_cast<uintptr_t>(trampoline) + 10;
+        const auto dst_t = reinterpret_cast<uintptr_t>(original_func) + 5;
 
-        // Explicit casting to silence -Wconversion
         // Arithmetic on uintptr_t is unsigned; casting to int32_t interprets as
         // relative offset
-        int32_t rel_t = static_cast<int32_t>(dst_t - src_t);
+        auto rel_t = static_cast<int32_t>(dst_t - src_t);
         std::memcpy(t_bytes + 6, &rel_t, sizeof(rel_t));
 
         // Install JMP at target
-        DWORD old_protect;
+        DWORD old_protect{};
         if (VirtualProtect(
                 original_func, 5, PAGE_EXECUTE_READWRITE, &old_protect))
         {
-            target[0]       = 0xE9;
-            uintptr_t src_h = reinterpret_cast<uintptr_t>(original_func) + 5;
-            uintptr_t dst_h = reinterpret_cast<uintptr_t>(detour);
-            int32_t   rel_h = static_cast<int32_t>(dst_h - src_h);
+            target[0]        = 0xE9;
+            const auto src_h = reinterpret_cast<uintptr_t>(original_func) + 5;
+            const auto dst_h = reinterpret_cast<uintptr_t>(detour);
+            const auto rel_h = static_cast<int32_t>(dst_h - src_h);
 
             std::memcpy(target + 1, &rel_h, sizeof(rel_h));
 
-            DWORD dummy;
+            DWORD dummy{};
             VirtualProtect(original_func, 5, old_protect, &dummy);
 
             FlushInstructionCache(GetCurrentProcess(), original_func, 5);
@@ -305,14 +282,16 @@ public:
     void uninstall()
     {
         if (!active || !original_func)
+        {
             return;
+        }
 
-        DWORD old_protect;
+        DWORD old_protect{};
         if (VirtualProtect(
                 original_func, 5, PAGE_EXECUTE_READWRITE, &old_protect))
         {
             std::memcpy(original_func, original_bytes.data(), 5);
-            DWORD dummy;
+            DWORD dummy{};
             VirtualProtect(original_func, 5, old_protect, &dummy);
             FlushInstructionCache(GetCurrentProcess(), original_func, 5);
             logger.log("Restored {}", name);
@@ -325,14 +304,14 @@ public:
         }
 
         if (global_real_ptr)
+        {
             *global_real_ptr = nullptr;
+        }
         active = false;
     }
 };
 
-static std::vector<std::unique_ptr<Hook>> g_hooks;
-
-// --- Real Function Pointers ---
+static std::vector<std::unique_ptr<trampoline_hook>> g_hooks;
 
 static wgl_swap_t      real_wgl_swap      = nullptr;
 static qpc_t           real_qpc           = nullptr;
@@ -342,14 +321,11 @@ static create_file_a_t real_create_file_a = nullptr;
 static rand_t          real_rand          = nullptr;
 static gl_draw_elems_t real_gl_draw_elems = nullptr;
 
-// --- Detours ---
-
 static void             draw_ui();
 static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
 
 static BOOL WINAPI detour_wgl_swap(HDC dc)
 {
-    // Atomic load with acquire memory order
     if (ctx.imgui_ready.load(std::memory_order_acquire))
     {
         if (ImGui::GetCurrentContext())
@@ -394,18 +370,20 @@ static BOOL WINAPI detour_wgl_swap(HDC dc)
     return real_wgl_swap(dc);
 }
 
-static BOOL WINAPI detour_qpc(LARGE_INTEGER* lpPerformanceCount)
+static BOOL WINAPI detour_qpc(LARGE_INTEGER* lp_performance_count)
 {
-    if (!real_qpc || !real_qpc(lpPerformanceCount))
+    if (!real_qpc || !real_qpc(lp_performance_count))
+    {
         return FALSE;
+    }
 
     static LARGE_INTEGER last_real = {};
     static LARGE_INTEGER last_fake = {};
     static bool          first     = true;
     static std::mutex    qpc_mtx;
 
-    // Load atomic float
-    float mult = ctx.settings.speed_multiplier.load(std::memory_order_relaxed);
+    const float mult =
+        ctx.settings.speed_multiplier.load(std::memory_order_relaxed);
 
     // Optimization: If speed is normal, don't lock
     if (std::abs(mult - 1.0f) < 0.0001f && !first)
@@ -419,35 +397,40 @@ static BOOL WINAPI detour_qpc(LARGE_INTEGER* lpPerformanceCount)
     std::scoped_lock lock(qpc_mtx);
     if (first)
     {
-        last_real = *lpPerformanceCount;
-        last_fake = *lpPerformanceCount;
+        last_real = *lp_performance_count;
+        last_fake = *lp_performance_count;
         first     = false;
         return TRUE;
     }
 
-    LONGLONG diff = lpPerformanceCount->QuadPart - last_real.QuadPart;
-    last_real     = *lpPerformanceCount;
+    const LONGLONG diff = lp_performance_count->QuadPart - last_real.QuadPart;
+    last_real           = *lp_performance_count;
 
     // Handle double->int64 conversion safely
-    double scaled_diff = static_cast<double>(diff) * static_cast<double>(mult);
+    const double scaled_diff =
+        static_cast<double>(diff) * static_cast<double>(mult);
     last_fake.QuadPart += static_cast<LONGLONG>(scaled_diff);
 
-    *lpPerformanceCount = last_fake;
+    *lp_performance_count = last_fake;
     return TRUE;
 }
 
 static BOOL WINAPI detour_set_cursor(int x, int y)
 {
     if (ctx.settings.block_mouse.load(std::memory_order_relaxed))
+    {
         return TRUE;
+    }
     return real_set_cursor(x, y);
 }
 
-static VOID WINAPI detour_sleep(DWORD dwMilliseconds)
+static VOID WINAPI detour_sleep(DWORD dw_milliseconds)
 {
     if (ctx.settings.no_sleep.load(std::memory_order_relaxed))
+    {
         return real_sleep(0);
-    return real_sleep(dwMilliseconds);
+    }
+    return real_sleep(dw_milliseconds);
 }
 
 static HANDLE WINAPI detour_create_file_a(LPCSTR                file_name,
@@ -468,7 +451,9 @@ static HANDLE WINAPI detour_create_file_a(LPCSTR                file_name,
 static int __cdecl detour_rand()
 {
     if (ctx.settings.freeze_rng.load(std::memory_order_relaxed))
+    {
         return 0;
+    }
     return real_rand();
 }
 
@@ -500,12 +485,12 @@ static void APIENTRY detour_gl_draw_elems(GLenum        mode,
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-// --- Window & UI ---
-
 static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (!ctx.shutting_down.load() && ImGui_ImplWin32_WndProcHandler(h, m, w, l))
+    {
         return true;
+    }
     return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
 }
 
@@ -514,7 +499,10 @@ void install_hooks()
     logger.log("Starting hook installation...");
 
     auto add = [](const char* mod, const char* func, void* hook, void** real)
-    { g_hooks.push_back(std::make_unique<Hook>(mod, func, hook, real)); };
+    {
+        g_hooks.push_back(
+            std::make_unique<trampoline_hook>(mod, func, hook, real));
+    };
 
     add("opengl32.dll",
         "wglSwapBuffers",
@@ -607,11 +595,15 @@ static void draw_ui()
             {
                 bool depth = ctx.settings.disable_depth.load();
                 if (ImGui::Checkbox("Disable Depth", &depth))
+                {
                     ctx.settings.disable_depth.store(depth);
+                }
 
                 bool wire = ctx.settings.wireframe.load();
                 if (ImGui::Checkbox("Wireframe", &wire))
+                {
                     ctx.settings.wireframe.store(wire);
+                }
 
                 ImGui::Separator();
                 ImGui::Checkbox("Clear Screen", &ctx.settings.enable_clear);
@@ -623,17 +615,25 @@ static void draw_ui()
             {
                 float spd = ctx.settings.speed_multiplier.load();
                 if (ImGui::SliderFloat("Speed", &spd, 0.1f, 10.0f, "%.2fx"))
+                {
                     ctx.settings.speed_multiplier.store(spd);
+                }
                 if (ImGui::Button("Reset Speed"))
+                {
                     ctx.settings.speed_multiplier.store(1.0f);
+                }
 
                 bool ns = ctx.settings.no_sleep.load();
                 if (ImGui::Checkbox("No Sleep (FPS Uncap)", &ns))
+                {
                     ctx.settings.no_sleep.store(ns);
+                }
 
                 bool rng = ctx.settings.freeze_rng.load();
                 if (ImGui::Checkbox("Freeze RNG", &rng))
+                {
                     ctx.settings.freeze_rng.store(rng);
+                }
                 ImGui::EndTabItem();
             }
 
@@ -641,7 +641,9 @@ static void draw_ui()
             {
                 bool log_fs = ctx.settings.log_fs.load();
                 if (ImGui::Checkbox("Log Filesystem", &log_fs))
+                {
                     ctx.settings.log_fs.store(log_fs);
+                }
                 ImGui::Separator();
                 logger.draw_console();
                 ImGui::EndTabItem();
