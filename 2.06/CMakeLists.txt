@@ -28,6 +28,8 @@ configure_file(
     WORLD_READ
     WORLD_EXECUTE)
 
+
+
 if(NOT TARGET bass_proxy)
     add_custom_command(
         TARGET deploy_game
@@ -52,6 +54,16 @@ else()
             ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bass_proxy>"
             "${CMAKE_CURRENT_BINARY_DIR}/bass.dll")
 endif()
+
+add_custom_target(
+    run_game
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/run_game.sh"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMENT "executing script => run_game.sh"
+    USES_TERMINAL
+)
+
+add_dependencies(run_game deploy_game)
 
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DESTINATION 2.06)
 include(CPack)
