@@ -66,4 +66,4 @@ target_link_options(
     -static
     -s)
 
-target_link_libraries(bass_proxy PRIVATE warnings imgui_opengl3 dwmapi glm minhook EnTT::EnTT)
+target_link_libraries(bass_proxy PRIVATE warnings imgui_opengl3 dwmapi glm minhook EnTT::EnTT safetyhook)
