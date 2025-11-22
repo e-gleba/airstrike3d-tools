@@ -1,0 +1,11 @@
+CPMAddPackage(
+    NAME entt
+    GITHUB_REPOSITORY skypjack/entt
+    GIT_TAG v3.16.0
+    OPTIONS
+        "ENTT_USE_LIBCPP ON"
+        "ENTT_BUILD_TESTING OFF"
+        "ENTT_BUILD_DOCS OFF"
+        "ENTT_BUILD_BENCHMARK OFF"
+        "ENTT_BUILD_EXAMPLES OFF"
+ )
