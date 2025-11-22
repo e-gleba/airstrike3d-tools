@@ -1,31 +1,41 @@
 #define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "bass_proxy.hpp"
+
+// System
 #include <GL/gl.h>
-#include <GL/glu.h>
-#include <MinHook.h>
-#include <atomic>
-#include <cmath>
+#include <windows.h>
+
+// SafetyHook
+#include <safetyhook.hpp>
+
+// GLM
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+// ImGui
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
+
+// Std
+#include <atomic>
 #include <mutex>
 #include <thread>
-#include <windows.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 // ------------------------------------------------------------------------------------------------
-// GLOBALS & TYPES
+// CONFIG & DATA
 // ------------------------------------------------------------------------------------------------
 
+static constexpr auto ui_toggle_key = VK_INSERT;
+static constexpr auto glsl_version  = "#version 110";
+
+// Types
 using wgl_swap_t         = BOOL(WINAPI*)(HDC);
 using gl_load_identity_t = void(APIENTRY*)();
-using gl_load_matrix_f_t = void(APIENTRY*)(const GLfloat*);
-using gl_load_matrix_d_t = void(APIENTRY*)(const GLdouble*);
 using glu_look_at_t      = void(APIENTRY*)(GLdouble,
                                       GLdouble,
                                       GLdouble,
@@ -35,477 +45,409 @@ using glu_look_at_t      = void(APIENTRY*)(GLdouble,
                                       GLdouble,
                                       GLdouble,
                                       GLdouble);
+using gl_matrix_mode_t   = void(APIENTRY*)(GLenum);
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
                                                              UINT,
                                                              WPARAM,
                                                              LPARAM);
 
-struct free_camera_settings final
+struct camera_config final
 {
     std::atomic<bool> enabled{ true };
-    std::atomic<bool> mouse_look_active{ false };
-
-    // Standard hooks enabled
-    std::atomic<bool> force_on_identity{ true };
-    std::atomic<bool> force_on_matrix_load{ true };
+    std::atomic<bool> mouse_look{ false };
+    std::atomic<bool> hook_identity{ true };
 
     std::atomic<float> base_speed{ 20.0f };
-    std::atomic<float> sprint_multiplier{ 4.0f };
-    std::atomic<float> mouse_sensitivity{ 0.15f };
+    std::atomic<float> sprint_mult{ 4.0f };
+    std::atomic<float> sensitivity{ 0.15f };
 
-    double pos_x{ 0.0 }, pos_y{ 10.0 }, pos_z{ 0.0 };
-    float  yaw{ -90.0f }, pitch{ 0.0f };
+    // Position & Rotation
+    // Yaw initialized to -90.0 (looking down -Z in OpenGL)
+    glm::dvec3 pos{ 0.0, 10.0, 0.0 };
+    glm::vec2  rot{ -90.0f, 0.0f }; // x=yaw, y=pitch
 
-    // For cursor restoration
-    POINT saved_cursor_pos{ 0, 0 };
+    POINT cursor_save{ 0, 0 };
 };
 
-struct global_context final
+// Hooks
+struct hook_registry final
 {
-    HWND              game_window{ nullptr };
-    WNDPROC           orig_wnd_proc{ nullptr };
-    std::atomic<bool> imgui_ready{ false };
-    std::atomic<bool> shutting_down{ false };
-    std::atomic<bool> overlay_visible{ true };
+    safetyhook::InlineHook wgl_swap;
+    safetyhook::InlineHook gl_matrix_mode;
+    safetyhook::InlineHook gl_load_identity;
+    safetyhook::InlineHook glu_look_at;
 
-    free_camera_settings free_cam;
-    GLenum               current_matrix_mode{ GL_MODELVIEW };
+    void reset() { *this = hook_registry{}; }
 };
 
-static global_context ctx;
-
-// Original Pointers
-static wgl_swap_t         orig_wgl_swap            = nullptr;
-static gl_load_identity_t orig_gl_load_identity    = nullptr;
-static gl_load_matrix_f_t orig_gl_load_matrix_f    = nullptr;
-static gl_load_matrix_d_t orig_gl_load_matrix_d    = nullptr;
-static glu_look_at_t      orig_glu_look_at         = nullptr;
-static void(APIENTRY* orig_gl_matrix_mode)(GLenum) = nullptr;
-
-static void             draw_ui();
-static LRESULT CALLBACK detour_wnd_proc(HWND, UINT, WPARAM, LPARAM);
-
-// ------------------------------------------------------------------------------------------------
-// CAMERA & INPUT LOGIC
-// ------------------------------------------------------------------------------------------------
-
-static void handle_mouse_input()
+struct app_context final
 {
-    if (!ctx.free_cam.mouse_look_active.load(std::memory_order_relaxed))
-        return;
+    HWND              window{ nullptr };
+    WNDPROC           original_wnd_proc{ nullptr };
+    std::atomic<bool> imgui_initialized{ false };
+    std::atomic<bool> should_unload{ false };
+    std::atomic<bool> show_ui{ true };
 
-    // 1. Get Center of Window
-    RECT rect;
-    GetWindowRect(ctx.game_window, &rect);
-    int center_x = (rect.left + rect.right) / 2;
-    int center_y = (rect.top + rect.bottom) / 2;
+    camera_config cam;
+    hook_registry hooks;
+    GLenum        current_matrix_mode{ GL_MODELVIEW };
+};
 
-    // 2. Get Current Delta
-    POINT cur_pos;
-    GetCursorPos(&cur_pos);
+static app_context ctx;
 
-    float delta_x = static_cast<float>(cur_pos.x - center_x);
-    float delta_y = static_cast<float>(cur_pos.y - center_y);
+// Forward Decls
+static void             render_overlay();
+static LRESULT CALLBACK hk_wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
-    // 3. Apply Rotation only if we moved
-    if (delta_x != 0.0f || delta_y != 0.0f)
-    {
-        float sens =
-            ctx.free_cam.mouse_sensitivity.load(std::memory_order_relaxed);
+// ------------------------------------------------------------------------------------------------
+// RELIABLE MATH
+// ------------------------------------------------------------------------------------------------
 
-        ctx.free_cam.yaw += delta_x * sens;
-        ctx.free_cam.pitch -=
-            delta_y * sens; // Subtract Y to invert mouse (standard FPS feel)
+struct camera_vectors
+{
+    glm::dvec3 front;
+    glm::dvec3 right;
+    glm::dvec3 up;
+};
 
-        // Clamp Pitch
-        if (ctx.free_cam.pitch > 89.0f)
-            ctx.free_cam.pitch = 89.0f;
-        if (ctx.free_cam.pitch < -89.0f)
-            ctx.free_cam.pitch = -89.0f;
+// Single source of truth for ALL vector math
+static camera_vectors calculate_vectors()
+{
+    // 1. Convert to Radians
+    const double yaw_rad   = glm::radians(static_cast<double>(ctx.cam.rot.x));
+    const double pitch_rad = glm::radians(static_cast<double>(ctx.cam.rot.y));
 
-        // Wrap Yaw
-        while (ctx.free_cam.yaw > 360.0f)
-            ctx.free_cam.yaw -= 360.0f;
-        while (ctx.free_cam.yaw < -360.0f)
-            ctx.free_cam.yaw += 360.0f;
+    // 2. Spherical to Cartesian (Standard OpenGL Right-Handed)
+    glm::dvec3 f;
+    f.x = std::cos(yaw_rad) * std::cos(pitch_rad);
+    f.y = std::sin(pitch_rad);
+    f.z = std::sin(yaw_rad) * std::cos(pitch_rad);
 
-        // 4. FORCE RESET CURSOR TO CENTER
-        // This creates the "infinite" movement and prevents hitting screen
-        // edges
-        SetCursorPos(center_x, center_y);
-    }
+    camera_vectors v;
+    v.front = glm::normalize(f);
+
+    // 3. Calculate orthonormal basis
+    // World Up is always (0, 1, 0)
+    static constexpr glm::dvec3 world_up{ 0.0, 1.0, 0.0 };
+
+    v.right = glm::normalize(glm::cross(v.front, world_up));
+    v.up    = glm::normalize(glm::cross(v.right, v.front));
+
+    return v;
 }
 
-static void update_free_camera()
+static void process_input()
 {
-    if (!ctx.free_cam.enabled.load(std::memory_order_relaxed))
+    if (!ctx.cam.enabled.load(std::memory_order_relaxed))
         return;
 
-    // Handle mouse rotation first
-    handle_mouse_input();
-
-    // Calculate vectors
-    double rad_yaw   = ctx.free_cam.yaw * M_PI / 180.0;
-    double rad_pitch = ctx.free_cam.pitch * M_PI / 180.0;
-
-    double front_x = cos(rad_yaw) * cos(rad_pitch);
-    double front_y = sin(rad_pitch);
-    double front_z = sin(rad_yaw) * cos(rad_pitch);
-
-    double len =
-        sqrt(front_x * front_x + front_y * front_y + front_z * front_z);
-    if (len > 0.0)
+    // --- Mouse Input ---
+    if (ctx.cam.mouse_look.load(std::memory_order_relaxed))
     {
-        front_x /= len;
-        front_y /= len;
-        front_z /= len;
+        RECT rect;
+        GetWindowRect(ctx.window, &rect);
+        const int cx = (rect.left + rect.right) / 2;
+        const int cy = (rect.top + rect.bottom) / 2;
+
+        POINT cur;
+        GetCursorPos(&cur);
+
+        if (cur.x != cx || cur.y != cy)
+        {
+            const float sens =
+                ctx.cam.sensitivity.load(std::memory_order_relaxed);
+
+            // Standard FPS Mouse:
+            // Move Right (+X) -> Yaw Increases
+            // Move Up    (-Y) -> Pitch Increases
+            ctx.cam.rot.x += static_cast<float>(cur.x - cx) * sens;
+            ctx.cam.rot.y -= static_cast<float>(cur.y - cy) * sens;
+
+            // Clamp Pitch to avoid Gimbal Lock
+            ctx.cam.rot.y = glm::clamp(ctx.cam.rot.y, -89.0f, 89.0f);
+            // Modulo Yaw
+            ctx.cam.rot.x = glm::mod(ctx.cam.rot.x, 360.0f);
+
+            SetCursorPos(cx, cy);
+        }
     }
 
-    double right_x = cos(rad_yaw + M_PI / 2.0);
-    double right_z = sin(rad_yaw + M_PI / 2.0);
+    // --- Keyboard Input ---
+    const auto v =
+        calculate_vectors(); // Get fresh vectors based on new rotation
 
-    // Movement Speed
-    float speed = ctx.free_cam.base_speed.load(std::memory_order_relaxed);
+    const float dt    = ImGui::GetIO().DeltaTime;
+    float       speed = ctx.cam.base_speed.load(std::memory_order_relaxed);
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
-    {
-        speed *= ctx.free_cam.sprint_multiplier.load(std::memory_order_relaxed);
-    }
+        speed *= ctx.cam.sprint_mult.load(std::memory_order_relaxed);
 
-    // Frame-rate independent movement
-    float fps = ImGui::GetIO().Framerate;
-    if (fps > 0.0f)
-        speed /= fps;
+    const double step = static_cast<double>(speed * dt);
 
-    // Keyboard Input
+    // Full Noclip Movement (3D)
     if (GetAsyncKeyState('W') & 0x8000)
-    {
-        ctx.free_cam.pos_x += front_x * speed;
-        ctx.free_cam.pos_y += front_y * speed;
-        ctx.free_cam.pos_z += front_z * speed;
-    }
+        ctx.cam.pos += v.front * step;
     if (GetAsyncKeyState('S') & 0x8000)
-    {
-        ctx.free_cam.pos_x -= front_x * speed;
-        ctx.free_cam.pos_y -= front_y * speed;
-        ctx.free_cam.pos_z -= front_z * speed;
-    }
+        ctx.cam.pos -= v.front * step;
     if (GetAsyncKeyState('D') & 0x8000)
-    {
-        ctx.free_cam.pos_x += right_x * speed;
-        ctx.free_cam.pos_z += right_z * speed;
-    }
+        ctx.cam.pos += v.right * step;
     if (GetAsyncKeyState('A') & 0x8000)
-    {
-        ctx.free_cam.pos_x -= right_x * speed;
-        ctx.free_cam.pos_z -= right_z * speed;
-    }
+        ctx.cam.pos -= v.right * step;
+
+    // Vertical Absolute
     if (GetAsyncKeyState(VK_SPACE) & 0x8000)
-        ctx.free_cam.pos_y += speed;
+        ctx.cam.pos += glm::dvec3(0, 1, 0) * step;
     if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
-        ctx.free_cam.pos_y -= speed;
+        ctx.cam.pos -= glm::dvec3(0, 1, 0) * step;
 }
 
 static void apply_camera_transform()
 {
-    double rad_yaw   = ctx.free_cam.yaw * M_PI / 180.0;
-    double rad_pitch = ctx.free_cam.pitch * M_PI / 180.0;
+    const auto v = calculate_vectors();
 
-    double cx = ctx.free_cam.pos_x;
-    double cy = ctx.free_cam.pos_y;
-    double cz = ctx.free_cam.pos_z;
+    // Apply LookAt matrix
+    // Center = Pos + Front
+    glm::dmat4 view = glm::lookAt(ctx.cam.pos, ctx.cam.pos + v.front, v.up);
 
-    double lx = cx + cos(rad_yaw) * cos(rad_pitch);
-    double ly = cy + sin(rad_pitch);
-    double lz = cz + sin(rad_yaw) * cos(rad_pitch);
-
-    if (orig_glu_look_at)
-    {
-        orig_glu_look_at(cx, cy, cz, lx, ly, lz, 0.0, 1.0, 0.0);
-    }
+    glMultMatrixd(glm::value_ptr(view));
 }
 
 // ------------------------------------------------------------------------------------------------
-// HOOKS
+// DETOURS
 // ------------------------------------------------------------------------------------------------
 
-static void APIENTRY detour_gl_matrix_mode(GLenum mode)
+template <typename T> static auto call_orig(safetyhook::InlineHook& hook) -> T
+{
+    return reinterpret_cast<T>(hook.trampoline().address());
+}
+
+static void APIENTRY hk_gl_matrix_mode(GLenum mode)
 {
     ctx.current_matrix_mode = mode;
-    orig_gl_matrix_mode(mode);
+    if (ctx.hooks.gl_matrix_mode)
+        call_orig<gl_matrix_mode_t>(ctx.hooks.gl_matrix_mode)(mode);
 }
 
-static void APIENTRY detour_gl_load_identity()
+static void APIENTRY hk_gl_load_identity()
 {
-    orig_gl_load_identity();
-    if (ctx.free_cam.enabled.load(std::memory_order_relaxed) &&
-        ctx.free_cam.force_on_identity.load() &&
+    // 1. Do the real work
+    if (ctx.hooks.gl_load_identity)
+        call_orig<gl_load_identity_t>(ctx.hooks.gl_load_identity)();
+
+    // 2. If we are in ModelView, multiply our camera matrix on top of Identity
+    if (ctx.cam.enabled.load(std::memory_order_relaxed) &&
+        ctx.cam.hook_identity.load(std::memory_order_relaxed) &&
         ctx.current_matrix_mode == GL_MODELVIEW)
     {
         apply_camera_transform();
     }
 }
 
-static void APIENTRY detour_gl_load_matrix_f(const GLfloat* m)
+static void APIENTRY hk_glu_look_at(GLdouble ex,
+                                    GLdouble ey,
+                                    GLdouble ez,
+                                    GLdouble cx,
+                                    GLdouble cy,
+                                    GLdouble cz,
+                                    GLdouble ux,
+                                    GLdouble uy,
+                                    GLdouble uz)
 {
-    if (ctx.free_cam.enabled.load(std::memory_order_relaxed) &&
-        ctx.free_cam.force_on_matrix_load.load() &&
-        ctx.current_matrix_mode == GL_MODELVIEW)
-    {
-        orig_gl_load_identity();
-        apply_camera_transform();
-        return;
-    }
-    orig_gl_load_matrix_f(m);
-}
-
-static void APIENTRY detour_gl_load_matrix_d(const GLdouble* m)
-{
-    if (ctx.free_cam.enabled.load(std::memory_order_relaxed) &&
-        ctx.free_cam.force_on_matrix_load.load() &&
-        ctx.current_matrix_mode == GL_MODELVIEW)
-    {
-        orig_gl_load_identity();
-        apply_camera_transform();
-        return;
-    }
-    orig_gl_load_matrix_d(m);
-}
-
-static void APIENTRY detour_glu_look_at(GLdouble eyeX,
-                                        GLdouble eyeY,
-                                        GLdouble eyeZ,
-                                        GLdouble centerX,
-                                        GLdouble centerY,
-                                        GLdouble centerZ,
-                                        GLdouble upX,
-                                        GLdouble upY,
-                                        GLdouble upZ)
-{
-    if (ctx.free_cam.enabled.load(std::memory_order_relaxed))
+    // If enabled, we completely ignore the game's camera request
+    if (ctx.cam.enabled.load(std::memory_order_relaxed))
     {
         apply_camera_transform();
     }
-    else
+    else if (ctx.hooks.glu_look_at)
     {
-        orig_glu_look_at(
-            eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+        call_orig<glu_look_at_t>(ctx.hooks.glu_look_at)(
+            ex, ey, ez, cx, cy, cz, ux, uy, uz);
     }
 }
 
-static BOOL WINAPI detour_wgl_swap(HDC dc)
+static BOOL WINAPI hk_wgl_swap(HDC dc)
 {
-    if (ctx.imgui_ready.load(std::memory_order_acquire))
+    if (ctx.imgui_initialized.load(std::memory_order_acquire))
     {
-        update_free_camera();
-        if (ctx.overlay_visible.load(std::memory_order_relaxed))
-        {
-            draw_ui();
-        }
+        process_input();
+        if (ctx.show_ui.load(std::memory_order_relaxed))
+            render_overlay();
     }
 
-    static std::once_flag init_flag;
+    static std::once_flag init_once;
     if (wglGetCurrentContext())
     {
         std::call_once(
-            init_flag,
-            [&]()
+            init_once,
+            [&](HDC hdc_target)
             {
-                ctx.game_window = WindowFromDC(dc);
-                if (ctx.game_window)
+                ctx.window = WindowFromDC(hdc_target);
+                if (ctx.window)
                 {
-                    ctx.orig_wnd_proc =
-                        (WNDPROC)SetWindowLongPtrA(ctx.game_window,
-                                                   GWLP_WNDPROC,
-                                                   (LONG_PTR)detour_wnd_proc);
+                    ctx.original_wnd_proc = (WNDPROC)SetWindowLongPtrA(
+                        ctx.window, GWLP_WNDPROC, (LONG_PTR)hk_wnd_proc);
+
                     ImGui::CreateContext();
                     ImGuiIO& io = ImGui::GetIO();
                     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
                     io.IniFilename = nullptr;
+
                     ImGui::StyleColorsDark();
-                    ImGui_ImplWin32_Init(ctx.game_window);
-                    ImGui_ImplOpenGL3_Init("#version 110");
-                    SetWindowTextA(ctx.game_window,
-                                   "Airstrike 3D II [FREECAM]");
-                    ctx.imgui_ready.store(true, std::memory_order_release);
+                    ImGui_ImplWin32_Init(ctx.window);
+                    ImGui_ImplOpenGL3_Init(glsl_version);
+
+                    SetWindowTextA(ctx.window, "Airstrike 3D [SAFETY]");
+                    ctx.imgui_initialized.store(true,
+                                                std::memory_order_release);
                 }
-            });
+            },
+            dc);
     }
-    return orig_wgl_swap(dc);
+
+    return call_orig<wgl_swap_t>(ctx.hooks.wgl_swap)(dc);
 }
 
-static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
+static LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    if (m == WM_KEYDOWN && w == VK_INSERT)
+    if (m == WM_KEYDOWN && w == ui_toggle_key)
     {
-        ctx.overlay_visible.store(!ctx.overlay_visible.load());
+        bool s = ctx.show_ui.load();
+        ctx.show_ui.store(!s);
         return 0;
     }
 
-    // Simplified Window Proc - Mouse logic is now handled in update loop for
-    // smoothness
-    if (ctx.free_cam.enabled.load())
+    if (ctx.cam.enabled.load(std::memory_order_relaxed))
     {
         if (m == WM_RBUTTONDOWN)
         {
-            // 1. Save Cursor Pos
-            GetCursorPos(&ctx.free_cam.saved_cursor_pos);
-
-            // 2. Center cursor immediately to prepare for loop
-            RECT rect;
-            GetWindowRect(h, &rect);
-            int cx = (rect.left + rect.right) / 2;
-            int cy = (rect.top + rect.bottom) / 2;
-            SetCursorPos(cx, cy);
-
-            // 3. Activate
-            ctx.free_cam.mouse_look_active = true;
+            GetCursorPos(&ctx.cam.cursor_save);
+            RECT r;
+            GetWindowRect(h, &r);
+            SetCursorPos((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+            ctx.cam.mouse_look.store(true);
             ShowCursor(FALSE);
             return 0;
         }
         if (m == WM_RBUTTONUP)
         {
-            ctx.free_cam.mouse_look_active = false;
-
-            // 4. Restore Cursor Pos (Usability upgrade)
-            SetCursorPos(ctx.free_cam.saved_cursor_pos.x,
-                         ctx.free_cam.saved_cursor_pos.y);
-
+            ctx.cam.mouse_look.store(false);
+            SetCursorPos(ctx.cam.cursor_save.x, ctx.cam.cursor_save.y);
             ShowCursor(TRUE);
             return 0;
         }
     }
 
-    if (!ctx.shutting_down && ctx.overlay_visible &&
+    if (!ctx.should_unload.load() && ctx.show_ui.load() &&
         ImGui_ImplWin32_WndProcHandler(h, m, w, l))
         return true;
-    return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
+
+    return CallWindowProc(ctx.original_wnd_proc, h, m, w, l);
 }
 
-template <typename FuncT>
-static bool hook_safe(LPCWSTR mod, LPCSTR name, void* detour, FuncT** orig)
-{
-    if (MH_CreateHookApi(mod, name, detour, (void**)orig) != MH_OK)
-        return false;
-    return true;
-}
+// ------------------------------------------------------------------------------------------------
+// INSTALLER
+// ------------------------------------------------------------------------------------------------
 
 void install_hooks()
 {
-    MH_Initialize();
-    hook_safe(L"opengl32.dll",
-              "wglSwapBuffers",
-              (void*)detour_wgl_swap,
-              &orig_wgl_swap);
-    hook_safe(L"opengl32.dll",
-              "glMatrixMode",
-              (void*)detour_gl_matrix_mode,
-              &orig_gl_matrix_mode);
-    hook_safe(L"opengl32.dll",
-              "glLoadIdentity",
-              (void*)detour_gl_load_identity,
-              &orig_gl_load_identity);
-    hook_safe(L"opengl32.dll",
-              "glLoadMatrixf",
-              (void*)detour_gl_load_matrix_f,
-              &orig_gl_load_matrix_f);
-    hook_safe(L"opengl32.dll",
-              "glLoadMatrixd",
-              (void*)detour_gl_load_matrix_d,
-              &orig_gl_load_matrix_d);
-    hook_safe(L"glu32.dll",
-              "gluLookAt",
-              (void*)detour_glu_look_at,
-              &orig_glu_look_at);
-    MH_EnableHook(MH_ALL_HOOKS);
+    auto get_addr = [](const wchar_t* mod, const char* func) -> void*
+    {
+        return reinterpret_cast<void*>(
+            GetProcAddress(GetModuleHandleW(mod), func));
+    };
+
+    ctx.hooks.wgl_swap =
+        safetyhook::create_inline(get_addr(L"opengl32.dll", "wglSwapBuffers"),
+                                  reinterpret_cast<void*>(hk_wgl_swap));
+
+    ctx.hooks.gl_matrix_mode =
+        safetyhook::create_inline(get_addr(L"opengl32.dll", "glMatrixMode"),
+                                  reinterpret_cast<void*>(hk_gl_matrix_mode));
+
+    ctx.hooks.gl_load_identity =
+        safetyhook::create_inline(get_addr(L"opengl32.dll", "glLoadIdentity"),
+                                  reinterpret_cast<void*>(hk_gl_load_identity));
+
+    ctx.hooks.glu_look_at =
+        safetyhook::create_inline(get_addr(L"glu32.dll", "gluLookAt"),
+                                  reinterpret_cast<void*>(hk_glu_look_at));
 }
 
 void uninstall_hooks()
 {
-    ctx.shutting_down = true;
-    if (ctx.game_window)
+    ctx.should_unload.store(true);
+    if (ctx.window && ctx.original_wnd_proc)
         SetWindowLongPtrA(
-            ctx.game_window, GWLP_WNDPROC, (LONG_PTR)ctx.orig_wnd_proc);
-    MH_DisableHook(MH_ALL_HOOKS);
-    MH_Uninitialize();
+            ctx.window, GWLP_WNDPROC, (LONG_PTR)ctx.original_wnd_proc);
+
+    ctx.hooks.reset();
 }
 
-static void draw_ui()
+// ------------------------------------------------------------------------------------------------
+// UI
+// ------------------------------------------------------------------------------------------------
+
+static void render_overlay()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(420, 380), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos({ 20, 20 }, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({ 420, 360 }, ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Camera Control", nullptr, ImGuiWindowFlags_NoCollapse))
+    if (ImGui::Begin("SafetyHook Cam", nullptr, ImGuiWindowFlags_NoCollapse))
     {
-
-        bool enabled = ctx.free_cam.enabled.load();
+        bool enabled = ctx.cam.enabled.load();
         if (ImGui::Checkbox("Master Enable", &enabled))
-            ctx.free_cam.enabled.store(enabled);
+            ctx.cam.enabled.store(enabled);
 
-        ImGui::Separator();
-        ImGui::TextColored(
-            ImVec4(0, 1, 0, 1), "Status: %s", enabled ? "ACTIVE" : "DISABLED");
+        ImGui::SameLine();
+        ImGui::TextColored(enabled ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1),
+                           "[%s]",
+                           enabled ? "ACTIVE" : "OFF");
 
         if (enabled)
         {
-            ImGui::SeparatorText("Input");
-            float sens = ctx.free_cam.mouse_sensitivity.load();
-            if (ImGui::DragFloat(
-                    "Mouse Sensitivity", &sens, 0.01f, 0.01f, 2.0f))
+            ImGui::SeparatorText("Settings");
+            float sens = ctx.cam.sensitivity.load();
+            if (ImGui::DragFloat("Sensitivity", &sens, 0.005f, 0.01f, 2.0f))
+                ctx.cam.sensitivity.store(sens);
+
+            float speed = ctx.cam.base_speed.load();
+            if (ImGui::DragFloat("Speed", &speed, 0.5f, 0.1f, 1000.0f))
+                ctx.cam.base_speed.store(speed);
+
+            float mult = ctx.cam.sprint_mult.load();
+            if (ImGui::DragFloat("Sprint Mult", &mult, 0.1f, 1.0f, 50.0f))
+                ctx.cam.sprint_mult.store(mult);
+
+            ImGui::SeparatorText("Injection");
+            bool f_id = ctx.cam.hook_identity.load();
+            if (ImGui::Checkbox("Hook Identity", &f_id))
+                ctx.cam.hook_identity.store(f_id);
+
+            ImGui::SeparatorText("Telemetry");
+            ImGui::Text("Pos: %.2f %.2f %.2f",
+                        ctx.cam.pos.x,
+                        ctx.cam.pos.y,
+                        ctx.cam.pos.z);
+            ImGui::Text("Rot: %.1f / %.1f", ctx.cam.rot.x, ctx.cam.rot.y);
+
+            if (ImGui::Button("Reset Origin", { 120, 0 }))
             {
-                ctx.free_cam.mouse_sensitivity.store(sens);
-            }
-
-            float speed = ctx.free_cam.base_speed.load();
-            if (ImGui::DragFloat(
-                    "Base Speed", &speed, 0.5f, 0.1f, 500.0f, "%.1f"))
-            {
-                ctx.free_cam.base_speed.store(speed);
-            }
-
-            float mult = ctx.free_cam.sprint_multiplier.load();
-            if (ImGui::DragFloat(
-                    "Sprint (Shift)", &mult, 0.1f, 1.0f, 20.0f, "%.1fx"))
-            {
-                ctx.free_cam.sprint_multiplier.store(mult);
-            }
-
-            ImGui::SeparatorText("Hooks");
-            bool f_id = ctx.free_cam.force_on_identity.load();
-            if (ImGui::Checkbox("Force on Identity", &f_id))
-                ctx.free_cam.force_on_identity.store(f_id);
-
-            bool f_mx = ctx.free_cam.force_on_matrix_load.load();
-            if (ImGui::Checkbox("Force on Matrix Load", &f_mx))
-                ctx.free_cam.force_on_matrix_load.store(f_mx);
-
-            ImGui::SeparatorText("Position");
-            ImGui::Text(
-                "X: %8.2f  Yaw:   %.1f", ctx.free_cam.pos_x, ctx.free_cam.yaw);
-            ImGui::Text("Y: %8.2f  Pitch: %.1f",
-                        ctx.free_cam.pos_y,
-                        ctx.free_cam.pitch);
-            ImGui::Text("Z: %8.2f", ctx.free_cam.pos_z);
-
-            if (ImGui::Button("Reset to Origin"))
-            {
-                ctx.free_cam.pos_x = 0;
-                ctx.free_cam.pos_y = 10;
-                ctx.free_cam.pos_z = 0;
+                ctx.cam.pos = { 0.0, 10.0, 0.0 };
+                ctx.cam.rot = { -90.0f, 0.0f };
             }
         }
 
         ImGui::Separator();
-        ImGui::TextDisabled(
-            "Controls:\n[WASD] Move  [Shift] Fast\n[Space/Ctrl] "
-            "Up/Down\n[Right Click] Look Around (Locked)\n[Insert] Hide Menu");
+        ImGui::TextDisabled("Press [INSERT] for Cinematic Mode");
 
-        if (ImGui::Button("Unload DLL"))
+        if (ImGui::Button("Unload DLL", { 120, 0 }))
+        {
             std::thread([] { uninstall_hooks(); }).detach();
+        }
     }
     ImGui::End();
     ImGui::Render();
