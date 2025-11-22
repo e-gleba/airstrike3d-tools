@@ -1,3 +1,4 @@
+
 #define WIN32_LEAN_AND_MEAN
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -23,7 +24,7 @@
 
 // Std
 #include <atomic>
-#include <mutex>
+#include <string>
 #include <thread>
 
 // ------------------------------------------------------------------------------------------------
@@ -62,15 +63,12 @@ struct camera_config final
     std::atomic<float> sprint_mult{ 4.0f };
     std::atomic<float> sensitivity{ 0.15f };
 
-    // Position & Rotation
-    // Yaw initialized to -90.0 (looking down -Z in OpenGL)
     glm::dvec3 pos{ 0.0, 10.0, 0.0 };
-    glm::vec2  rot{ -90.0f, 0.0f }; // x=yaw, y=pitch
+    glm::vec2  rot{ -90.0f, 0.0f };
 
     POINT cursor_save{ 0, 0 };
 };
 
-// Hooks
 struct hook_registry final
 {
     safetyhook::InlineHook wgl_swap;
@@ -101,24 +99,35 @@ static void             render_overlay();
 static LRESULT CALLBACK hk_wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
 // ------------------------------------------------------------------------------------------------
-// RELIABLE MATH
+// CHEAT CODES
+// ------------------------------------------------------------------------------------------------
+
+static void send_cheat_code(const char* code)
+{
+    if (!ctx.window)
+        return;
+
+    // Send characters to the game window
+    for (const char* c = code; *c; ++c)
+    {
+        PostMessageA(ctx.window, WM_CHAR, static_cast<WPARAM>(*c), 0);
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// CAMERA MATH
 // ------------------------------------------------------------------------------------------------
 
 struct camera_vectors
 {
-    glm::dvec3 front;
-    glm::dvec3 right;
-    glm::dvec3 up;
+    glm::dvec3 front, right, up;
 };
 
-// Single source of truth for ALL vector math
 static camera_vectors calculate_vectors()
 {
-    // 1. Convert to Radians
     const double yaw_rad   = glm::radians(static_cast<double>(ctx.cam.rot.x));
     const double pitch_rad = glm::radians(static_cast<double>(ctx.cam.rot.y));
 
-    // 2. Spherical to Cartesian (Standard OpenGL Right-Handed)
     glm::dvec3 f;
     f.x = std::cos(yaw_rad) * std::cos(pitch_rad);
     f.y = std::sin(pitch_rad);
@@ -127,10 +136,7 @@ static camera_vectors calculate_vectors()
     camera_vectors v;
     v.front = glm::normalize(f);
 
-    // 3. Calculate orthonormal basis
-    // World Up is always (0, 1, 0)
     static constexpr glm::dvec3 world_up{ 0.0, 1.0, 0.0 };
-
     v.right = glm::normalize(glm::cross(v.front, world_up));
     v.up    = glm::normalize(glm::cross(v.right, v.front));
 
@@ -142,7 +148,6 @@ static void process_input()
     if (!ctx.cam.enabled.load(std::memory_order_relaxed))
         return;
 
-    // --- Mouse Input ---
     if (ctx.cam.mouse_look.load(std::memory_order_relaxed))
     {
         RECT rect;
@@ -157,26 +162,15 @@ static void process_input()
         {
             const float sens =
                 ctx.cam.sensitivity.load(std::memory_order_relaxed);
-
-            // Standard FPS Mouse:
-            // Move Right (+X) -> Yaw Increases
-            // Move Up    (-Y) -> Pitch Increases
             ctx.cam.rot.x += static_cast<float>(cur.x - cx) * sens;
             ctx.cam.rot.y -= static_cast<float>(cur.y - cy) * sens;
-
-            // Clamp Pitch to avoid Gimbal Lock
             ctx.cam.rot.y = glm::clamp(ctx.cam.rot.y, -89.0f, 89.0f);
-            // Modulo Yaw
             ctx.cam.rot.x = glm::mod(ctx.cam.rot.x, 360.0f);
-
             SetCursorPos(cx, cy);
         }
     }
 
-    // --- Keyboard Input ---
-    const auto v =
-        calculate_vectors(); // Get fresh vectors based on new rotation
-
+    const auto  v     = calculate_vectors();
     const float dt    = ImGui::GetIO().DeltaTime;
     float       speed = ctx.cam.base_speed.load(std::memory_order_relaxed);
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
@@ -184,7 +178,6 @@ static void process_input()
 
     const double step = static_cast<double>(speed * dt);
 
-    // Full Noclip Movement (3D)
     if (GetAsyncKeyState('W') & 0x8000)
         ctx.cam.pos += v.front * step;
     if (GetAsyncKeyState('S') & 0x8000)
@@ -193,8 +186,6 @@ static void process_input()
         ctx.cam.pos += v.right * step;
     if (GetAsyncKeyState('A') & 0x8000)
         ctx.cam.pos -= v.right * step;
-
-    // Vertical Absolute
     if (GetAsyncKeyState(VK_SPACE) & 0x8000)
         ctx.cam.pos += glm::dvec3(0, 1, 0) * step;
     if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
@@ -203,17 +194,13 @@ static void process_input()
 
 static void apply_camera_transform()
 {
-    const auto v = calculate_vectors();
-
-    // Apply LookAt matrix
-    // Center = Pos + Front
+    const auto v    = calculate_vectors();
     glm::dmat4 view = glm::lookAt(ctx.cam.pos, ctx.cam.pos + v.front, v.up);
-
     glMultMatrixd(glm::value_ptr(view));
 }
 
 // ------------------------------------------------------------------------------------------------
-// DETOURS
+// HOOKS
 // ------------------------------------------------------------------------------------------------
 
 template <typename T> static auto call_orig(safetyhook::InlineHook& hook) -> T
@@ -230,11 +217,9 @@ static void APIENTRY hk_gl_matrix_mode(GLenum mode)
 
 static void APIENTRY hk_gl_load_identity()
 {
-    // 1. Do the real work
     if (ctx.hooks.gl_load_identity)
         call_orig<gl_load_identity_t>(ctx.hooks.gl_load_identity)();
 
-    // 2. If we are in ModelView, multiply our camera matrix on top of Identity
     if (ctx.cam.enabled.load(std::memory_order_relaxed) &&
         ctx.cam.hook_identity.load(std::memory_order_relaxed) &&
         ctx.current_matrix_mode == GL_MODELVIEW)
@@ -253,7 +238,6 @@ static void APIENTRY hk_glu_look_at(GLdouble ex,
                                     GLdouble uy,
                                     GLdouble uz)
 {
-    // If enabled, we completely ignore the game's camera request
     if (ctx.cam.enabled.load(std::memory_order_relaxed))
     {
         apply_camera_transform();
@@ -284,8 +268,11 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
                 ctx.window = WindowFromDC(hdc_target);
                 if (ctx.window)
                 {
-                    ctx.original_wnd_proc = (WNDPROC)SetWindowLongPtrA(
-                        ctx.window, GWLP_WNDPROC, (LONG_PTR)hk_wnd_proc);
+                    ctx.original_wnd_proc =
+                        reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+                            ctx.window,
+                            GWLP_WNDPROC,
+                            reinterpret_cast<LONG_PTR>(hk_wnd_proc)));
 
                     ImGui::CreateContext();
                     ImGuiIO& io = ImGui::GetIO();
@@ -296,7 +283,6 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
                     ImGui_ImplWin32_Init(ctx.window);
                     ImGui_ImplOpenGL3_Init(glsl_version);
 
-                    SetWindowTextA(ctx.window, "Airstrike 3D [SAFETY]");
                     ctx.imgui_initialized.store(true,
                                                 std::memory_order_release);
                 }
@@ -311,8 +297,7 @@ static LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (m == WM_KEYDOWN && w == ui_toggle_key)
     {
-        bool s = ctx.show_ui.load();
-        ctx.show_ui.store(!s);
+        ctx.show_ui.store(!ctx.show_ui.load());
         return 0;
     }
 
@@ -321,9 +306,6 @@ static LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
         if (m == WM_RBUTTONDOWN)
         {
             GetCursorPos(&ctx.cam.cursor_save);
-            RECT r;
-            GetWindowRect(h, &r);
-            SetCursorPos((r.left + r.right) / 2, (r.top + r.bottom) / 2);
             ctx.cam.mouse_look.store(true);
             ShowCursor(FALSE);
             return 0;
@@ -339,13 +321,13 @@ static LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 
     if (!ctx.should_unload.load() && ctx.show_ui.load() &&
         ImGui_ImplWin32_WndProcHandler(h, m, w, l))
-        return true;
+        return 1;
 
     return CallWindowProc(ctx.original_wnd_proc, h, m, w, l);
 }
 
 // ------------------------------------------------------------------------------------------------
-// INSTALLER
+// INSTALL
 // ------------------------------------------------------------------------------------------------
 
 void install_hooks()
@@ -376,9 +358,18 @@ void install_hooks()
 void uninstall_hooks()
 {
     ctx.should_unload.store(true);
+
+    if (ctx.imgui_initialized.load())
+    {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
+
     if (ctx.window && ctx.original_wnd_proc)
-        SetWindowLongPtrA(
-            ctx.window, GWLP_WNDPROC, (LONG_PTR)ctx.original_wnd_proc);
+        SetWindowLongPtrA(ctx.window,
+                          GWLP_WNDPROC,
+                          reinterpret_cast<LONG_PTR>(ctx.original_wnd_proc));
 
     ctx.hooks.reset();
 }
@@ -394,62 +385,94 @@ static void render_overlay()
     ImGui::NewFrame();
 
     ImGui::SetNextWindowPos({ 20, 20 }, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize({ 420, 360 }, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({ 450, 550 }, ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("SafetyHook Cam", nullptr, ImGuiWindowFlags_NoCollapse))
+    if (ImGui::Begin(
+            "airstrike 3d tools", nullptr, ImGuiWindowFlags_NoCollapse))
     {
-        bool enabled = ctx.cam.enabled.load();
-        if (ImGui::Checkbox("Master Enable", &enabled))
-            ctx.cam.enabled.store(enabled);
 
-        ImGui::SameLine();
-        ImGui::TextColored(enabled ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1),
-                           "[%s]",
-                           enabled ? "ACTIVE" : "OFF");
-
-        if (enabled)
+        // CAMERA SECTION
+        if (ImGui::CollapsingHeader("freecam", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::SeparatorText("Settings");
-            float sens = ctx.cam.sensitivity.load();
-            if (ImGui::DragFloat("Sensitivity", &sens, 0.005f, 0.01f, 2.0f))
-                ctx.cam.sensitivity.store(sens);
+            bool enabled = ctx.cam.enabled.load();
+            if (ImGui::Checkbox("enabled##cam", &enabled))
+                ctx.cam.enabled.store(enabled);
 
-            float speed = ctx.cam.base_speed.load();
-            if (ImGui::DragFloat("Speed", &speed, 0.5f, 0.1f, 1000.0f))
-                ctx.cam.base_speed.store(speed);
+            ImGui::SameLine();
+            ImGui::TextColored(enabled ? ImVec4(0, 1, 0, 1)
+                                       : ImVec4(1, 0, 0, 1),
+                               "[%s]",
+                               enabled ? "active" : "off");
 
-            float mult = ctx.cam.sprint_mult.load();
-            if (ImGui::DragFloat("Sprint Mult", &mult, 0.1f, 1.0f, 50.0f))
-                ctx.cam.sprint_mult.store(mult);
-
-            ImGui::SeparatorText("Injection");
-            bool f_id = ctx.cam.hook_identity.load();
-            if (ImGui::Checkbox("Hook Identity", &f_id))
-                ctx.cam.hook_identity.store(f_id);
-
-            ImGui::SeparatorText("Telemetry");
-            ImGui::Text("Pos: %.2f %.2f %.2f",
-                        ctx.cam.pos.x,
-                        ctx.cam.pos.y,
-                        ctx.cam.pos.z);
-            ImGui::Text("Rot: %.1f / %.1f", ctx.cam.rot.x, ctx.cam.rot.y);
-
-            if (ImGui::Button("Reset Origin", { 120, 0 }))
+            if (enabled)
             {
-                ctx.cam.pos = { 0.0, 10.0, 0.0 };
-                ctx.cam.rot = { -90.0f, 0.0f };
+                float sens = ctx.cam.sensitivity.load();
+                if (ImGui::DragFloat("sensitivity", &sens, 0.005f, 0.01f, 2.0f))
+                    ctx.cam.sensitivity.store(sens);
+
+                float speed = ctx.cam.base_speed.load();
+                if (ImGui::DragFloat("speed", &speed, 0.5f, 0.1f, 1000.0f))
+                    ctx.cam.base_speed.store(speed);
+
+                float mult = ctx.cam.sprint_mult.load();
+                if (ImGui::DragFloat("sprint mult", &mult, 0.1f, 1.0f, 50.0f))
+                    ctx.cam.sprint_mult.store(mult);
+
+                bool f_id = ctx.cam.hook_identity.load();
+                if (ImGui::Checkbox("hook identity", &f_id))
+                    ctx.cam.hook_identity.store(f_id);
+
+                ImGui::Text("pos: %.2f %.2f %.2f",
+                            ctx.cam.pos.x,
+                            ctx.cam.pos.y,
+                            ctx.cam.pos.z);
+                ImGui::Text("rot: %.1f / %.1f", ctx.cam.rot.x, ctx.cam.rot.y);
+
+                if (ImGui::Button("reset camera", { -1, 0 }))
+                {
+                    ctx.cam.pos = { 0.0, 10.0, 0.0 };
+                    ctx.cam.rot = { -90.0f, 0.0f };
+                }
             }
         }
 
-        ImGui::Separator();
-        ImGui::TextDisabled("Press [INSERT] for Cinematic Mode");
-
-        if (ImGui::Button("Unload DLL", { 120, 0 }))
+        // CHEAT CODES SECTION
+        if (ImGui::CollapsingHeader("cheat codes (airstrike 2)",
+                                    ImGuiTreeNodeFlags_DefaultOpen))
         {
-            std::thread([] { uninstall_hooks(); }).detach();
+            ImGui::TextWrapped("click buttons to activate cheats");
+            ImGui::Separator();
+
+            if (ImGui::Button("10 lives", { -1, 0 }))
+                send_cheat_code("igonnaliveforever");
+
+            if (ImGui::Button("all weapons", { -1, 0 }))
+                send_cheat_code("showmetheweapons");
+
+            if (ImGui::Button("all missiles", { -1, 0 }))
+                send_cheat_code("moremoreweapons");
+
+            if (ImGui::Button("all power-ups", { -1, 0 }))
+                send_cheat_code("glitteringprizes");
+
+            if (ImGui::Button("god mode", { -1, 0 }))
+                send_cheat_code("invulnerability");
+
+            if (ImGui::Button("win mission", { -1, 0 }))
+                send_cheat_code("deadlineisnear");
+
+            if (ImGui::Button("lose mission", { -1, 0 }))
+                send_cheat_code("diediediemydarling");
         }
+
+        ImGui::Separator();
+        ImGui::TextDisabled("[INSERT] to toggle ui");
+
+        if (ImGui::Button("unload dll", { -1, 0 }))
+            std::thread([] { uninstall_hooks(); }).detach();
     }
     ImGui::End();
+
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
