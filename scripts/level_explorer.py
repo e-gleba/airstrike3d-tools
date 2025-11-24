@@ -4,6 +4,13 @@ level_explorer - AirStrike 3D level explorer and analyzer
 
 Explore and preview levels from AirStrike 3D game pak archives.
 Uses paktool.py for archive extraction.
+
+HMAP Format (reverse engineered):
+  - Header: 28 bytes
+  - Object type names: length-prefixed strings
+  - Item type names: length-prefixed strings  
+  - Heightmap layers: grid_size × grid_size × 4 bytes per layer
+  - Object placement data: 32 bytes per object + optional scripts
 """
 import argparse
 import struct
@@ -14,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator, Optional
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 
 class Style:
@@ -53,28 +60,42 @@ HMAP_HEADER_SIZE = 28
 
 @dataclass
 class HMapHeader:
-    """HMAP file header structure."""
+    """HMAP file header structure (28 bytes)."""
 
-    magic: bytes
-    version: int
-    grid_size: int        # Terrain grid dimension (e.g., 32 = 32x32)
-    terrain_scale: int    # Usually 256 (scale factor)
+    magic: bytes          # "HMAP"
+    version: int          # Always 2
+    grid_size: int        # Terrain grid dimension (e.g., 32)
+    terrain_scale: int    # World scale factor (e.g., 256)
     object_count: int     # Number of placed objects
     object_type_count: int  # Number of unique object types
-    layer_count: int      # Number of terrain layers
+    item_type_count: int  # Number of item types (also layer count)
+
+
+@dataclass
+class LevelObject:
+    """A placed object in the level."""
+
+    type_idx: int
+    type_name: str
+    x: float
+    y: float
+    z: float
+    rotation: float
+    flags: int
+    script_path: Optional[str] = None
 
 
 @dataclass
 class HMapLevel:
-    """Parsed HMAP level data."""
+    """Fully parsed HMAP level data."""
 
     header: HMapHeader
     object_types: list[str] = field(default_factory=list)
+    item_types: list[str] = field(default_factory=list)
+    heightmaps: list[list[list[int]]] = field(default_factory=list)
+    objects: list[LevelObject] = field(default_factory=list)
     raw_data: bytes = b""
-
-    @property
-    def name(self) -> str:
-        return "Unknown"
+    name: str = "Unknown"
 
 
 def parse_hmap_header(data: bytes) -> Optional[HMapHeader]:
@@ -92,7 +113,7 @@ def parse_hmap_header(data: bytes) -> Optional[HMapHeader]:
         terrain_scale,
         object_count,
         object_type_count,
-        layer_count,
+        item_type_count,
     ) = struct.unpack_from("<6I", data, 4)
 
     return HMapHeader(
@@ -102,48 +123,125 @@ def parse_hmap_header(data: bytes) -> Optional[HMapHeader]:
         terrain_scale=terrain_scale,
         object_count=object_count,
         object_type_count=object_type_count,
-        layer_count=layer_count,
+        item_type_count=item_type_count,
     )
 
 
-def parse_hmap(data: bytes) -> Optional[HMapLevel]:
+def read_length_prefixed_string(data: bytes, offset: int) -> tuple[str, int]:
+    """Read a length-prefixed string, return (string, new_offset)."""
+    if offset >= len(data):
+        return "", offset
+    name_len = data[offset]
+    offset += 1
+    if offset + name_len > len(data):
+        return "", offset
+    name = data[offset:offset + name_len].decode("ascii", errors="replace").rstrip("\x00")
+    return name, offset + name_len
+
+
+def parse_hmap(data: bytes, name: str = "Unknown") -> Optional[HMapLevel]:
     """Parse complete HMAP level file."""
     header = parse_hmap_header(data)
     if not header:
         return None
 
-    level = HMapLevel(header=header, raw_data=data)
+    level = HMapLevel(header=header, raw_data=data, name=name)
 
-    # Parse object type string table - keep parsing until we hit heightmap data
-    # The heightmap starts when we see consistent uint32 values in 0-255 range
+    # Parse object type names
     offset = HMAP_HEADER_SIZE
-    while offset < len(data) - 4:
-        name_len = data[offset]
-        # Check if this looks like a valid string length (1-64 chars)
-        if name_len == 0 or name_len > 64:
-            break
-        # Check if next bytes look like ASCII string data
-        if offset + 1 + name_len > len(data):
-            break
-        # Verify it's printable ASCII
-        chunk = data[offset + 1 : offset + 1 + name_len]
-        if not all(32 <= b < 127 or b == 0 for b in chunk):
-            break
-        offset += 1
-        name = chunk.decode("ascii", errors="replace")
-        level.object_types.append(name.rstrip("\x00"))
-        offset += name_len
+    for _ in range(header.object_type_count):
+        obj_name, offset = read_length_prefixed_string(data, offset)
+        level.object_types.append(obj_name)
 
-    # Update header with actual count
-    level.header = HMapHeader(
-        magic=header.magic,
-        version=header.version,
-        grid_size=header.grid_size,
-        terrain_scale=header.terrain_scale,
-        object_count=header.object_count,
-        object_type_count=len(level.object_types),
-        layer_count=header.layer_count,
-    )
+    # Parse item type names
+    for _ in range(header.item_type_count):
+        item_name, offset = read_length_prefixed_string(data, offset)
+        level.item_types.append(item_name)
+
+    # Find where object data starts (first 0xFFFF marker)
+    first_ffff = len(data)
+    for i in range(offset, len(data) - 1):
+        if data[i:i + 2] == b"\xff\xff":
+            first_ffff = i
+            break
+
+    # Calculate actual number of heightmap layers from available data
+    layer_size = header.grid_size * header.grid_size * 4
+    heightmap_bytes = first_ffff - offset
+    actual_layers = heightmap_bytes // layer_size
+
+    # Parse heightmap layers
+    # Each layer is grid_size × grid_size × 4 bytes (uint32 heights 0-255)
+    for layer in range(actual_layers):
+        hmap = []
+        for y in range(header.grid_size):
+            row = []
+            for x in range(header.grid_size):
+                if offset + 4 <= len(data):
+                    h = struct.unpack_from("<I", data, offset)[0]
+                    h = min(255, h)  # Clamp to byte range
+                else:
+                    h = 128
+                row.append(h)
+                offset += 4
+            hmap.append(row)
+        level.heightmaps.append(hmap)
+
+    # Parse object placement data
+    # Objects are delimited by 0xFFFF markers
+    # Format: ffff(2) + type_idx(2) + x_grid(2) + y_grid(2) + extra(5+) bytes
+    ffff_positions = []
+    for i in range(offset, len(data) - 1):
+        if data[i:i + 2] == b"\xff\xff":
+            ffff_positions.append(i)
+
+    # Parse each object record
+    scale = header.terrain_scale / header.grid_size  # World units per grid cell
+    for i, pos in enumerate(ffff_positions):
+        if pos + 8 > len(data):
+            break
+
+        type_idx = struct.unpack_from("<H", data, pos + 2)[0]
+        x_grid = struct.unpack_from("<H", data, pos + 4)[0]
+        y_grid = struct.unpack_from("<H", data, pos + 6)[0]
+
+        if type_idx >= len(level.object_types):
+            continue
+
+        # Convert grid coordinates to world coordinates
+        x_world = x_grid * scale
+        y_world = y_grid * scale
+
+        # Get extra bytes to check for rotation/flags
+        next_pos = ffff_positions[i + 1] if i + 1 < len(ffff_positions) else len(data)
+        extra = data[pos + 8:next_pos]
+
+        # Extract flags/rotation from extra bytes
+        flags = extra[0] if len(extra) > 0 else 0
+        rotation = 0.0
+        script_path = None
+
+        # Check for script path in larger records
+        if len(extra) > 20:
+            script_marker = extra.find(b"scripts\\")
+            if script_marker >= 0:
+                script_end = extra.find(b"\x00", script_marker)
+                if script_end > script_marker:
+                    script_path = extra[script_marker:script_end].decode("ascii", errors="replace")
+
+        type_name = level.object_types[type_idx]
+
+        obj = LevelObject(
+            type_idx=type_idx,
+            type_name=type_name,
+            x=x_world,
+            y=y_world,
+            z=0.0,  # Z is determined by terrain height
+            rotation=rotation,
+            flags=flags,
+            script_path=script_path,
+        )
+        level.objects.append(obj)
 
     return level
 
@@ -173,7 +271,6 @@ def list_levels_in_pak(pak_path: Path) -> Generator[tuple[str, int, int], None, 
         return
 
     for line in output.splitlines():
-        # Parse paktool list output: "    SIZE  0xOFFSET  NAME"
         parts = line.split()
         if len(parts) >= 3 and parts[2].endswith(".hsc"):
             try:
@@ -198,27 +295,6 @@ def extract_level_from_pak(pak_path: Path, level_name: str) -> Optional[bytes]:
     return None
 
 
-def format_object_types(types: list[str], columns: int = 3) -> str:
-    """Format object types in columns."""
-    if not types:
-        return "  (none)"
-
-    max_len = max(len(t) for t in types) + 2
-    lines = []
-    row = []
-
-    for i, t in enumerate(types):
-        row.append(t.ljust(max_len))
-        if len(row) >= columns:
-            lines.append("  " + "".join(row))
-            row = []
-
-    if row:
-        lines.append("  " + "".join(row))
-
-    return "\n".join(lines)
-
-
 def categorize_objects(types: list[str]) -> dict[str, list[str]]:
     """Categorize object types by prefix/type."""
     categories: dict[str, list[str]] = {
@@ -230,15 +306,15 @@ def categorize_objects(types: list[str]) -> dict[str, list[str]]:
         "misc": [],
     }
 
-    enemy_prefixes = ("helic", "tank", "btr", "mi_", "jeep_helic", "turret")
-    vehicle_prefixes = ("jeep", "uaz", "gruzovik", "traktor", "civil_car", "tank")
+    enemy_prefixes = ("helic", "tank", "btr", "mi_", "jeep_helic", "turret", "boss")
+    vehicle_prefixes = ("jeep", "uaz", "gruzovik", "traktor", "civil_car", "tank", "cutter")
     building_prefixes = (
         "kolhoz", "dom", "angar", "budka", "tent", "cistern", "factory",
-        "office", "hungar", "ruin", "zabor"
+        "office", "hungar", "ruin", "zabor", "radar", "dock", "mayak"
     )
     nature_prefixes = (
         "tree", "grass", "bush", "kust", "kamni", "stone", "palm", "elka",
-        "bereza", "sosna", "cactus", "penek", "brevna", "stog", "podsolnuh"
+        "bereza", "sosna", "cactus", "penek", "brevna", "stog", "podsolnuh", "ice"
     )
     item_prefixes = ("item_", "ammo_", "box")
 
@@ -290,7 +366,6 @@ def cmd_info(args: argparse.Namespace) -> int:
     """Show detailed info about a level."""
     level_path: Path = args.level
 
-    # Check if it's a direct .hsc file or needs extraction from pak
     if level_path.suffix.lower() == ".hsc":
         if not level_path.exists():
             Style.err(f"Level file not found: {level_path}")
@@ -298,7 +373,6 @@ def cmd_info(args: argparse.Namespace) -> int:
         data = level_path.read_bytes()
         level_name = level_path.stem
     elif level_path.suffix.lower() == ".apk":
-        # It's a pak file, need level name
         if not args.name:
             Style.err("--name required when using pak file as input")
             return 1
@@ -311,7 +385,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         Style.err(f"Unknown file type: {level_path.suffix}")
         return 1
 
-    level = parse_hmap(data)
+    level = parse_hmap(data, level_name)
     if not level:
         Style.err("Failed to parse HMAP file")
         return 1
@@ -320,21 +394,29 @@ def cmd_info(args: argparse.Namespace) -> int:
 
     print(f"\n{Style.B}{Style.C}═══ Level: {level_name} ═══{Style.X}\n")
 
+    actual_layers = len(level.heightmaps)
+    full_height = h.grid_size * actual_layers
+
     print(f"{Style.B}Header:{Style.X}")
     print(f"  Magic:         {h.magic.decode()}")
     print(f"  Version:       {h.version}")
-    print(f"  Grid Size:     {h.grid_size}x{h.grid_size}")
-    print(f"  Terrain Scale: {h.terrain_scale}")
-    print(f"  Layers:        {h.layer_count}")
+    print(f"  Terrain:       {h.grid_size}x{full_height} ({actual_layers} layers)")
+    print(f"  World Scale:   {h.terrain_scale}")
     print(f"  File Size:     {len(data):,} bytes")
 
     print(f"\n{Style.B}Objects:{Style.X}")
-    print(f"  Total Placed:  {h.object_count}")
+    print(f"  Total Placed:  {h.object_count} (parsed: {len(level.objects)})")
     print(f"  Unique Types:  {h.object_type_count}")
 
-    if args.verbose:
-        print(f"\n{Style.B}Object Types:{Style.X}")
-        print(format_object_types(level.object_types, columns=3))
+    print(f"\n{Style.B}Items:{Style.X}")
+    for item in level.item_types:
+        print(f"  • {item}")
+
+    if args.verbose and level.heightmaps:
+        all_heights = [h for hmap in level.heightmaps for row in hmap for h in row]
+        print(f"\n{Style.B}Heightmap:{Style.X}")
+        print(f"  Range: {min(all_heights)} - {max(all_heights)}")
+        print(f"  Unique values: {len(set(all_heights))}")
 
     # Show categorized summary
     categories = categorize_objects(level.object_types)
@@ -356,6 +438,11 @@ def cmd_info(args: argparse.Namespace) -> int:
             if len(items) > 10:
                 print(f"    {Style.D}... and {len(items) - 10} more{Style.X}")
 
+    if args.verbose and level.objects:
+        print(f"\n{Style.B}Sample Objects (first 10):{Style.X}")
+        for obj in level.objects[:10]:
+            print(f"  {obj.type_name:<25} ({obj.x:.1f}, {obj.y:.1f}, {obj.z:.1f}) rot={obj.rotation:.1f}°")
+
     return 0
 
 
@@ -370,7 +457,6 @@ def cmd_extract(args: argparse.Namespace) -> int:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get list of levels
     levels = list(list_levels_in_pak(pak_path))
     if args.filter:
         filter_lower = args.filter.lower()
@@ -404,14 +490,12 @@ def cmd_view(args: argparse.Namespace) -> int:
     """Launch 3D viewer for a level."""
     level_path: Path = args.level
 
-    # Check if it's a direct .hsc file or needs extraction from pak
     if level_path.suffix.lower() == ".hsc":
         if not level_path.exists():
             Style.err(f"Level file not found: {level_path}")
             return 1
         hsc_file = level_path
     elif level_path.suffix.lower() == ".apk":
-        # Extract from pak to temp file
         if not args.name:
             Style.err("--name required when using pak file as input")
             return 1
@@ -419,8 +503,6 @@ def cmd_view(args: argparse.Namespace) -> int:
         if not data:
             Style.err(f"Could not extract level '{args.name}' from {level_path}")
             return 1
-        # Write to temp file
-        import tempfile
         with tempfile.NamedTemporaryFile(suffix=".hsc", delete=False) as f:
             f.write(data)
             hsc_file = Path(f.name)
@@ -428,7 +510,6 @@ def cmd_view(args: argparse.Namespace) -> int:
         Style.err(f"Unknown file type: {level_path.suffix}")
         return 1
 
-    # Launch viewer
     script_dir = Path(__file__).parent
     viewer_script = script_dir / "level_viewer.py"
 
@@ -436,7 +517,6 @@ def cmd_view(args: argparse.Namespace) -> int:
         Style.err(f"Viewer script not found: {viewer_script}")
         return 1
 
-    import subprocess
     cmd = [sys.executable, str(viewer_script), str(hsc_file)]
     if args.wireframe:
         cmd.append("--wireframe")
@@ -487,7 +567,6 @@ def cmd_stats(args: argparse.Namespace) -> int:
     print(f"  Total Objects:      {total_objects:,}")
     print(f"  Unique Object Types: {len(all_types)}")
 
-    # Top 20 most common object types
     print(f"\n{Style.B}Most Common Object Types:{Style.X}")
     sorted_types = sorted(all_types.items(), key=lambda x: -x[1])
     for i, (name, count) in enumerate(sorted_types[:20], 1):
@@ -495,7 +574,6 @@ def cmd_stats(args: argparse.Namespace) -> int:
         bar = "█" * bar_len
         print(f"  {i:>2}. {name:<30} {count:>3} {Style.D}{bar}{Style.X}")
 
-    # Category breakdown
     categories = categorize_objects(list(all_types.keys()))
     print(f"\n{Style.B}Category Distribution:{Style.X}")
     for cat, items in sorted(categories.items(), key=lambda x: -len(x[1])):
@@ -513,47 +591,37 @@ def main() -> int:
         epilog="""
 examples:
   %(prog)s list pak1.apk                    # list all levels
-  %(prog)s list pak0.apk pak1.apk           # list from multiple paks
-  %(prog)s info level1_tutor.hsc            # show level details
-  %(prog)s info pak1.apk --name level1_tutor  # info from pak
+  %(prog)s info level1_tutor.hsc -v         # show level details
   %(prog)s extract pak1.apk -o levels/      # extract all levels
   %(prog)s stats pak1.apk                   # show statistics
   %(prog)s view level1_tutor.hsc            # launch 3D viewer
-  %(prog)s view pak1.apk -n level_boss1     # view level from pak
         """,
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
-    # List command
     p_list = subparsers.add_parser("list", help="List levels in pak file(s)")
     p_list.add_argument("input", type=Path, nargs="+", help="Pak file(s)")
 
-    # Info command
     p_info = subparsers.add_parser("info", help="Show level details")
     p_info.add_argument("level", type=Path, help="Level file (.hsc) or pak file")
     p_info.add_argument("--name", "-n", help="Level name (when using pak file)")
     p_info.add_argument("-v", "--verbose", action="store_true", help="Show all details")
 
-    # Extract command
     p_extract = subparsers.add_parser("extract", help="Extract levels from pak")
     p_extract.add_argument("input", type=Path, help="Pak file")
     p_extract.add_argument("-o", "--output", type=Path, help="Output directory")
     p_extract.add_argument("-f", "--filter", help="Filter levels by name")
     p_extract.add_argument("-v", "--verbose", action="store_true")
 
-    # Stats command
     p_stats = subparsers.add_parser("stats", help="Show statistics across levels")
     p_stats.add_argument("input", type=Path, nargs="+", help="Pak file(s)")
 
-    # View command (3D viewer)
     p_view = subparsers.add_parser("view", help="Launch 3D level viewer")
     p_view.add_argument("level", type=Path, help="Level file (.hsc) or pak file")
     p_view.add_argument("--name", "-n", help="Level name (when using pak file)")
-    p_view.add_argument("-w", "--wireframe", action="store_true", help="Start in wireframe mode")
+    p_view.add_argument("-w", "--wireframe", action="store_true", help="Wireframe mode")
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -584,4 +652,3 @@ examples:
 
 if __name__ == "__main__":
     sys.exit(main())
-
