@@ -90,14 +90,6 @@ struct debug_settings final {
     std::atomic<bool> show_demo{ false };
 };
 
-struct hot_reload_settings final {
-    std::atomic<bool> enabled{ true };
-    std::atomic<bool> checking{ false };
-    std::string       watch_path;
-    FILETIME          last_write_time{};
-    HMODULE           hooks_module{ nullptr };
-};
-
 struct global_context final {
     HWND              game_window{ nullptr };
     WNDPROC           orig_wnd_proc{ nullptr };
@@ -109,7 +101,6 @@ struct global_context final {
     resolution_settings  resolution;
     gameplay_settings    gameplay;
     debug_settings       debug;
-    hot_reload_settings  hot_reload;
     
     std::atomic<int> frame_count{ 0 };
     std::atomic<int> draw_call_count{ 0 };
@@ -222,113 +213,6 @@ private:
 };
 
 static logger logger;
-
-// Hot reload helper functions
-static std::string get_dll_directory() {
-    char path[MAX_PATH];
-    HMODULE hm = nullptr;
-    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCSTR>(&get_dll_directory), &hm)) {
-        GetModuleFileNameA(hm, path, MAX_PATH);
-        std::string dir(path);
-        size_t pos = dir.find_last_of("\\/");
-        if (pos != std::string::npos) {
-            return dir.substr(0, pos + 1);
-        }
-    }
-    return "";
-}
-
-static FILETIME get_file_write_time(const std::string& path) {
-    FILETIME ft{};
-    HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile != INVALID_HANDLE_VALUE) {
-        GetFileTime(hFile, nullptr, nullptr, &ft);
-        CloseHandle(hFile);
-    }
-    return ft;
-}
-
-static bool file_times_equal(const FILETIME& a, const FILETIME& b) {
-    return a.dwLowDateTime == b.dwLowDateTime && a.dwHighDateTime == b.dwHighDateTime;
-}
-
-static bool try_hot_reload();  // Forward declaration
-
-static void hot_reload_check() {
-    if (!ctx.hot_reload.enabled.load() || ctx.hot_reload.checking.exchange(true)) {
-        return;  // Already checking or disabled
-    }
-    
-    std::string reload_path = get_dll_directory() + "bass_hooks.dll";
-    
-    FILETIME current_time = get_file_write_time(reload_path);
-    
-    // Check if file exists and has changed
-    if (current_time.dwLowDateTime != 0 || current_time.dwHighDateTime != 0) {
-        if (!file_times_equal(current_time, ctx.hot_reload.last_write_time)) {
-            if (ctx.hot_reload.last_write_time.dwLowDateTime != 0 || 
-                ctx.hot_reload.last_write_time.dwHighDateTime != 0) {
-                // File changed, try to reload
-                logger.log("hot_reload => detected change in bass_hooks.dll");
-                try_hot_reload();
-            }
-            ctx.hot_reload.last_write_time = current_time;
-        }
-    }
-    
-    ctx.hot_reload.checking.store(false);
-}
-
-using hooks_func_t = void(*)();
-
-static bool try_hot_reload() {
-    std::string reload_path = get_dll_directory() + "bass_hooks.dll";
-    
-    // Try to load the new DLL to validate it first
-    HMODULE test_module = LoadLibraryA(reload_path.c_str());
-    if (!test_module) {
-        DWORD error = GetLastError();
-        logger.log("hot_reload => FAILED to load bass_hooks.dll (error {})", error);
-        return false;
-    }
-    
-    // Check for required exports
-    auto new_install = reinterpret_cast<hooks_func_t>(GetProcAddress(test_module, "install_hooks"));
-    auto new_uninstall = reinterpret_cast<hooks_func_t>(GetProcAddress(test_module, "uninstall_hooks"));
-    
-    if (!new_install || !new_uninstall) {
-        logger.log("hot_reload => bass_hooks.dll missing 'install_hooks' or 'uninstall_hooks' export");
-        FreeLibrary(test_module);
-        return false;
-    }
-    
-    // Unload old module if any
-    if (ctx.hot_reload.hooks_module) {
-        auto old_uninstall = reinterpret_cast<hooks_func_t>(
-            GetProcAddress(ctx.hot_reload.hooks_module, "uninstall_hooks"));
-        if (old_uninstall) {
-            logger.log("hot_reload => calling uninstall_hooks on old module");
-            old_uninstall();
-        }
-        
-        // Small delay to let hooks fully unwind
-        Sleep(100);
-        
-        FreeLibrary(ctx.hot_reload.hooks_module);
-        ctx.hot_reload.hooks_module = nullptr;
-        logger.log("hot_reload => old module unloaded");
-    }
-    
-    // Install hooks from new module
-    ctx.hot_reload.hooks_module = test_module;
-    logger.log("hot_reload => calling install_hooks on new module");
-    new_install();
-    
-    logger.log("hot_reload => SUCCESS - bass_hooks.dll reloaded");
-    return true;
-}
 
 static wgl_swap_t              orig_wgl_swap              = nullptr;
 static qpc_t                   orig_qpc                   = nullptr;
@@ -483,11 +367,6 @@ static void APIENTRY detour_gl_matrix_mode(GLenum mode) {
 
 static BOOL WINAPI detour_wgl_swap(HDC dc) {
     ctx.frame_count.fetch_add(1, std::memory_order_relaxed);
-    
-    // Check for hot reload every 60 frames (~1 second at 60fps)
-    if (ctx.frame_count.load() % 60 == 0) {
-        hot_reload_check();
-    }
     
     if (ctx.imgui_ready.load(std::memory_order_acquire)) {
         if (ImGui::GetCurrentContext()) {
@@ -915,17 +794,6 @@ static void draw_ui() {
                 ImGui::SameLine();
                 ImGui::TextDisabled("(Apply changes immediately)");
                 
-                ImGui::Spacing();
-                
-                if (ImGui::Button("Reinitialize UI")) {
-                    if (ui_load_resources_fn) {
-                        logger.log("resolution => manual ui_load_resources call");
-                        ui_load_resources_fn();
-                    }
-                }
-                ImGui::SameLine();
-                ImGui::TextDisabled("Calls game's ui_load_resources()");
-                
                 ImGui::SeparatorText("Current State");
                 
                 if (g_screen_width_ptr && g_screen_height_ptr) {
@@ -992,36 +860,6 @@ static void draw_ui() {
                 bool log_mouse = ctx.debug.log_mouse.load();
                 if (ImGui::Checkbox("Log Mouse Coordinates", &log_mouse)) {
                     ctx.debug.log_mouse.store(log_mouse);
-                }
-                
-                ImGui::SeparatorText("Hot Reload");
-                
-                bool hr_enabled = ctx.hot_reload.enabled.load();
-                if (ImGui::Checkbox("Enable Hot Reload", &hr_enabled)) {
-                    ctx.hot_reload.enabled.store(hr_enabled);
-                }
-                ImGui::TextDisabled("Place 'bass_hooks.dll' in game folder");
-                ImGui::TextDisabled("Must export: install_hooks(), uninstall_hooks()");
-                
-                if (ctx.hot_reload.hooks_module) {
-                    ImGui::TextColored(ImVec4(0,1,0,1), "bass_hooks.dll: LOADED");
-                } else {
-                    ImGui::Text("bass_hooks.dll: not loaded");
-                }
-                
-                if (ImGui::Button("Force Reload Now")) {
-                    try_hot_reload();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Unload Hooks")) {
-                    if (ctx.hot_reload.hooks_module) {
-                        auto old_uninstall = reinterpret_cast<hooks_func_t>(
-                            GetProcAddress(ctx.hot_reload.hooks_module, "uninstall_hooks"));
-                        if (old_uninstall) old_uninstall();
-                        FreeLibrary(ctx.hot_reload.hooks_module);
-                        ctx.hot_reload.hooks_module = nullptr;
-                        logger.log("hot_reload => manually unloaded");
-                    }
                 }
 
                 ImGui::SeparatorText("Console");
