@@ -1,929 +1,671 @@
+
+/*
+ * bass_proxy.cpp
+ * C++23 | spdlog 1.16 | MinHook | Feature Complete
+ */
+
 #define WIN32_LEAN_AND_MEAN
 #define _CRT_SECURE_NO_WARNINGS
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
 #include "bass_proxy.hpp"
 
-#include <MinHook.h>
-
 #include <GL/gl.h>
+#include <psapi.h>
+#include <windows.h>
+
+#include <MinHook.h>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
+#include <spdlog/sinks/base_sink.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h>
 
-#include <windows.h>
-#include <psapi.h>
-
-#include <array>
 #include <atomic>
-#include <chrono>
 #include <cmath>
-#include <cstdint>
+#include <expected>
 #include <format>
-#include <fstream>
 #include <mutex>
+#include <source_location>
 #include <string>
-#include <string_view>
-#include <thread>
 #include <vector>
 
-using wgl_swap_t         = BOOL(WINAPI*)(HDC);
-using qpc_t              = BOOL(WINAPI*)(LARGE_INTEGER*);
-using set_cursor_t       = BOOL(WINAPI*)(int, int);
-using create_file_a_t    = HANDLE(WINAPI*)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
-using gl_draw_elems_t    = void(APIENTRY*)(GLenum, GLsizei, GLenum, const GLvoid*);
-using gl_viewport_t      = void(APIENTRY*)(GLint, GLint, GLsizei, GLsizei);
-using gl_clear_t         = void(APIENTRY*)(GLbitfield);
-using gl_matrix_mode_t   = void(APIENTRY*)(GLenum);
+// -----------------------------------------------------------------------------
+// Types & Constants
+// -----------------------------------------------------------------------------
 
-// Game function types
-using video_set_resolution_t = void(__cdecl*)(int mode);
-using game_update_mouse_t    = void(__cdecl*)(int raw_x, int raw_y);
-using ui_update_selection_t  = void(__cdecl*)(void);
+using wgl_swap_t      = BOOL(WINAPI*)(HDC);
+using qpc_t           = BOOL(WINAPI*)(LARGE_INTEGER*);
+using set_cursor_t    = BOOL(WINAPI*)(int, int);
+using create_file_a_t = HANDLE(WINAPI*)(
+    LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+using gl_draw_elems_t = void(APIENTRY*)(GLenum, GLsizei, GLenum, const GLvoid*);
+using gl_viewport_t   = void(APIENTRY*)(GLint, GLint, GLsizei, GLsizei);
+using gl_clear_t      = void(APIENTRY*)(GLbitfield);
+using video_set_resolution_t = void(__cdecl*)(int);
+using game_update_mouse_t    = void(__cdecl*)(int, int);
+using ui_func_t              = void(__cdecl*)(void);
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
+                                                             UINT,
+                                                             WPARAM,
+                                                             LPARAM);
 
-// Game memory addresses (from Ghidra analysis)
-constexpr uintptr_t ADDR_VIDEO_SET_RESOLUTION = 0x00401000;
-constexpr uintptr_t ADDR_G_SCREEN_WIDTH       = 0x00441874;
-constexpr uintptr_t ADDR_G_SCREEN_HEIGHT      = 0x00441878;
-constexpr uintptr_t ADDR_G_VIDEO_MODE         = 0x00441870;
-constexpr uintptr_t ADDR_MOUSE_SCALE          = 0x004e53e8;  // float: base_ui_width / screen_width
-constexpr uintptr_t ADDR_UI_BASE_WIDTH        = 0x00438088;  // float: base UI width (800.0f)
-constexpr uintptr_t ADDR_GAME_UPDATE_MOUSE    = 0x0040ad30;  // void game_update_mouse(int raw_x, int raw_y)
-constexpr uintptr_t ADDR_G_MOUSE_X            = 0x004e53d0;  // int: scaled mouse X
-constexpr uintptr_t ADDR_G_MOUSE_Y            = 0x004e53d4;  // int: scaled mouse Y
-constexpr uintptr_t ADDR_UI_UPDATE_SELECTION  = 0x00428b20;  // void ui_update_selection(void)
-constexpr uintptr_t ADDR_MOUSE_ACTIVE_FLAG    = 0x004e53f4;  // byte: flag checked before processing mouse
-constexpr uintptr_t ADDR_UI_LOAD_RESOURCES    = 0x004288d0;  // void ui_load_resources(void) - recalculates mouse scale
+namespace game_addr
+{
+constexpr uintptr_t video_set_res = 0x00401000;
+constexpr uintptr_t screen_width  = 0x00441874;
+constexpr uintptr_t screen_height = 0x00441878;
+constexpr uintptr_t video_mode    = 0x00441870;
+constexpr uintptr_t mouse_scale   = 0x004e53e8;
+constexpr uintptr_t ui_base_width = 0x00438088;
+constexpr uintptr_t update_mouse  = 0x0040ad30;
+constexpr uintptr_t mouse_x       = 0x004e53d0;
+constexpr uintptr_t mouse_y       = 0x004e53d4;
+constexpr uintptr_t update_sel    = 0x00428b20;
+constexpr uintptr_t mouse_active  = 0x004e53f4;
+constexpr uintptr_t load_res      = 0x004288d0;
+} // namespace game_addr
 
-// Base UI dimensions (the game's internal coordinate system)
-constexpr float UI_BASE_WIDTH  = 800.0f;
-constexpr float UI_BASE_HEIGHT = 600.0f;
+constexpr float ui_base_w = 800.0f;
+constexpr float ui_base_h = 600.0f;
 
-struct visual_settings final {
-    std::atomic<bool> disable_depth{ false };
-    std::atomic<bool> wireframe{ false };
-    std::atomic<bool> fog_override{ false };
-    
-    ImVec4 clear_color{ 0.0f, 0.0f, 0.0f, 0.0f };
-    ImVec4 fog_color{ 0.5f, 0.6f, 0.7f, 1.0f };
-    bool   enable_clear{ false };
-};
+// -----------------------------------------------------------------------------
+// Logger (Enhanced)
+// -----------------------------------------------------------------------------
 
-struct resolution_settings final {
-    std::atomic<bool> custom_enabled{ false };
-    std::atomic<int>  custom_width{ 1920 };
-    std::atomic<int>  custom_height{ 1080 };
-    std::atomic<bool> applied{ false };
-};
+template <typename Mutex>
+class imgui_sink final : public spdlog::sinks::base_sink<Mutex>
+{
+    ImGuiTextBuffer buf;
+    ImGuiTextFilter filter;
+    bool            scroll_to_bottom = true;
 
-struct gameplay_settings final {
-    std::atomic<float> speed_multiplier{ 1.0f };
-    std::atomic<bool>  block_mouse{ false };
-};
+protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override
+    {
+        spdlog::memory_buf_t formatted;
+        spdlog::sinks::base_sink<Mutex>::formatter_->format(msg, formatted);
+        buf.append(std::string_view(formatted.data(), formatted.size()).data());
+        scroll_to_bottom = true;
+    }
 
-struct debug_settings final {
-    std::atomic<bool> log_fs{ false };
-    std::atomic<bool> log_gl_calls{ false };
-    std::atomic<bool> log_mouse{ false };
-    std::atomic<bool> show_metrics{ false };
-    std::atomic<bool> show_demo{ false };
-};
+    void flush_() override {}
 
-struct global_context final {
-    HWND              game_window{ nullptr };
-    WNDPROC           orig_wnd_proc{ nullptr };
-    std::atomic<bool> imgui_ready{ false };
-    std::atomic<bool> shutting_down{ false };
-    std::atomic<bool> overlay_visible{ true };
-    
-    visual_settings      visuals;
-    resolution_settings  resolution;
-    gameplay_settings    gameplay;
-    debug_settings       debug;
-    
-    std::atomic<int> frame_count{ 0 };
-    std::atomic<int> draw_call_count{ 0 };
-    
-    GLint  current_viewport[4]{ 0, 0, 800, 600 };
-    GLenum current_matrix_mode{ GL_MODELVIEW };
-    
-    // For debugging mouse
-    std::atomic<int> last_raw_x{ 0 };
-    std::atomic<int> last_raw_y{ 0 };
-};
-
-static global_context ctx;
-
-class logger final {
 public:
-    logger() {
-        log_file.open("bass_proxy_log.txt", std::ios::out | std::ios::trunc);
-    }
+    void draw()
+    {
+        std::lock_guard lock(spdlog::sinks::base_sink<Mutex>::mutex_);
 
-    ~logger() {
-        if (log_file.is_open()) {
-            log_file.close();
-        }
-    }
-
-    template <typename... Args>
-    void log(std::format_string<Args...> fmt, Args&&... args) {
-        try {
-            const std::string msg = std::format(fmt, std::forward<Args>(args)...);
-            auto              now = std::chrono::system_clock::now();
-            auto              sys_time = std::chrono::system_clock::to_time_t(now);
-            std::tm           local_tm{};
-#ifdef _WIN32
-            localtime_s(&local_tm, &sys_time);
-#else
-            localtime_r(&sys_time, &local_tm);
-#endif
-
-            const std::string timestamped = std::format(
-                "[{:02}:{:02}:{:02}] {}",
-                local_tm.tm_hour,
-                local_tm.tm_min,
-                local_tm.tm_sec,
-                msg);
-
-            {
-                std::scoped_lock lock(file_mtx);
-                if (log_file.is_open()) {
-                    log_file << timestamped << std::endl;
-                }
-            }
-
-            {
-                std::scoped_lock lock(console_mtx);
-                console_buf.append(timestamped.c_str());
-                console_buf.append("\n");
-                should_scroll = true;
-            }
-        }
-        catch (...) {
-        }
-    }
-
-    void draw_console() {
-        std::scoped_lock lock(console_mtx);
-
-        if (ImGui::Button("Clear")) {
-            console_buf.clear();
-        }
+        if (ImGui::Button("Clear"))
+            buf.clear();
         ImGui::SameLine();
-        if (ImGui::Button("Copy All")) {
-            ImGui::SetClipboardText(console_buf.c_str());
-        }
+        if (ImGui::Button("Copy"))
+            ImGui::SetClipboardText(buf.c_str());
         ImGui::SameLine();
         filter.Draw("Filter", -100.0f);
+
         ImGui::Separator();
 
-        if (ImGui::BeginChild("LogScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar)) {
-            if (filter.IsActive()) {
-                const char* buf_begin = console_buf.begin();
-                const char* line      = buf_begin;
-                while (line != nullptr) {
+        if (ImGui::BeginChild("LogScroll",
+                              ImVec2(0, 0),
+                              false,
+                              ImGuiWindowFlags_HorizontalScrollbar))
+        {
+            if (filter.IsActive())
+            {
+                const char* line = buf.begin();
+                while (line)
+                {
                     const char* line_end = strchr(line, '\n');
-                    if (filter.PassFilter(line, line_end)) {
+                    if (filter.PassFilter(line, line_end))
                         ImGui::TextUnformatted(line, line_end);
-                    }
                     line = (line_end && line_end[1]) ? line_end + 1 : nullptr;
                 }
             }
-            else {
-                ImGui::TextUnformatted(console_buf.begin());
+            else
+            {
+                ImGui::TextUnformatted(buf.begin());
             }
 
-            if (should_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+            if (scroll_to_bottom &&
+                ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+            {
                 ImGui::SetScrollHereY(1.0f);
-                should_scroll = false;
+                scroll_to_bottom = false;
             }
         }
         ImGui::EndChild();
     }
-
-private:
-    std::ofstream   log_file;
-    std::mutex      file_mtx;
-    std::mutex      console_mtx;
-    ImGuiTextBuffer console_buf;
-    ImGuiTextFilter filter;
-    bool            should_scroll = true;
 };
 
-static logger logger;
+using imgui_sink_mt = imgui_sink<std::mutex>;
 
-static wgl_swap_t              orig_wgl_swap              = nullptr;
-static qpc_t                   orig_qpc                   = nullptr;
-static set_cursor_t            orig_set_cursor            = nullptr;
-static create_file_a_t         orig_create_file_a         = nullptr;
-static gl_draw_elems_t         orig_gl_draw_elems         = nullptr;
-static gl_viewport_t           orig_gl_viewport           = nullptr;
-static gl_clear_t              orig_gl_clear              = nullptr;
-static gl_matrix_mode_t        orig_gl_matrix_mode        = nullptr;
-static video_set_resolution_t  orig_video_set_resolution  = nullptr;
-static game_update_mouse_t     orig_game_update_mouse     = nullptr;
+// -----------------------------------------------------------------------------
+// Global Context
+// -----------------------------------------------------------------------------
 
-// Pointers to game globals
-static int*   g_screen_width_ptr    = nullptr;
-static int*   g_screen_height_ptr   = nullptr;
-static int*   g_video_mode_ptr      = nullptr;
-static float* g_mouse_scale_ptr     = nullptr;
-static float* g_ui_base_width_ptr   = nullptr;
-static int*   g_mouse_x_ptr         = nullptr;
-static int*   g_mouse_y_ptr         = nullptr;
-static char*  g_mouse_active_ptr    = nullptr;  // Flag that must be non-zero for mouse processing
+struct global_context final
+{
+    HWND                           hwnd{ nullptr };
+    WNDPROC                        orig_wnd_proc{ nullptr };
+    std::atomic_bool               imgui_ready{ false };
+    std::atomic_bool               shutting_down{ false };
+    std::atomic_bool               overlay_visible{ true };
+    std::shared_ptr<imgui_sink_mt> log_sink;
 
-// Function pointers for game UI functions  
-static ui_update_selection_t ui_update_selection_fn = nullptr;
-static ui_update_selection_t ui_load_resources_fn   = nullptr;  // Same signature (void)(void)
+    struct
+    {
+        std::atomic_bool disable_depth{ false };
+        std::atomic_bool wireframe{ false };
+        std::atomic_bool fog_override{ false };
+        std::atomic_bool enable_clear{ false };
+        ImVec4           clear_col{ 0.f, 0.f, 0.f, 0.f };
+        ImVec4           fog_col{ 0.5f, 0.6f, 0.7f, 1.0f };
+    } visuals;
 
-static void             draw_ui();
-static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
+    struct
+    {
+        std::atomic_bool enabled{ false };
+        std::atomic_bool applied{ false };
+        std::atomic_int  w{ 1920 };
+        std::atomic_int  h{ 1080 };
+    } res;
 
-// Hook for video_set_resolution - allows custom resolutions
-static void __cdecl detour_video_set_resolution(int mode) {
-    if (ctx.resolution.custom_enabled.load(std::memory_order_relaxed)) {
-        const int width  = ctx.resolution.custom_width.load(std::memory_order_relaxed);
-        const int height = ctx.resolution.custom_height.load(std::memory_order_relaxed);
-        
-        if (g_screen_width_ptr && g_screen_height_ptr) {
-            *g_screen_width_ptr  = width;
-            *g_screen_height_ptr = height;
-            // Mouse scale will be updated by ui_load_resources after this, 
-            // but we track that we want custom resolution
-            logger.log("resolution => custom {}x{} applied (mode was {})", width, height, mode);
-            ctx.resolution.applied.store(true, std::memory_order_relaxed);
+    struct
+    {
+        std::atomic<float> speed{ 1.0f };
+        std::atomic_bool   block_input{ false };
+    } gameplay;
+
+    struct
+    {
+        std::atomic_bool log_fs{ false };
+        std::atomic_bool log_gl{ false };
+        std::atomic_bool log_mouse{ false };
+    } debug;
+
+    std::atomic_int frame_cnt{ 0 };
+    std::atomic_int draw_cnt{ 0 };
+
+    GLint           viewport[4]{ 0, 0, 800, 600 };
+    std::atomic_int raw_mouse_x{ 0 };
+    std::atomic_int raw_mouse_y{ 0 };
+};
+
+static global_context ctx;
+
+// -----------------------------------------------------------------------------
+// Pointers & Hooks
+// -----------------------------------------------------------------------------
+
+static wgl_swap_t             o_wgl_swap      = nullptr;
+static qpc_t                  o_qpc           = nullptr;
+static set_cursor_t           o_set_cursor    = nullptr;
+static create_file_a_t        o_create_file_a = nullptr;
+static gl_draw_elems_t        o_gl_draw_elems = nullptr;
+static gl_viewport_t          o_gl_viewport   = nullptr;
+static gl_clear_t             o_gl_clear      = nullptr;
+static video_set_resolution_t o_set_res       = nullptr;
+static game_update_mouse_t    o_update_mouse  = nullptr;
+
+static int*      p_scr_w       = nullptr;
+static int*      p_scr_h       = nullptr;
+static int*      p_vid_mode    = nullptr;
+static int*      p_mse_x       = nullptr;
+static int*      p_mse_y       = nullptr;
+static char*     p_mse_active  = nullptr;
+static ui_func_t fn_update_sel = nullptr;
+static ui_func_t fn_load_res   = nullptr;
+
+static void draw_ui();
+
+static void __cdecl h_set_res(int mode)
+{
+    if (ctx.res.enabled.load(std::memory_order_relaxed))
+    {
+        if (p_scr_w)
+        {
+            *p_scr_w = ctx.res.w.load();
+            *p_scr_h = ctx.res.h.load();
+            ctx.res.applied.store(true);
+            spdlog::info("res => override {}x{}", *p_scr_w, *p_scr_h);
             return;
         }
     }
-    
-    // Call original function
-    orig_video_set_resolution(mode);
-    
-    if (g_screen_width_ptr && g_screen_height_ptr) {
-        logger.log("resolution => mode {} set to {}x{}", mode, *g_screen_width_ptr, *g_screen_height_ptr);
-    }
+    o_set_res(mode);
 }
 
-// Custom game_update_mouse hook - properly scales X and Y independently for aspect ratio correction
-static void __cdecl detour_game_update_mouse(int raw_x, int raw_y) {
-    // Store raw values for debugging
-    ctx.last_raw_x.store(raw_x, std::memory_order_relaxed);
-    ctx.last_raw_y.store(raw_y, std::memory_order_relaxed);
-    
-    // Check the same flag the original function checks - only process if non-zero
-    if (g_mouse_active_ptr && *g_mouse_active_ptr == 0) {
-        return;  // Same behavior as original when flag is 0
-    }
-    
-    if (!g_mouse_x_ptr || !g_mouse_y_ptr || !g_screen_width_ptr || !g_screen_height_ptr) {
-        // Fallback to original if pointers aren't set
-        if (orig_game_update_mouse) {
-            orig_game_update_mouse(raw_x, raw_y);
-        }
+static void __cdecl h_update_mouse(int raw_x, int raw_y)
+{
+    ctx.raw_mouse_x.store(raw_x, std::memory_order_relaxed);
+    ctx.raw_mouse_y.store(raw_y, std::memory_order_relaxed);
+
+    if (p_mse_active && *p_mse_active == 0)
+        return;
+    if (!p_mse_x || !p_scr_w)
+    {
+        if (o_update_mouse)
+            o_update_mouse(raw_x, raw_y);
         return;
     }
-    
-    // Calculate separate X and Y scales
-    // The game's UI is designed for 800x600 (UI_BASE_WIDTH x UI_BASE_HEIGHT)
-    // We need to map screen coordinates to UI coordinates
-    float scale_x = UI_BASE_WIDTH / static_cast<float>(*g_screen_width_ptr);
-    float scale_y = UI_BASE_HEIGHT / static_cast<float>(*g_screen_height_ptr);
-    
-    // Scale the coordinates
-    int scaled_x = static_cast<int>(static_cast<float>(raw_x) * scale_x);
-    int scaled_y = static_cast<int>(static_cast<float>(raw_y) * scale_y);
-    
-    // Write directly to game's mouse position globals
-    *g_mouse_x_ptr = scaled_x;
-    *g_mouse_y_ptr = scaled_y;
-    
-    // Debug logging
-    if (ctx.debug.log_mouse.load(std::memory_order_relaxed)) {
-        static int log_counter = 0;
-        if (++log_counter % 30 == 0) {  // Log every 30th call to avoid spam
-            logger.log("mouse => raw({},{}) scaled({},{}) screen={}x{}", 
-                       raw_x, raw_y, scaled_x, scaled_y, 
-                       *g_screen_width_ptr, *g_screen_height_ptr);
-        }
+
+    const float sx = ui_base_w / static_cast<float>(*p_scr_w);
+    const float sy = ui_base_h / static_cast<float>(*p_scr_h);
+
+    *p_mse_x = static_cast<int>(static_cast<float>(raw_x) * sx);
+    *p_mse_y = static_cast<int>(static_cast<float>(raw_y) * sy);
+
+    if (ctx.debug.log_mouse.load(std::memory_order_relaxed))
+    {
+        static int throttle = 0;
+        if (++throttle % 60 == 0)
+            spdlog::debug("mouse => raw({},{}) -> ui({},{})",
+                          raw_x,
+                          raw_y,
+                          *p_mse_x,
+                          *p_mse_y);
     }
-    
-    // Call ui_update_selection to update UI hover state (same as original function)
-    if (ui_update_selection_fn) {
-        ui_update_selection_fn();
-    }
+    if (fn_update_sel)
+        fn_update_sel();
 }
 
-// Apply custom resolution directly to game memory (can be called anytime)
-static void apply_custom_resolution() {
-    if (!g_screen_width_ptr || !g_screen_height_ptr) {
-        logger.log("resolution => game pointers not initialized");
-        return;
-    }
-    
-    const int width  = ctx.resolution.custom_width.load(std::memory_order_relaxed);
-    const int height = ctx.resolution.custom_height.load(std::memory_order_relaxed);
-    
-    *g_screen_width_ptr  = width;
-    *g_screen_height_ptr = height;
-    
-    // Resize the window if we have a handle
-    if (ctx.game_window) {
-        RECT rect{};
-        GetWindowRect(ctx.game_window, &rect);
-        
-        DWORD style = static_cast<DWORD>(GetWindowLong(ctx.game_window, GWL_STYLE));
-        RECT adjusted = { 0, 0, width, height };
-        AdjustWindowRect(&adjusted, style, FALSE);
-        
-        int new_width  = adjusted.right - adjusted.left;
-        int new_height = adjusted.bottom - adjusted.top;
-        
-        SetWindowPos(ctx.game_window, nullptr, rect.left, rect.top, new_width, new_height, 
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-        
-        logger.log("resolution => window resized to {}x{}", new_width, new_height);
-    }
-    
-    // Call ui_load_resources to reinitialize the game's UI (recalculates mouse scale etc)
-    if (ui_load_resources_fn) {
-        logger.log("resolution => calling ui_load_resources to reinitialize UI");
-        ui_load_resources_fn();
-    }
-    
-    ctx.resolution.applied.store(true, std::memory_order_relaxed);
-    logger.log("resolution => applied {}x{} (scale_x={:.4f}, scale_y={:.4f})", 
-               width, height, 
-               UI_BASE_WIDTH / static_cast<float>(width),
-               UI_BASE_HEIGHT / static_cast<float>(height));
+static void APIENTRY h_gl_viewport(GLint x, GLint y, GLsizei w, GLsizei h)
+{
+    ctx.viewport[0] = x;
+    ctx.viewport[1] = y;
+    ctx.viewport[2] = w;
+    ctx.viewport[3] = h;
+    o_gl_viewport(x, y, w, h);
 }
 
-static void APIENTRY detour_gl_matrix_mode(GLenum mode) {
-    ctx.current_matrix_mode = mode;
-    orig_gl_matrix_mode(mode);
+static BOOL WINAPI h_set_cursor(int x, int y)
+{
+    return ctx.gameplay.block_input.load(std::memory_order_relaxed)
+               ? TRUE
+               : o_set_cursor(x, y);
 }
 
-static BOOL WINAPI detour_wgl_swap(HDC dc) {
-    ctx.frame_count.fetch_add(1, std::memory_order_relaxed);
-    
-    if (ctx.imgui_ready.load(std::memory_order_acquire)) {
-        if (ImGui::GetCurrentContext()) {
-            ctx.gameplay.block_mouse.store(ImGui::GetIO().WantCaptureMouse, std::memory_order_relaxed);
-        }
-        if (ctx.overlay_visible.load(std::memory_order_relaxed)) {
-            draw_ui();
-        }
-    }
-
-    static std::once_flag init_flag;
-    if (wglGetCurrentContext()) {
-        std::call_once(init_flag, [&]() {
-            logger.log("imgui => initializing context");
-            ctx.game_window = WindowFromDC(dc);
-            if (ctx.game_window) {
-                ctx.orig_wnd_proc = reinterpret_cast<WNDPROC>(
-                    SetWindowLongPtrA(ctx.game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(detour_wnd_proc)));
-
-                ImGui::CreateContext();
-                ImGuiIO& io        = ImGui::GetIO();
-                io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-                io.FontGlobalScale = 1.15f;
-                io.IniFilename     = "bass_proxy_imgui.ini";
-
-                ImGui::StyleColorsDark();
-                ImGuiStyle& style = ImGui::GetStyle();
-                style.WindowRounding = 6.0f;
-                style.FrameRounding  = 4.0f;
-                style.GrabRounding   = 3.0f;
-                style.WindowBorderSize = 1.0f;
-                style.FrameBorderSize  = 0.0f;
-                
-                ImGui_ImplWin32_Init(ctx.game_window);
-                ImGui_ImplOpenGL3_Init("#version 110");
-
-                SetWindowTextA(ctx.game_window, "Airstrike 3D II [ENHANCED]");
-                
-                ctx.imgui_ready.store(true, std::memory_order_release);
-                logger.log("imgui => initialization complete");
-            }
-        });
-    }
-    
-    ctx.draw_call_count.store(0, std::memory_order_relaxed);
-    return orig_wgl_swap(dc);
+static HANDLE WINAPI h_create_file_a(LPCSTR                fn,
+                                     DWORD                 acc,
+                                     DWORD                 shr,
+                                     LPSECURITY_ATTRIBUTES sec,
+                                     DWORD                 disp,
+                                     DWORD                 attr,
+                                     HANDLE                tmp)
+{
+    if (ctx.debug.log_fs.load(std::memory_order_relaxed))
+        spdlog::trace("fs => open \"{}\"", fn ? fn : "null");
+    return o_create_file_a(fn, acc, shr, sec, disp, attr, tmp);
 }
 
-static BOOL WINAPI detour_qpc(LARGE_INTEGER* lp_performance_count) {
-    if (!orig_qpc || !orig_qpc(lp_performance_count)) {
+static BOOL WINAPI h_qpc(LARGE_INTEGER* val)
+{
+    if (!o_qpc || !o_qpc(val))
         return FALSE;
-    }
 
-    static LARGE_INTEGER last_real = {};
-    static LARGE_INTEGER last_fake = {};
-    static bool          first     = true;
-    static std::mutex    qpc_mtx;
+    static LARGE_INTEGER last_real{}, last_fake{};
+    static bool          first = true;
+    static std::mutex    mtx;
 
-    const float mult = ctx.gameplay.speed_multiplier.load(std::memory_order_relaxed);
+    float mul = ctx.gameplay.speed.load(std::memory_order_relaxed);
+    if (std::abs(mul - 1.0f) < 0.001f && !first)
+        return TRUE;
 
-    if (std::abs(mult - 1.0f) < 0.0001f && !first) {
+    std::scoped_lock lock(mtx);
+    if (first)
+    {
+        last_real = last_fake = *val;
+        first                 = false;
         return TRUE;
     }
 
-    std::scoped_lock lock(qpc_mtx);
-    if (first) {
-        last_real = *lp_performance_count;
-        last_fake = *lp_performance_count;
-        first     = false;
-        return TRUE;
-    }
-
-    const LONGLONG diff = lp_performance_count->QuadPart - last_real.QuadPart;
-    last_real           = *lp_performance_count;
-
-    const double scaled_diff = static_cast<double>(diff) * static_cast<double>(mult);
-    last_fake.QuadPart += static_cast<LONGLONG>(scaled_diff);
-
-    *lp_performance_count = last_fake;
+    LONGLONG diff = val->QuadPart - last_real.QuadPart;
+    last_real     = *val;
+    last_fake.QuadPart += static_cast<LONGLONG>(static_cast<double>(diff) *
+                                                static_cast<double>(mul));
+    *val = last_fake;
     return TRUE;
 }
 
-static BOOL WINAPI detour_set_cursor(int x, int y) {
-    if (ctx.gameplay.block_mouse.load(std::memory_order_relaxed)) {
-        return TRUE;
+static BOOL WINAPI h_wgl_swap(HDC dc)
+{
+    ctx.frame_cnt.fetch_add(1, std::memory_order_relaxed);
+
+    if (!ctx.imgui_ready.load(std::memory_order_acquire))
+    {
+        if (HWND win = WindowFromDC(dc); win)
+        {
+            ctx.hwnd          = win;
+            ctx.orig_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+                win,
+                GWLP_WNDPROC,
+                reinterpret_cast<LONG_PTR>(
+                    +[](HWND h, UINT m, WPARAM w, LPARAM l) -> LRESULT
+                    {
+                        if (m == WM_KEYDOWN && w == VK_INSERT)
+                        {
+                            bool v = ctx.overlay_visible.load();
+                            ctx.overlay_visible.store(!v);
+                            return 0;
+                        }
+                        if (!ctx.shutting_down.load() &&
+                            ctx.overlay_visible.load() &&
+                            ImGui_ImplWin32_WndProcHandler(h, m, w, l))
+                            return true;
+                        return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
+                    })));
+
+            ImGui::CreateContext();
+            ImGui::GetIO().IniFilename = "bass_proxy.ini";
+            ImGui::StyleColorsDark();
+            ImGui_ImplWin32_Init(win);
+            ImGui_ImplOpenGL3_Init("#version 110");
+            ctx.imgui_ready.store(true, std::memory_order_release);
+        }
     }
-    return orig_set_cursor(x, y);
+
+    if (ctx.imgui_ready.load(std::memory_order_acquire) &&
+        ctx.overlay_visible.load())
+    {
+        draw_ui();
+        ctx.gameplay.block_input.store(ImGui::GetIO().WantCaptureMouse,
+                                       std::memory_order_relaxed);
+    }
+
+    ctx.draw_cnt.store(0, std::memory_order_relaxed);
+    return o_wgl_swap(dc);
 }
 
-static HANDLE WINAPI detour_create_file_a(
-    LPCSTR file_name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sec, DWORD disp, DWORD attr, HANDLE temp) {
-    if (ctx.debug.log_fs.load(std::memory_order_relaxed)) {
-        logger.log("fs => \"{}\"", file_name ? file_name : "NULL");
-    }
-    return orig_create_file_a(file_name, access, share, sec, disp, attr, temp);
-}
+static void APIENTRY h_gl_draw_elems(GLenum        m,
+                                     GLsizei       c,
+                                     GLenum        t,
+                                     const GLvoid* i)
+{
+    ctx.draw_cnt.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.debug.log_gl.load(std::memory_order_relaxed))
+        spdlog::trace("gl => draw {} count={}", m, c);
 
-static void APIENTRY detour_gl_draw_elems(GLenum mode, GLsizei count, GLenum type, const GLvoid* indices) {
-    ctx.draw_call_count.fetch_add(1, std::memory_order_relaxed);
-    
-    if (ctx.debug.log_gl_calls.load(std::memory_order_relaxed)) {
-        logger.log("gl => draw_elements(mode={}, count={})", mode, count);
-    }
-    
-    bool depth = ctx.visuals.disable_depth.load(std::memory_order_relaxed);
-    if (depth) {
+    bool no_depth = ctx.visuals.disable_depth.load(std::memory_order_relaxed);
+    if (no_depth)
+    {
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
     }
-
-    if (ctx.visuals.wireframe.load(std::memory_order_relaxed)) {
+    if (ctx.visuals.wireframe.load(std::memory_order_relaxed))
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    }
 
-    orig_gl_draw_elems(mode, count, type, indices);
+    o_gl_draw_elems(m, c, t, i);
 
-    if (depth) {
+    if (no_depth)
+    {
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
     }
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-static void APIENTRY detour_gl_viewport(GLint x, GLint y, GLsizei width, GLsizei height) {
-    ctx.current_viewport[0] = x;
-    ctx.current_viewport[1] = y;
-    ctx.current_viewport[2] = width;
-    ctx.current_viewport[3] = height;
-    orig_gl_viewport(x, y, width, height);
-}
+static void APIENTRY h_gl_clear(GLbitfield mask)
+{
+    if (ctx.visuals.enable_clear.load(std::memory_order_relaxed))
+        glClearColor(ctx.visuals.clear_col.x,
+                     ctx.visuals.clear_col.y,
+                     ctx.visuals.clear_col.z,
+                     ctx.visuals.clear_col.w);
 
-static void APIENTRY detour_gl_clear(GLbitfield mask) {
-    if (ctx.visuals.enable_clear) {
-        glClearColor(
-            ctx.visuals.clear_color.x,
-            ctx.visuals.clear_color.y,
-            ctx.visuals.clear_color.z,
-            ctx.visuals.clear_color.w);
-    }
-    
-    if (ctx.visuals.fog_override.load(std::memory_order_relaxed)) {
-        GLfloat fog_col[] = { 
-            ctx.visuals.fog_color.x, 
-            ctx.visuals.fog_color.y, 
-            ctx.visuals.fog_color.z, 
-            ctx.visuals.fog_color.w 
-        };
-        glFogfv(GL_FOG_COLOR, fog_col);
-        glFogi(GL_FOG_MODE, GL_LINEAR);
-        glFogf(GL_FOG_START, 10.0f);
-        glFogf(GL_FOG_END, 100.0f);
+    if (ctx.visuals.fog_override.load(std::memory_order_relaxed))
+    {
+        GLfloat c[] = { ctx.visuals.fog_col.x,
+                        ctx.visuals.fog_col.y,
+                        ctx.visuals.fog_col.z,
+                        ctx.visuals.fog_col.w };
+        glFogfv(GL_FOG_COLOR, c);
         glEnable(GL_FOG);
     }
-    
-    orig_gl_clear(mask);
+    o_gl_clear(mask);
 }
 
-static LRESULT CALLBACK detour_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l) {
-    if (m == WM_KEYDOWN && w == VK_INSERT) {
-        ctx.overlay_visible.store(!ctx.overlay_visible.load(), std::memory_order_relaxed);
-        return 0;
-    }
-    
-    if (!ctx.shutting_down.load() && ctx.overlay_visible.load() && ImGui_ImplWin32_WndProcHandler(h, m, w, l)) {
-        return true;
-    }
-    return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
+// -----------------------------------------------------------------------------
+// Initialization
+// -----------------------------------------------------------------------------
+
+using hook_result = std::expected<void, std::string>;
+
+template <typename T>
+hook_result create_hook(
+    LPCWSTR              mod,
+    LPCSTR               proc,
+    void*                det,
+    T**                  orig,
+    std::source_location l = std::source_location::current())
+{
+    if (MH_CreateHookApi(mod, proc, det, reinterpret_cast<LPVOID*>(orig)) !=
+        MH_OK)
+        return std::unexpected(std::format(
+            "{} hook failed {}:{}", proc, l.function_name(), l.line()));
+    return {};
 }
 
-template <typename FuncT>
-static bool create_hook_checked(LPCWSTR module, LPCSTR func_name, void* detour, FuncT** orig) {
-    const MH_STATUS status = MH_CreateHookApi(module, func_name, detour, reinterpret_cast<LPVOID*>(orig));
-    if (status != MH_OK) {
-        logger.log("minhook => create_hook failed: {} ({})", func_name, MH_StatusToString(status));
-        return false;
-    }
-    logger.log("minhook => created hook: {}", func_name);
-    return true;
+template <typename T>
+hook_result create_hook_addr(
+    uintptr_t            addr,
+    void*                det,
+    T**                  orig,
+    std::source_location l = std::source_location::current())
+{
+    if (MH_CreateHook(reinterpret_cast<void*>(addr),
+                      det,
+                      reinterpret_cast<void**>(orig)) != MH_OK)
+        return std::unexpected(std::format("addr {:x} hook failed", addr));
+    return {};
 }
 
-PROXY_EXPORT void install_hooks() {
-    logger.log("minhook => initializing library");
-    
-    MH_STATUS init_status = MH_Initialize();
-    if (init_status != MH_OK) {
-        logger.log("minhook => MH_Initialize failed: {}", MH_StatusToString(init_status));
+void apply_resolution()
+{
+    if (!p_scr_w)
         return;
-    }
-
-    // Initialize game memory pointers
-    g_screen_width_ptr  = reinterpret_cast<int*>(ADDR_G_SCREEN_WIDTH);
-    g_screen_height_ptr = reinterpret_cast<int*>(ADDR_G_SCREEN_HEIGHT);
-    g_video_mode_ptr    = reinterpret_cast<int*>(ADDR_G_VIDEO_MODE);
-    g_mouse_scale_ptr   = reinterpret_cast<float*>(ADDR_MOUSE_SCALE);
-    g_ui_base_width_ptr = reinterpret_cast<float*>(ADDR_UI_BASE_WIDTH);
-    g_mouse_x_ptr       = reinterpret_cast<int*>(ADDR_G_MOUSE_X);
-    g_mouse_y_ptr       = reinterpret_cast<int*>(ADDR_G_MOUSE_Y);
-    g_mouse_active_ptr  = reinterpret_cast<char*>(ADDR_MOUSE_ACTIVE_FLAG);
-    ui_update_selection_fn = reinterpret_cast<ui_update_selection_t>(ADDR_UI_UPDATE_SELECTION);
-    ui_load_resources_fn   = reinterpret_cast<ui_update_selection_t>(ADDR_UI_LOAD_RESOURCES);
-    
-    logger.log("game => screen_width @ {:08x}, screen_height @ {:08x}, video_mode @ {:08x}",
-               ADDR_G_SCREEN_WIDTH, ADDR_G_SCREEN_HEIGHT, ADDR_G_VIDEO_MODE);
-    logger.log("game => mouse_x @ {:08x}, mouse_y @ {:08x}, ui_update_selection @ {:08x}",
-               ADDR_G_MOUSE_X, ADDR_G_MOUSE_Y, ADDR_UI_UPDATE_SELECTION);
-
-    bool all_ok = true;
-    
-    // Hook game's video_set_resolution function
+    int w = ctx.res.w.load(), h = ctx.res.h.load();
+    *p_scr_w = w;
+    *p_scr_h = h;
+    if (ctx.hwnd)
     {
-        void* target = reinterpret_cast<void*>(ADDR_VIDEO_SET_RESOLUTION);
-        MH_STATUS status = MH_CreateHook(target, reinterpret_cast<void*>(detour_video_set_resolution),
-                                         reinterpret_cast<void**>(&orig_video_set_resolution));
-        if (status != MH_OK) {
-            logger.log("minhook => create_hook failed: video_set_resolution ({})", MH_StatusToString(status));
-            all_ok = false;
-        } else {
-            logger.log("minhook => created hook: video_set_resolution @ {:08x}", ADDR_VIDEO_SET_RESOLUTION);
-        }
+        RECT r{ 0, 0, w, h };
+        AdjustWindowRect(
+            &r, static_cast<DWORD>(GetWindowLongA(ctx.hwnd, GWL_STYLE)), FALSE);
+        SetWindowPos(ctx.hwnd,
+                     nullptr,
+                     0,
+                     0,
+                     r.right - r.left,
+                     r.bottom - r.top,
+                     SWP_NOMOVE | SWP_NOZORDER);
     }
-    
-    // Hook game's game_update_mouse function for proper aspect ratio mouse scaling
-    {
-        void* target = reinterpret_cast<void*>(ADDR_GAME_UPDATE_MOUSE);
-        MH_STATUS status = MH_CreateHook(target, reinterpret_cast<void*>(detour_game_update_mouse),
-                                         reinterpret_cast<void**>(&orig_game_update_mouse));
-        if (status != MH_OK) {
-            logger.log("minhook => create_hook failed: game_update_mouse ({})", MH_StatusToString(status));
-            all_ok = false;
-        } else {
-            logger.log("minhook => created hook: game_update_mouse @ {:08x}", ADDR_GAME_UPDATE_MOUSE);
-        }
-    }
-    
-    all_ok &= create_hook_checked(L"opengl32.dll", "wglSwapBuffers", (void*)detour_wgl_swap, &orig_wgl_swap);
-    all_ok &= create_hook_checked(L"opengl32.dll", "glDrawElements", (void*)detour_gl_draw_elems, &orig_gl_draw_elems);
-    all_ok &= create_hook_checked(L"opengl32.dll", "glViewport", (void*)detour_gl_viewport, &orig_gl_viewport);
-    all_ok &= create_hook_checked(L"opengl32.dll", "glClear", (void*)detour_gl_clear, &orig_gl_clear);
-    all_ok &= create_hook_checked(L"opengl32.dll", "glMatrixMode", (void*)detour_gl_matrix_mode, &orig_gl_matrix_mode);
-    all_ok &= create_hook_checked(L"kernel32.dll", "QueryPerformanceCounter", (void*)detour_qpc, &orig_qpc);
-    all_ok &= create_hook_checked(L"kernel32.dll", "CreateFileA", (void*)detour_create_file_a, &orig_create_file_a);
-    all_ok &= create_hook_checked(L"user32.dll", "SetCursorPos", (void*)detour_set_cursor, &orig_set_cursor);
-
-    if (!all_ok) {
-        logger.log("minhook => some hooks failed, continuing anyway");
-    }
-
-    const MH_STATUS enable_status = MH_EnableHook(MH_ALL_HOOKS);
-    if (enable_status != MH_OK) {
-        logger.log("minhook => enable_hook failed: {}", MH_StatusToString(enable_status));
-        return;
-    }
-
-    logger.log("minhook => all hooks enabled");
+    if (fn_load_res)
+        fn_load_res();
+    ctx.res.applied.store(true);
+    spdlog::info("res => applied {}x{}", w, h);
 }
 
-PROXY_EXPORT void uninstall_hooks() {
-    logger.log("minhook => uninstall requested");
+PROXY_EXPORT void install_hooks()
+{
+    try
+    {
+        ctx.log_sink = std::make_shared<imgui_sink_mt>();
+        auto logger  = std::make_shared<spdlog::logger>(
+            "main",
+            spdlog::sinks_init_list{
+                std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+                    "bass_proxy.log", true),
+                ctx.log_sink });
+        logger->set_pattern("[%H:%M:%S] %v");
+        logger->set_level(spdlog::level::trace);
+        spdlog::set_default_logger(logger);
+    }
+    catch (...)
+    {
+    }
+
+    MH_Initialize();
+    p_scr_w       = (int*)game_addr::screen_width;
+    p_scr_h       = (int*)game_addr::screen_height;
+    p_vid_mode    = (int*)game_addr::video_mode;
+    p_mse_x       = (int*)game_addr::mouse_x;
+    p_mse_y       = (int*)game_addr::mouse_y;
+    p_mse_active  = (char*)game_addr::mouse_active;
+    fn_update_sel = (ui_func_t)game_addr::update_sel;
+    fn_load_res   = (ui_func_t)game_addr::load_res;
+
+    std::vector<hook_result> results;
+    results.push_back(create_hook_addr(
+        game_addr::video_set_res, (void*)h_set_res, &o_set_res));
+    results.push_back(create_hook_addr(
+        game_addr::update_mouse, (void*)h_update_mouse, &o_update_mouse));
+    results.push_back(create_hook(
+        L"opengl32.dll", "wglSwapBuffers", (void*)h_wgl_swap, &o_wgl_swap));
+    results.push_back(create_hook(L"opengl32.dll",
+                                  "glDrawElements",
+                                  (void*)h_gl_draw_elems,
+                                  &o_gl_draw_elems));
+    results.push_back(create_hook(
+        L"opengl32.dll", "glViewport", (void*)h_gl_viewport, &o_gl_viewport));
+    results.push_back(create_hook(
+        L"opengl32.dll", "glClear", (void*)h_gl_clear, &o_gl_clear));
+    results.push_back(create_hook(
+        L"kernel32.dll", "QueryPerformanceCounter", (void*)h_qpc, &o_qpc));
+    results.push_back(create_hook(L"kernel32.dll",
+                                  "CreateFileA",
+                                  (void*)h_create_file_a,
+                                  &o_create_file_a));
+    results.push_back(create_hook(
+        L"user32.dll", "SetCursorPos", (void*)h_set_cursor, &o_set_cursor));
+
+    for (auto& r : results)
+        if (!r)
+            spdlog::error("hook => {}", r.error());
+    if (MH_EnableHook(MH_ALL_HOOKS) == MH_OK)
+        spdlog::info("core => hooks enabled");
+}
+
+PROXY_EXPORT void uninstall_hooks()
+{
     ctx.shutting_down.store(true);
-
-    if (ctx.game_window && ctx.orig_wnd_proc) {
-        SetWindowLongPtrA(ctx.game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(ctx.orig_wnd_proc));
-        SetWindowTextA(ctx.game_window, "Airstrike 3D II");
-    }
-
-    const MH_STATUS disable_status = MH_DisableHook(MH_ALL_HOOKS);
-    if (disable_status != MH_OK) {
-        logger.log("minhook => disable_hook failed: {}", MH_StatusToString(disable_status));
-    }
-
-    const MH_STATUS uninit_status = MH_Uninitialize();
-    if (uninit_status != MH_OK) {
-        logger.log("minhook => uninitialize failed: {}", MH_StatusToString(uninit_status));
-    }
-
-    if (ctx.imgui_ready.exchange(false)) {
+    if (ctx.hwnd && ctx.orig_wnd_proc)
+        SetWindowLongPtrA(ctx.hwnd, GWLP_WNDPROC, (LONG_PTR)ctx.orig_wnd_proc);
+    MH_DisableHook(MH_ALL_HOOKS);
+    MH_Uninitialize();
+    if (ctx.imgui_ready.exchange(false))
+    {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
     }
-
-    logger.log("minhook => uninstallation complete");
+    spdlog::shutdown();
 }
 
-static void draw_ui() {
+static void draw_ui()
+{
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
-
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 20, viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(550, 520), ImGuiCond_FirstUseEver);
-
-    if (ImGui::Begin("Airstrike 3D II - Enhanced", nullptr, ImGuiWindowFlags_MenuBar)) {
-        
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("Menu")) {
-                if (ImGui::MenuItem("Unload DLL")) {
+    if (ImGui::Begin(
+            "Airstrike 3D II [Proxy]", nullptr, ImGuiWindowFlags_MenuBar))
+    {
+        if (ImGui::BeginMenuBar())
+        {
+            if (ImGui::BeginMenu("Menu"))
+            {
+                if (ImGui::MenuItem("Unload"))
                     std::thread([] { uninstall_hooks(); }).detach();
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Exit Game")) {
-                    PostQuitMessage(0);
-                }
                 ImGui::EndMenu();
             }
-            
-            if (ImGui::BeginMenu("View")) {
-                bool show_metrics = ctx.debug.show_metrics.load();
-                if (ImGui::MenuItem("Metrics", nullptr, &show_metrics)) {
-                    ctx.debug.show_metrics.store(show_metrics);
-                }
-                bool show_demo = ctx.debug.show_demo.load();
-                if (ImGui::MenuItem("ImGui Demo", nullptr, &show_demo)) {
-                    ctx.debug.show_demo.store(show_demo);
-                }
-                ImGui::EndMenu();
-            }
-            
             ImGui::EndMenuBar();
         }
-
-        if (ImGui::BeginTabBar("MainTabs", ImGuiTabBarFlags_None)) {
-            
-            if (ImGui::BeginTabItem("Visuals")) {
-                ImGui::SeparatorText("Rendering");
-                
-                bool depth = ctx.visuals.disable_depth.load();
-                if (ImGui::Checkbox("Disable Depth Test (Wallhack)", &depth)) {
-                    ctx.visuals.disable_depth.store(depth);
-                }
-
-                bool wire = ctx.visuals.wireframe.load();
-                if (ImGui::Checkbox("Wireframe Mode", &wire)) {
-                    ctx.visuals.wireframe.store(wire);
-                }
-
-                ImGui::SeparatorText("Background");
-                
-                ImGui::Checkbox("Override Clear Color", &ctx.visuals.enable_clear);
-                if (ctx.visuals.enable_clear) {
-                    ImGui::ColorEdit4("Clear Color", &ctx.visuals.clear_color.x, ImGuiColorEditFlags_AlphaBar);
-                }
-                
-                bool fog = ctx.visuals.fog_override.load();
-                if (ImGui::Checkbox("Override Fog", &fog)) {
-                    ctx.visuals.fog_override.store(fog);
-                }
-                if (fog) {
-                    ImGui::ColorEdit4("Fog Color", &ctx.visuals.fog_color.x);
-                }
-                
+        if (ImGui::BeginTabBar("Tabs"))
+        {
+            if (ImGui::BeginTabItem("Gfx"))
+            {
+                bool d = ctx.visuals.disable_depth.load(),
+                     w = ctx.visuals.wireframe.load(),
+                     f = ctx.visuals.fog_override.load();
+                if (ImGui::Checkbox("Wallhack", &d))
+                    ctx.visuals.disable_depth.store(d);
+                if (ImGui::Checkbox("Wireframe", &w))
+                    ctx.visuals.wireframe.store(w);
+                if (ImGui::Checkbox("Fog", &f))
+                    ctx.visuals.fog_override.store(f);
+                if (f)
+                    ImGui::ColorEdit4("Fog Col", &ctx.visuals.fog_col.x);
+                bool lgl = ctx.debug.log_gl.load();
+                if (ImGui::Checkbox("Log GL", &lgl))
+                    ctx.debug.log_gl.store(lgl);
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Resolution")) {
-                ImGui::SeparatorText("Custom Resolution");
-                
-                bool custom_enabled = ctx.resolution.custom_enabled.load();
-                if (ImGui::Checkbox("Enable Custom Resolution", &custom_enabled)) {
-                    ctx.resolution.custom_enabled.store(custom_enabled);
-                    if (custom_enabled) {
-                        apply_custom_resolution();
-                    }
-                }
-                
-                ImGui::TextDisabled("Override game's built-in resolution options");
-                
-                int width  = ctx.resolution.custom_width.load();
-                int height = ctx.resolution.custom_height.load();
-                
-                ImGui::SetNextItemWidth(120);
-                if (ImGui::InputInt("Width", &width, 1, 100)) {
-                    if (width < 320) width = 320;
-                    if (width > 7680) width = 7680;
-                    ctx.resolution.custom_width.store(width);
-                }
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(120);
-                if (ImGui::InputInt("Height", &height, 1, 100)) {
-                    if (height < 240) height = 240;
-                    if (height > 4320) height = 4320;
-                    ctx.resolution.custom_height.store(height);
-                }
-                
-                ImGui::Spacing();
-                ImGui::Text("Presets:");
-                
-                auto preset_button = [&](const char* label, int w, int h) {
-                    if (ImGui::Button(label)) {
-                        ctx.resolution.custom_width.store(w);
-                        ctx.resolution.custom_height.store(h);
-                        if (ctx.resolution.custom_enabled.load()) {
-                            apply_custom_resolution();
-                        }
-                    }
-                };
-                
-                preset_button("640x480", 640, 480);
-                ImGui::SameLine();
-                preset_button("800x600", 800, 600);
-                ImGui::SameLine();
-                preset_button("1024x768", 1024, 768);
-                ImGui::SameLine();
-                preset_button("1280x720", 1280, 720);
-                
-                preset_button("1280x1024", 1280, 1024);
-                ImGui::SameLine();
-                preset_button("1366x768", 1366, 768);
-                ImGui::SameLine();
-                preset_button("1600x900", 1600, 900);
-                ImGui::SameLine();
-                preset_button("1920x1080", 1920, 1080);
-                
-                preset_button("2560x1440", 2560, 1440);
-                ImGui::SameLine();
-                preset_button("3840x2160", 3840, 2160);
-                
-                ImGui::Spacing();
-                
-                if (ImGui::Button("Apply Now")) {
-                    ctx.resolution.custom_enabled.store(true);
-                    apply_custom_resolution();
-                }
-                ImGui::SameLine();
-                ImGui::TextDisabled("(Apply changes immediately)");
-                
-                ImGui::SeparatorText("Current State");
-                
-                if (g_screen_width_ptr && g_screen_height_ptr) {
-                    ImGui::Text("Game Resolution: %dx%d", *g_screen_width_ptr, *g_screen_height_ptr);
-                } else {
-                    ImGui::TextColored(ImVec4(1,0,0,1), "Game pointers not available");
-                }
-                
-                if (g_video_mode_ptr) {
-                    ImGui::Text("Video Mode Index: %d", *g_video_mode_ptr);
-                }
-                
-                if (g_screen_width_ptr && g_screen_height_ptr) {
-                    float scale_x = UI_BASE_WIDTH / static_cast<float>(*g_screen_width_ptr);
-                    float scale_y = UI_BASE_HEIGHT / static_cast<float>(*g_screen_height_ptr);
-                    ImGui::Text("Mouse Scale X: %.6f, Y: %.6f", scale_x, scale_y);
-                }
-                
-                ImGui::Text("Raw Mouse: %d, %d", ctx.last_raw_x.load(), ctx.last_raw_y.load());
-                
-                if (g_mouse_x_ptr && g_mouse_y_ptr) {
-                    ImGui::Text("Scaled Mouse (UI): %d, %d", *g_mouse_x_ptr, *g_mouse_y_ptr);
-                }
-                
-                bool applied = ctx.resolution.applied.load();
-                ImGui::Text("Custom Applied: %s", applied ? "Yes" : "No");
-                
+            if (ImGui::BeginTabItem("Res"))
+            {
+                bool e = ctx.res.enabled.load();
+                if (ImGui::Checkbox("Enable Custom", &e))
+                    ctx.res.enabled.store(e);
+                int w = ctx.res.w.load(), h = ctx.res.h.load();
+                if (ImGui::InputInt("W", &w))
+                    ctx.res.w.store(std::clamp(w, 320, 7680));
+                if (ImGui::InputInt("H", &h))
+                    ctx.res.h.store(std::clamp(h, 240, 4320));
+                if (ImGui::Button("Apply"))
+                    apply_resolution();
+                ImGui::Text("Game: %dx%d | Mouse: %d,%d",
+                            p_scr_w ? *p_scr_w : 0,
+                            p_scr_h ? *p_scr_h : 0,
+                            ctx.raw_mouse_x.load(),
+                            ctx.raw_mouse_y.load());
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Gameplay")) {
-                ImGui::SeparatorText("Game Speed");
-                
-                float spd = ctx.gameplay.speed_multiplier.load();
-                if (ImGui::SliderFloat("Speed Multiplier", &spd, 0.1f, 10.0f, "%.2fx")) {
-                    ctx.gameplay.speed_multiplier.store(spd);
-                }
-                
-                if (ImGui::Button("0.5x")) spd = 0.5f;
+            if (ImGui::BeginTabItem("Game"))
+            {
+                float s = ctx.gameplay.speed.load();
+                if (ImGui::SliderFloat("Speed", &s, 0.1f, 10.0f))
+                    ctx.gameplay.speed.store(s);
+                if (ImGui::Button("0.5x"))
+                    ctx.gameplay.speed.store(0.5f);
                 ImGui::SameLine();
-                if (ImGui::Button("1.0x")) spd = 1.0f;
+                if (ImGui::Button("1.0x"))
+                    ctx.gameplay.speed.store(1.0f);
                 ImGui::SameLine();
-                if (ImGui::Button("2.0x")) spd = 2.0f;
-                ImGui::SameLine();
-                if (ImGui::Button("5.0x")) spd = 5.0f;
-                ctx.gameplay.speed_multiplier.store(spd);
-                
+                if (ImGui::Button("2.0x"))
+                    ctx.gameplay.speed.store(2.0f);
+                bool lfs = ctx.debug.log_fs.load();
+                if (ImGui::Checkbox("Log FileSys", &lfs))
+                    ctx.debug.log_fs.store(lfs);
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Debug")) {
-                ImGui::SeparatorText("Logging");
-                
-                bool log_fs = ctx.debug.log_fs.load();
-                if (ImGui::Checkbox("Log Filesystem Access", &log_fs)) {
-                    ctx.debug.log_fs.store(log_fs);
-                }
-                
-                bool log_gl = ctx.debug.log_gl_calls.load();
-                if (ImGui::Checkbox("Log OpenGL Draw Calls", &log_gl)) {
-                    ctx.debug.log_gl_calls.store(log_gl);
-                }
-                
-                bool log_mouse = ctx.debug.log_mouse.load();
-                if (ImGui::Checkbox("Log Mouse Coordinates", &log_mouse)) {
-                    ctx.debug.log_mouse.store(log_mouse);
-                }
-
-                ImGui::SeparatorText("Console");
-                
-                logger.draw_console();
-                
+            if (ImGui::BeginTabItem("Stats"))
+            {
+                ImGui::Text("FPS: %.1f (%.3f ms)",
+                            ImGui::GetIO().Framerate,
+                            1000.0f / ImGui::GetIO().Framerate);
+                ImGui::Text("Draws: %d | Frames: %d",
+                            ctx.draw_cnt.load(),
+                            ctx.frame_cnt.load());
+                PROCESS_MEMORY_COUNTERS pmc;
+                if (GetProcessMemoryInfo(
+                        GetCurrentProcess(), &pmc, sizeof(pmc)))
+                    ImGui::Text("RAM: %.1f MB",
+                                pmc.WorkingSetSize / 1048576.0f);
+                ImGui::Text(
+                    "Viewport: %dx%d", ctx.viewport[2], ctx.viewport[3]);
+                ImGui::Text("GPU: %s", glGetString(GL_RENDERER));
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Stats")) {
-                ImGui::SeparatorText("Performance");
-                
-                ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-                ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
-                ImGui::Text("Total Frames: %d", ctx.frame_count.load());
-                ImGui::Text("Draw Calls/Frame: %d", ctx.draw_call_count.load());
-                
-                ImGui::SeparatorText("Memory");
-                
-                PROCESS_MEMORY_COUNTERS pmc{};
-                if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-                    ImGui::Text("Working Set: %.2f MB", pmc.WorkingSetSize / (1024.0 * 1024.0));
-                    ImGui::Text("Peak Working Set: %.2f MB", pmc.PeakWorkingSetSize / (1024.0 * 1024.0));
-                }
-                
-                ImGui::SeparatorText("System Info");
-                
-                RECT rect{};
-                if (GetClientRect(ctx.game_window, &rect)) {
-                    ImGui::Text("Window Size: %ldx%ld", 
-                        static_cast<long>(rect.right - rect.left), 
-                        static_cast<long>(rect.bottom - rect.top));
-                }
-                
-                GLint viewport[4]{};
-                glGetIntegerv(GL_VIEWPORT, viewport);
-                ImGui::Text("Viewport: %dx%d at (%d,%d)", viewport[2], viewport[3], viewport[0], viewport[1]);
-                
-                const GLubyte* vendor   = glGetString(GL_VENDOR);
-                const GLubyte* renderer = glGetString(GL_RENDERER);
-                const GLubyte* version  = glGetString(GL_VERSION);
-                
-                if (vendor) ImGui::Text("GPU Vendor: %s", vendor);
-                if (renderer) ImGui::Text("GPU: %s", renderer);
-                if (version) ImGui::Text("OpenGL: %s", version);
-                
+            if (ImGui::BeginTabItem("Logs"))
+            {
+                if (ctx.log_sink)
+                    ctx.log_sink->draw();
                 ImGui::EndTabItem();
             }
-
             ImGui::EndTabBar();
         }
-        
-        ImGui::Separator();
-        ImGui::TextDisabled("Press INSERT to toggle overlay");
     }
     ImGui::End();
-    
-    if (ctx.debug.show_metrics.load()) {
-        ImGui::ShowMetricsWindow();
-    }
-    if (ctx.debug.show_demo.load()) {
-        ImGui::ShowDemoWindow();
-    }
-
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
