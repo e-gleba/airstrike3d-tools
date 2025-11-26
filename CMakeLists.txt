@@ -31,7 +31,7 @@ find_package(clang_tidy CONFIG REQUIRED)
 find_package(clang_doc CONFIG REQUIRED)
 
 if (BUILD_DOCS)
-    find_package(doxygen CONFIG REQUIRED)
+    find_package(clang_doc CONFIG REQUIRED)
 endif()
 
 add_subdirectory(external SYSTEM)
