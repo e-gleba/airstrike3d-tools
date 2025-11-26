@@ -1,7 +1,21 @@
-Checks: "-*,bugprone-*,modernize-*,-modernize-use-trailing-return-type,readability-identifier-naming,readability-braces-around-statements"
+Checks: >
+  -*,
+  boost-*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  cppcoreguidelines-*,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity
+
 CheckOptions:
-  - key: bugprone-exception-escape.FunctionsThatShouldNotThrow
-    value: "WinMain,SDL_main"
   - key: readability-identifier-naming.NamespaceCase
     value: lower_case
   - key: readability-identifier-naming.ClassCase
