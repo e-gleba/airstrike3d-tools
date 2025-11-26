@@ -1,9 +1,3 @@
-
-/*
- * bass_proxy.cpp
- * C++23 | spdlog 1.16 | MinHook | Feature Complete
- */
-
 #define WIN32_LEAN_AND_MEAN
 #define CRT_SECURE_NO_WARNINGS
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
@@ -445,10 +439,10 @@ static void APIENTRY h_gl_clear(GLbitfield mask)
 
     if (ctx.visuals.fog_override.load(std::memory_order_relaxed))
     {
-        GLfloat c[] = { ctx.visuals.fog_col.x,
-                        ctx.visuals.fog_col.y,
-                        ctx.visuals.fog_col.z,
-                        ctx.visuals.fog_col.w };
+        const GLfloat c[] = { ctx.visuals.fog_col.x,
+                              ctx.visuals.fog_col.y,
+                              ctx.visuals.fog_col.z,
+                              ctx.visuals.fog_col.w };
         glFogfv(GL_FOG_COLOR, c);
         glEnable(GL_FOG);
     }
