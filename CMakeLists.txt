@@ -7,20 +7,19 @@ project(
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
 
-option(BUILD_DOCS OFF)
 option(USE_BASS_PROXY_LIB ON)
 
 list(
     APPEND
     CMAKE_PREFIX_PATH
     ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/utils)
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality)
 
 list(
     APPEND
     CMAKE_FIND_ROOT_PATH
     ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/utils)
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality)
 
 message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 
@@ -29,10 +28,6 @@ find_package(warnings CONFIG REQUIRED)
 find_package(clang_format CONFIG REQUIRED)
 find_package(clang_tidy CONFIG REQUIRED)
 find_package(clang_doc CONFIG REQUIRED)
-
-if (BUILD_DOCS)
-    find_package(clang_doc CONFIG REQUIRED)
-endif()
 
 add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
