@@ -10,7 +10,6 @@ if(clang_tidy_exe)
         clang_tidy
         COMMAND
             "${clang_tidy_exe}" "${PROJECT_SOURCE_DIR}/**/*.{cpp,cxx,hpp,hxx}"
-            -- -std=c++20
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         VERBATIM
         COMMENT "running clang-tidy (static analysis and lint) on all sources"
