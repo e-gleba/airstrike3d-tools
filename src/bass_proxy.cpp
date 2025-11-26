@@ -5,7 +5,7 @@
  */
 
 #define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
+#define CRT_SECURE_NO_WARNINGS
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
 #include "bass_proxy.hpp"
@@ -66,15 +66,15 @@ constexpr uintptr_t mouse_active  = 0x004e53f4;
 constexpr uintptr_t load_res      = 0x004288d0;
 } // namespace game_addr
 
-constexpr float ui_base_w = 800.0f;
-constexpr float ui_base_h = 600.0f;
+constexpr float ui_base_w = 800.0F;
+constexpr float ui_base_h = 600.0F;
 
 // -----------------------------------------------------------------------------
 // Logger (Enhanced)
 // -----------------------------------------------------------------------------
 
-template <typename Mutex>
-class imgui_sink final : public spdlog::sinks::base_sink<Mutex>
+template <typename mutex>
+class imgui_sink final : public spdlog::sinks::base_sink<mutex>
 {
     ImGuiTextBuffer buf;
     ImGuiTextFilter filter;
@@ -84,7 +84,7 @@ protected:
     void sink_it_(const spdlog::details::log_msg& msg) override
     {
         spdlog::memory_buf_t formatted;
-        spdlog::sinks::base_sink<Mutex>::formatter_->format(msg, formatted);
+        spdlog::sinks::base_sink<mutex>::formatter_->format(msg, formatted);
         buf.append(std::string_view(formatted.data(), formatted.size()).data());
         scroll_to_bottom = true;
     }
@@ -94,32 +94,40 @@ protected:
 public:
     void draw()
     {
-        std::lock_guard lock(spdlog::sinks::base_sink<Mutex>::mutex_);
+        std::lock_guard lock(spdlog::sinks::base_sink<mutex>::mutex_);
 
         if (ImGui::Button("Clear"))
+        {
             buf.clear();
+        }
         ImGui::SameLine();
         if (ImGui::Button("Copy"))
+        {
             ImGui::SetClipboardText(buf.c_str());
+        }
         ImGui::SameLine();
-        filter.Draw("Filter", -100.0f);
+        filter.Draw("Filter", -100.0F);
 
         ImGui::Separator();
 
         if (ImGui::BeginChild("LogScroll",
                               ImVec2(0, 0),
-                              false,
+                              0,
                               ImGuiWindowFlags_HorizontalScrollbar))
         {
             if (filter.IsActive())
             {
                 const char* line = buf.begin();
-                while (line)
+                while (line != nullptr)
                 {
                     const char* line_end = strchr(line, '\n');
                     if (filter.PassFilter(line, line_end))
+                    {
                         ImGui::TextUnformatted(line, line_end);
-                    line = (line_end && line_end[1]) ? line_end + 1 : nullptr;
+                    }
+                    line = ((line_end != nullptr) && (line_end[1] != 0))
+                               ? line_end + 1
+                               : nullptr;
                 }
             }
             else
@@ -130,7 +138,7 @@ public:
             if (scroll_to_bottom &&
                 ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
             {
-                ImGui::SetScrollHereY(1.0f);
+                ImGui::SetScrollHereY(1.0F);
                 scroll_to_bottom = false;
             }
         }
@@ -159,8 +167,8 @@ struct global_context final
         std::atomic_bool wireframe{ false };
         std::atomic_bool fog_override{ false };
         std::atomic_bool enable_clear{ false };
-        ImVec4           clear_col{ 0.f, 0.f, 0.f, 0.f };
-        ImVec4           fog_col{ 0.5f, 0.6f, 0.7f, 1.0f };
+        ImVec4           clear_col{ 0.F, 0.F, 0.F, 0.F };
+        ImVec4           fog_col{ 0.5F, 0.6F, 0.7F, 1.0F };
     } visuals;
 
     struct
@@ -173,7 +181,7 @@ struct global_context final
 
     struct
     {
-        std::atomic<float> speed{ 1.0f };
+        std::atomic<float> speed{ 1.0F };
         std::atomic_bool   block_input{ false };
     } gameplay;
 
@@ -223,7 +231,7 @@ static void __cdecl h_set_res(int mode)
 {
     if (ctx.res.enabled.load(std::memory_order_relaxed))
     {
-        if (p_scr_w)
+        if (p_scr_w != nullptr)
         {
             *p_scr_w = ctx.res.w.load();
             *p_scr_h = ctx.res.h.load();
@@ -240,12 +248,16 @@ static void __cdecl h_update_mouse(int raw_x, int raw_y)
     ctx.raw_mouse_x.store(raw_x, std::memory_order_relaxed);
     ctx.raw_mouse_y.store(raw_y, std::memory_order_relaxed);
 
-    if (p_mse_active && *p_mse_active == 0)
-        return;
-    if (!p_mse_x || !p_scr_w)
+    if ((p_mse_active != nullptr) && *p_mse_active == 0)
     {
-        if (o_update_mouse)
+        return;
+    }
+    if ((p_mse_x == nullptr) || (p_scr_w == nullptr))
+    {
+        if (o_update_mouse != nullptr)
+        {
             o_update_mouse(raw_x, raw_y);
+        }
         return;
     }
 
@@ -259,14 +271,18 @@ static void __cdecl h_update_mouse(int raw_x, int raw_y)
     {
         static int throttle = 0;
         if (++throttle % 60 == 0)
+        {
             spdlog::debug("mouse => raw({},{}) -> ui({},{})",
                           raw_x,
                           raw_y,
                           *p_mse_x,
                           *p_mse_y);
+        }
     }
-    if (fn_update_sel)
+    if (fn_update_sel != nullptr)
+    {
         fn_update_sel();
+    }
 }
 
 static void APIENTRY h_gl_viewport(GLint x, GLint y, GLsizei w, GLsizei h)
@@ -294,22 +310,29 @@ static HANDLE WINAPI h_create_file_a(LPCSTR                fn,
                                      HANDLE                tmp)
 {
     if (ctx.debug.log_fs.load(std::memory_order_relaxed))
-        spdlog::trace("fs => open \"{}\"", fn ? fn : "null");
+    {
+        spdlog::trace("fs => open \"{}\"", (fn != nullptr) ? fn : "null");
+    }
     return o_create_file_a(fn, acc, shr, sec, disp, attr, tmp);
 }
 
 static BOOL WINAPI h_qpc(LARGE_INTEGER* val)
 {
-    if (!o_qpc || !o_qpc(val))
+    if ((o_qpc == nullptr) || (o_qpc(val) == 0))
+    {
         return FALSE;
+    }
 
-    static LARGE_INTEGER last_real{}, last_fake{};
+    static LARGE_INTEGER last_real{};
+    static LARGE_INTEGER last_fake{};
     static bool          first = true;
     static std::mutex    mtx;
 
     float mul = ctx.gameplay.speed.load(std::memory_order_relaxed);
-    if (std::abs(mul - 1.0f) < 0.001f && !first)
+    if (std::abs(mul - 1.0F) < 0.001F && !first)
+    {
         return TRUE;
+    }
 
     std::scoped_lock lock(mtx);
     if (first)
@@ -351,7 +374,9 @@ static BOOL WINAPI h_wgl_swap(HDC dc)
                         if (!ctx.shutting_down.load() &&
                             ctx.overlay_visible.load() &&
                             ImGui_ImplWin32_WndProcHandler(h, m, w, l))
+                        {
                             return true;
+                        }
                         return CallWindowProc(ctx.orig_wnd_proc, h, m, w, l);
                     })));
 
@@ -383,7 +408,9 @@ static void APIENTRY h_gl_draw_elems(GLenum        m,
 {
     ctx.draw_cnt.fetch_add(1, std::memory_order_relaxed);
     if (ctx.debug.log_gl.load(std::memory_order_relaxed))
+    {
         spdlog::trace("gl => draw {} count={}", m, c);
+    }
 
     bool no_depth = ctx.visuals.disable_depth.load(std::memory_order_relaxed);
     if (no_depth)
@@ -392,7 +419,9 @@ static void APIENTRY h_gl_draw_elems(GLenum        m,
         glDepthMask(GL_FALSE);
     }
     if (ctx.visuals.wireframe.load(std::memory_order_relaxed))
+    {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
 
     o_gl_draw_elems(m, c, t, i);
 
@@ -407,10 +436,12 @@ static void APIENTRY h_gl_draw_elems(GLenum        m,
 static void APIENTRY h_gl_clear(GLbitfield mask)
 {
     if (ctx.visuals.enable_clear.load(std::memory_order_relaxed))
+    {
         glClearColor(ctx.visuals.clear_col.x,
                      ctx.visuals.clear_col.y,
                      ctx.visuals.clear_col.z,
                      ctx.visuals.clear_col.w);
+    }
 
     if (ctx.visuals.fog_override.load(std::memory_order_relaxed))
     {
@@ -430,39 +461,46 @@ static void APIENTRY h_gl_clear(GLbitfield mask)
 
 using hook_result = std::expected<void, std::string>;
 
-template <typename T>
+template <typename t>
 hook_result create_hook(
     LPCWSTR              mod,
     LPCSTR               proc,
     void*                det,
-    T**                  orig,
+    t**                  orig,
     std::source_location l = std::source_location::current())
 {
     if (MH_CreateHookApi(mod, proc, det, reinterpret_cast<LPVOID*>(orig)) !=
         MH_OK)
+    {
         return std::unexpected(std::format(
             "{} hook failed {}:{}", proc, l.function_name(), l.line()));
+    }
     return {};
 }
 
-template <typename T>
-hook_result create_hook_addr(uintptr_t addr, void* det, T** orig)
+template <typename t>
+hook_result create_hook_addr(uintptr_t addr, void* det, t** orig)
 {
     if (MH_CreateHook(reinterpret_cast<void*>(addr),
                       det,
                       reinterpret_cast<void**>(orig)) != MH_OK)
+    {
         return std::unexpected(std::format("addr {:x} hook failed", addr));
+    }
     return {};
 }
 
 void apply_resolution()
 {
-    if (!p_scr_w)
+    if (p_scr_w == nullptr)
+    {
         return;
-    int w = ctx.res.w.load(), h = ctx.res.h.load();
+    }
+    int w    = ctx.res.w.load();
+    int h    = ctx.res.h.load();
     *p_scr_w = w;
     *p_scr_h = h;
-    if (ctx.hwnd)
+    if (ctx.hwnd != nullptr)
     {
         RECT r{ 0, 0, w, h };
         AdjustWindowRect(
@@ -475,8 +513,10 @@ void apply_resolution()
                      r.bottom - r.top,
                      SWP_NOMOVE | SWP_NOZORDER);
     }
-    if (fn_load_res)
+    if (fn_load_res != nullptr)
+    {
         fn_load_res();
+    }
     ctx.res.applied.store(true);
     spdlog::info("res => applied {}x{}", w, h);
 }
@@ -535,17 +575,25 @@ void install_hooks()
         L"user32.dll", "SetCursorPos", (void*)h_set_cursor, &o_set_cursor));
 
     for (auto& r : results)
+    {
         if (!r)
+        {
             spdlog::error("hook => {}", r.error());
+        }
+    }
     if (MH_EnableHook(MH_ALL_HOOKS) == MH_OK)
+    {
         spdlog::info("core => hooks enabled");
+    }
 }
 
 void uninstall_hooks()
 {
     ctx.shutting_down.store(true);
-    if (ctx.hwnd && ctx.orig_wnd_proc)
+    if ((ctx.hwnd != nullptr) && (ctx.orig_wnd_proc != nullptr))
+    {
         SetWindowLongPtrA(ctx.hwnd, GWLP_WNDPROC, (LONG_PTR)ctx.orig_wnd_proc);
+    }
     MH_DisableHook(MH_ALL_HOOKS);
     MH_Uninitialize();
     if (ctx.imgui_ready.exchange(false))
@@ -570,7 +618,9 @@ static void draw_ui()
             if (ImGui::BeginMenu("Menu"))
             {
                 if (ImGui::MenuItem("Unload"))
+                {
                     std::thread([] { uninstall_hooks(); }).detach();
+                }
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -579,37 +629,56 @@ static void draw_ui()
         {
             if (ImGui::BeginTabItem("Gfx"))
             {
-                bool d = ctx.visuals.disable_depth.load(),
-                     w = ctx.visuals.wireframe.load(),
-                     f = ctx.visuals.fog_override.load();
+                bool d = ctx.visuals.disable_depth.load();
+                bool w = ctx.visuals.wireframe.load();
+                bool f = ctx.visuals.fog_override.load();
                 if (ImGui::Checkbox("Wallhack", &d))
+                {
                     ctx.visuals.disable_depth.store(d);
+                }
                 if (ImGui::Checkbox("Wireframe", &w))
+                {
                     ctx.visuals.wireframe.store(w);
+                }
                 if (ImGui::Checkbox("Fog", &f))
+                {
                     ctx.visuals.fog_override.store(f);
+                }
                 if (f)
+                {
                     ImGui::ColorEdit4("Fog Col", &ctx.visuals.fog_col.x);
+                }
                 bool lgl = ctx.debug.log_gl.load();
                 if (ImGui::Checkbox("Log GL", &lgl))
+                {
                     ctx.debug.log_gl.store(lgl);
+                }
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Res"))
             {
                 bool e = ctx.res.enabled.load();
                 if (ImGui::Checkbox("Enable Custom", &e))
+                {
                     ctx.res.enabled.store(e);
-                int w = ctx.res.w.load(), h = ctx.res.h.load();
+                }
+                int w = ctx.res.w.load();
+                int h = ctx.res.h.load();
                 if (ImGui::InputInt("W", &w))
+                {
                     ctx.res.w.store(std::clamp(w, 320, 7680));
+                }
                 if (ImGui::InputInt("H", &h))
+                {
                     ctx.res.h.store(std::clamp(h, 240, 4320));
+                }
                 if (ImGui::Button("Apply"))
+                {
                     apply_resolution();
+                }
                 ImGui::Text("Game: %dx%d | Mouse: %d,%d",
-                            p_scr_w ? *p_scr_w : 0,
-                            p_scr_h ? *p_scr_h : 0,
+                            (p_scr_w != nullptr) ? *p_scr_w : 0,
+                            (p_scr_h != nullptr) ? *p_scr_h : 0,
                             ctx.raw_mouse_x.load(),
                             ctx.raw_mouse_y.load());
                 ImGui::EndTabItem();
@@ -617,26 +686,36 @@ static void draw_ui()
             if (ImGui::BeginTabItem("Game"))
             {
                 float s = ctx.gameplay.speed.load();
-                if (ImGui::SliderFloat("Speed", &s, 0.1f, 10.0f))
+                if (ImGui::SliderFloat("Speed", &s, 0.1F, 10.0F))
+                {
                     ctx.gameplay.speed.store(s);
+                }
                 if (ImGui::Button("0.5x"))
-                    ctx.gameplay.speed.store(0.5f);
+                {
+                    ctx.gameplay.speed.store(0.5F);
+                }
                 ImGui::SameLine();
                 if (ImGui::Button("1.0x"))
-                    ctx.gameplay.speed.store(1.0f);
+                {
+                    ctx.gameplay.speed.store(1.0F);
+                }
                 ImGui::SameLine();
                 if (ImGui::Button("2.0x"))
-                    ctx.gameplay.speed.store(2.0f);
+                {
+                    ctx.gameplay.speed.store(2.0F);
+                }
                 bool lfs = ctx.debug.log_fs.load();
                 if (ImGui::Checkbox("Log FileSys", &lfs))
+                {
                     ctx.debug.log_fs.store(lfs);
+                }
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Stats"))
             {
                 ImGui::Text("FPS: %.1f (%.3f ms)",
                             ImGui::GetIO().Framerate,
-                            1000.0f / ImGui::GetIO().Framerate);
+                            1000.0F / ImGui::GetIO().Framerate);
                 ImGui::Text("Draws: %d | Frames: %d",
                             ctx.draw_cnt.load(),
                             ctx.frame_cnt.load());
@@ -648,7 +727,9 @@ static void draw_ui()
             if (ImGui::BeginTabItem("Logs"))
             {
                 if (ctx.log_sink)
+                {
                     ctx.log_sink->draw();
+                }
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
