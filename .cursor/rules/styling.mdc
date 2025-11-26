@@ -1,154 +1,579 @@
+# C++ Project Style Guide
+
+**philosophy**: less code, fewer bugs. explicit > implicit. performance-aware. std lib over reinvention.
+
+**references**:
+- [boost design best practices](https://www.boost.org/doc/contributor-guide/design-guide/design-best-practices.html)
+- [boost development best practices](https://www.boost.org/doc/contributor-guide/best-practices.html)
+- c++ core guidelines (when boost doesn't conflict)
+
 ---
-description: For tasks requiring working with user facing UI components.
-globs:
-alwaysApply: false
----
-# Telegram Desktop UI Styling
 
-## Style Definition Files
+## naming & structure
 
-UI element styles (colors, fonts, paddings, margins, icons, etc.) are defined in `.style` files using a custom syntax. These files are located alongside the C++ source files they correspond to within specific UI component directories (e.g., `Telegram/SourceFiles/ui/chat/chat.style`).
+### files & directories
 
-Definitions from other `.style` files can be included using the `using` directive at the top of the file:
-```style
-using "ui/basic.style";
-using "ui/widgets/widgets.style";
+```
+dir-name/              # directories: kebab-case (unix/clang style)
+  file_name.cpp        # files: snake_case
+  file_name.hpp        # headers: snake_case
+  
+examples:
+  asset-extraction/
+    apk_reader.cpp
+    apk_reader.hpp
 ```
 
-The central definition of named colors happens in `Telegram/SourceFiles/ui/colors.palette`. This file allows for theme generation and loading colors from various sources.
+**rationale**: unix/clang convention. grep-friendly. sorts naturally.
 
-### Syntax Overview
+### code identifiers
 
-1.  **Built-in Types:** The syntax recognizes several base types inferred from the value assigned:
-    *   `int`: Integer numbers (e.g., `lineHeight: 20;`)
-    *   `bool`: Boolean values (e.g., `useShadow: true;`)
-    *   `pixels`: Pixel values, ending with `px` (e.g., `borderWidth: 1px;`). Generated as `int` in C++.
-    *   `color`: Named colors defined in `colors.palette` (e.g., `background: windowBg;`)
-    *   `icon`: Defined inline using a specific syntax (see below). Generates `style::icon`.
-    *   `margins`: Four pixel values for margins or padding. Requires `margins(top, right, bottom, left)` syntax (e.g., `margin: margins(10px, 5px, 10px, 5px);` or `padding: margins(8px, 8px, 8px, 8px);`). Generates `style::margins` (an alias for `QMargins`).
-    *   `size`: Two pixel values for width and height (e.g., `iconSize: size(16px, 16px);`). Generates `style::size`.
-    *   `point`: Two pixel values for x and y coordinates (e.g., `textPos: point(5px, 2px);`). Generates `style::point`.
-    *   `align`: Alignment keywords (e.g., `textAlign: align(center);` or `iconAlign: align(left);`). Generates `style::align`.
-    *   `font`: Font definitions (e.g., `font: font(14px semibold);`). Generates `style::font`.
-    *   `double`: Floating point numbers (e.g., `disabledOpacity: 0.5;`)
+```
+namespace airstrike3d {  // snake_case, descriptive
 
-    *Note on Borders:* Borders are typically defined using multiple fields like `border: pixels;` (for width) and `borderFg: color;` (for color), rather than a single CSS-like property.
+class apk_archive {      // snake_case, noun
+  std::vector<uint8_t> key_table_;  // snake_case, trailing underscore for private
+  
+public:
+  void extract_file(std::string_view path);  // snake_case, verb_noun
+  [[nodiscard]] size_t file_count() const;   // nodiscard for pure queries
+  
+private:
+  void decrypt_block_(std::span<uint8_t> buffer);  // private helper: trailing _
+};
 
-2.  **Structure Definition:** You can define complex data structures directly within the `.style` file:
-    ```style
-    MyButtonStyle { // Defines a structure named 'MyButtonStyle'
-      textPadding: margins; // Field 'textPadding' expects margins type
-      icon: icon;         // Field 'icon' of type icon
-      height: pixels;     // Field 'height' of type pixels
-    }
-    ```
-    This generates a `struct MyButtonStyle { ... };` inside the `namespace style`. Fields will have corresponding C++ types (`style::margins`, `style::icon`, `int`).
+constexpr size_t KEY_TABLE_SIZE = 1024;  // UPPER_SNAKE for constants
+enum class archive_type { pak, mdl, save };  // snake_case enum
 
-3.  **Variable Definition & Inheritance:** Variables are defined using `name: value;` or `groupName { ... }`. They can be of built-in types or custom structures. Structures can be initialized inline or inherit from existing variables.
+template<typename T>
+concept extractable = requires(T t) {  // snake_case concepts
+  { t.extract() } -> std::same_as<bool>;
+};
 
-    **Icon Definition Syntax:** Icons are defined inline using the `icon{...}` syntax. The generator probes for `.svg` files or `.png` files (including `@2x`, `@3x` variants) based on the provided path stem.
-    ```style
-    // Single-part icon definition:
-    myIconSearch: icon{{ "gui/icons/search", iconColor }};
-    // Multi-part icon definition (layers drawn bottom-up):
-    myComplexIcon: icon{
-      { "gui/icons/background", iconBgColor },
-      { "gui/icons/foreground", iconFgColor }
-    };
-    // Icon with path modifiers (PNG only for flips, SVG only for size):
-    myFlippedIcon: icon{{ "gui/icons/arrow-flip_horizontal", arrowColor }};
-    myResizedIcon: icon{{ "gui/icons/logo-128x128", logoColor }}; // Forces 128x128 for SVG
-    ```
+}  // namespace airstrike3d
+```
 
-    **Other Variable Examples:**
-    ```style
-    // Simple variables
-    buttonHeight: 30px;
-    activeButtonColor: buttonBgActive; // Named color from colors.palette
+**rules**:
+- `snake_case` everywhere: types, functions, variables, namespaces
+- `UPPER_SNAKE` only for macros/constants (minimize these)
+- private members: trailing `_`
+- free functions preferred over member functions (boost philosophy)
+- concepts: descriptive, snake_case
 
-    // Variable of a custom structure type, initialized inline
-    defaultButton: MyButtonStyle {
-      textPadding: margins(10px, 15px, 10px, 15px); // Use margins(...) syntax
-      icon: myIconSearch; // Assign the previously defined icon variable
-      height: buttonHeight; // Reference another variable
-    }
+**anti-patterns**:
+```
+class ApkArchive {};         // NO: CamelCase
+void ExtractFile() {}        // NO: CamelCase
+int m_fileCount;            // NO: hungarian notation
+std::string strPath;        // NO: type prefixes
+```
 
-    // Another variable inheriting from 'defaultButton' and overriding/adding fields
-    primaryButton: MyButtonStyle(defaultButton) {
-      icon: myComplexIcon; // Override icon with the multi-part one
-      backgroundColor: activeButtonColor; // Add a field not in MyButtonStyle definition
-    }
+---
 
-    // Style group (often used for specific UI elements)
-    chatInput { // Example using separate border properties and explicit padding
-      border: 1px;                          // Border width
-      borderFg: defaultInputFieldBorder;    // Border color (named color)
-      padding: margins(5px, 10px, 5px, 10px); // Use margins(...) syntax for padding field
-      backgroundColor: defaultChatBg;       // Background color
-    }
-    ```
+## cmake (target-based modern approach)
 
-## Code Generation
+### structure
 
-A code generation tool processes these `.style` files and `colors.palette` to create C++ objects.
-- The `using` directives resolve dependencies between `.style` files.
-- Custom structure definitions (like `MyButtonStyle`) generate corresponding `struct MyButtonStyle { ... };` within the `namespace style`.
-- Style variables/groups (like `defaultButton`, `primaryButton`, `chatInput`) are generated as objects/structs within the `st` namespace (e.g., `st::defaultButton`, `st::primaryButton`, `st::chatInput`). These generated structs contain members corresponding to the fields defined in the `.style` file.
-- Color objects are generated into the `st` namespace as well, based on their names in `colors.palette` (e.g., `st::windowBg`, `st::buttonBgActive`).
-- The generated header files for styles are placed in the `Telegram/SourceFiles/styles/` directory with a `style_` prefix (e.g., `styles/style_widgets.h` for `ui/widgets/widgets.style`). You include them like `#include "styles/style_widgets.h"`.
+```
+# CMakeLists.txt (root)
+cmake_minimum_required(VERSION 3.21)  # modern cmake only
+project(airstrike3d_tools VERSION 1.0.5 LANGUAGES CXX)
 
-Generated C++ types correspond to the `.style` types: `style::color`, `style::font`, `style::margins` (used for both `margin:` and `padding:` fields), `style::icon`, `style::size`, `style::point`, `style::align`, and `int` or `bool` for simple types.
+# standards & policies
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
 
-## Style Usage in Code
+# === NO GLOBAL FLAGS ===
+# BAD: set(CMAKE_CXX_FLAGS "-Wall")  # affects everything
+# GOOD: per-target properties below
 
-Styles are applied in C++ code by referencing the generated `st::...` objects and their members.
+# target: library
+add_library(apk_core STATIC
+  src/apk_reader.cpp
+  src/xor_cipher.cpp
+)
 
-```cpp
-// Example: Including the generated style header
-#include "styles/style_widgets.h" // For styles defined in ui/widgets/widgets.style
+target_include_directories(apk_core
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
-// ... inside some UI class code ...
+target_compile_options(apk_core
+  PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+)
 
-// Accessing members of a generated style struct
-int height = st::primaryButton.height; // Accessing the 'height' field (pixels -> int)
-const style::icon &icon = st::primaryButton.icon; // Accessing the 'icon' field (st::myComplexIcon)
-style::margins padding = st::primaryButton.textPadding; // Accessing 'textPadding'
-style::color bgColor = st::primaryButton.backgroundColor; // Accessing the color (st::activeButtonColor)
+target_compile_features(apk_core PUBLIC cxx_std_20)
 
-// Applying styles (conceptual examples)
-myButton->setIcon(st::primaryButton.icon);
-myButton->setHeight(st::primaryButton.height);
-myButton->setPadding(st::primaryButton.textPadding);
-myButton->setBackgroundColor(st::primaryButton.backgroundColor);
+# target: executable
+add_executable(extract_apk src/main.cpp)
 
-// Using styles directly in painting
-void MyWidget::paintEvent(QPaintEvent *e) {
-    Painter p(this);
-    p.fillRect(rect(), st::chatInput.backgroundColor); // Use color from chatInput style
+target_link_libraries(extract_apk
+  PRIVATE
+    apk_core  # transitive properties propagate
+)
 
-    // Border painting requires width and color
-    int borderWidth = st::chatInput.border; // Access border width (pixels -> int)
-    style::color borderColor = st::chatInput.borderFg; // Access border color
-    if (borderWidth > 0) {
-        p.setPen(QPen(borderColor, borderWidth));
-        // Adjust rect for pen width if needed before drawing
-        p.drawRect(rect().adjusted(borderWidth / 2, borderWidth / 2, -borderWidth / 2, -borderWidth / 2));
-    }
+# install (boost-style)
+install(TARGETS apk_core extract_apk
+  EXPORT airstrike3d_targets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+```
 
-    // Access padding (style::margins)
-    style::margins inputPadding = st::chatInput.padding;
-    // ... use inputPadding.top(), inputPadding.left() etc. for content layout ...
+**key principles** (boost/modern cmake):
+
+1. **target-centric**: properties on targets, not global vars
+2. **visibility levels**: 
+   - `PRIVATE`: only this target
+   - `INTERFACE`: consumers only
+   - `PUBLIC`: both
+3. **generator expressions**: `$<BUILD_INTERFACE:...>` for portability
+4. **no cmake_ prefix pollution**: avoid `CMAKE_CXX_FLAGS`, use target properties
+5. **transitive dependencies**: link targets, not paths
+
+**forbidden**:
+```
+include_directories(${SOME_PATH})        # NO: global scope
+link_libraries(some_lib)                 # NO: affects all targets
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")  # NO: mutation hell
+```
+
+---
+
+## error handling (boost/explicit style)
+
+### philosophy
+
+**never hide errors**. study every function for exceptions/error codes. handle explicitly.
+
+### patterns
+
+```
+// 1. expected<T, E> for recoverable errors (boost.outcome style)
+std::expected<apk_archive, error_code> open_archive(std::filesystem::path path) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    return std::unexpected(error_code::file_not_found);
+  }
+  
+  apk_archive archive;
+  if (!archive.read_header(file)) {
+    return std::unexpected(error_code::invalid_header);
+  }
+  
+  return archive;
+}
+
+// usage
+auto result = open_archive("pak0.apk");
+if (!result) {
+  std::cerr << "failed to open: " << std::quoted(result.error()) << '\n';
+  return 1;
+}
+apk_archive& archive = *result;
+
+// 2. exceptions for unrecoverable/programmer errors
+class archive_corrupted : public std::runtime_error {
+  using std::runtime_error::runtime_error;
+};
+
+void decrypt_data(std::span<uint8_t> data) {
+  if (data.size() < BLOCK_SIZE) {
+    throw std::invalid_argument("data too small for decryption");
+  }
+  // decrypt...
+}
+
+// 3. optional<T> for "no value is valid"
+std::optional<file_entry> find_file(std::string_view name) {
+  auto it = std::ranges::find(entries_, name, &file_entry::name);
+  if (it == entries_.end()) {
+    return std::nullopt;
+  }
+  return *it;
 }
 ```
 
-**Key Points:**
+**rules**:
+- `std::expected` for expected failures (file io, parsing)
+- exceptions for logic errors/programmer bugs
+- `std::optional` for "absence is valid"
+- document what can fail in comments
+- **never** swallow errors silently
 
-*   Styles are defined in `.style` files next to their corresponding C++ source files.
-*   `using "path/to/other.style";` includes definitions from other style files.
-*   Named colors are defined centrally in `ui/colors.palette`.
-*   `.style` syntax supports built-in types (like `pixels`, `color`, `margins`, `point`, `size`, `align`, `font`, `double`), custom structure definitions (`Name { field: type; ... }`), variable definitions (`name: value;`), and inheritance (`child: Name(parent) { ... }`).
-*   Values must match the expected type (e.g., fields declared as `margins` type, like `margin:` or `padding:`, require `margins(...)` syntax). Borders are typically set via separate `border: pixels;` and `borderFg: color;` fields.
-*   Icons are defined inline using `name: icon{{ "path_stem", color }};` or `name: icon{ { "path1", c1 }, ... };` syntax, with optional path modifiers.
-*   Code generation creates `struct` definitions in the `style` namespace for custom types and objects/structs in the `st` namespace for defined variables/groups.
-*   Generated headers are in `styles/` with a `style_` prefix and must be included.
-*   Access style properties via the generated `st::` objects (e.g., `st::primaryButton.height`, `st::chatInput.backgroundColor`).
+**forbidden**:
+```
+void do_thing() {
+  try { risky_operation(); } 
+  catch (...) {}  // NO: silent failure
+}
+
+bool do_thing() {
+  // returns false on error but caller doesn't know why
+  // use expected<T, E> instead
+}
+```
+
+---
+
+## logging (minimal ascii, unix style)
+
+```
+// lowercase, std::quoted for strings, ascii art for structure
+std::cout << "=> extracting file: " << std::quoted(filename) << '\n';
+std::cerr << "== error: invalid signature at offset 0x" << std::hex << offset << '\n';
+std::cout << "   processed " << count << " files\n";
+
+// progress indication
+for (size_t i = 0; i < total; ++i) {
+  std::cout << '\r' << "[" << i+1 << "/" << total << "] processing...";
+}
+std::cout << '\n';
+```
+
+**style**:
+- lowercase messages
+- `=>` for actions
+- `==` for errors
+- `std::quoted()` for user strings
+- no utf-8 art (cargo/rust style) — ascii only
+- no timestamps unless debugging (clang doesn't spam them)
+
+u can use spdlog if available
+
+---
+
+## documentation (open formats)
+
+### code comments
+
+```
+/// extract file from archive by path.
+///
+/// @param path     relative path within archive (e.g., "data/texture.tga")
+/// @param output   destination stream (must be open and writable)
+/// @returns        bytes written, or error_code on failure
+///
+/// @throws std::ios_base::failure if output stream fails
+/// @note           path separators normalized to '/' internally
+[[nodiscard]] 
+std::expected<size_t, error_code> 
+extract_file(std::string_view path, std::ostream& output);
+```
+
+**rules**:
+- doxygen-style `///` for public api
+- brief first, details after blank line
+- `@param`, `@returns`, `@throws` explicit
+- `[[nodiscard]]` for non-mutating/important returns
+- internal helpers: minimal/no docs
+
+### markdown docs
+
+```
+# apk_reader
+
+## usage
+
+    apk_archive archive;
+    auto result = archive.open("pak0.apk");
+    if (!result) { /* handle error */ }
+
+## architecture
+
+    [encrypted .apk] -> [xor_cipher] -> [file_entry[]] -> [extract_file()]
+
+## file format
+
+| offset | size | description        |
+|--------|------|--------------------|
+| 0x00   | 4    | signature "DPAK"   |
+| 0x04   | 4    | file count (le)    |
+| 0x08   | ...  | file entries       |
+```
+
+**formats**: markdown, mermaid diagrams. **never** docx/pdf.
+
+---
+
+## api design (boost principles)
+
+### free functions over methods
+
+```
+// prefer free functions for operations not requiring private access
+// better encapsulation, easier testing, generic programming friendly
+
+namespace apk {
+
+class archive { /* minimal interface */ };
+
+// free functions in same namespace
+std::vector<std::string> list_files(const archive& ar);
+bool validate_checksum(const archive& ar);
+
+}  // namespace apk
+```
+
+**rationale**: boost philosophy. see [how non-member functions increase encapsulation](https://www.drdobbs.com/cpp/how-non-member-functions-improve-encapsu/184401197).
+
+### std lib over custom
+
+```
+// use std types unless insufficient
+std::vector<uint8_t>       // not custom buffer class
+std::span<uint8_t>         // not custom view
+std::filesystem::path      // not char*/string
+std::expected<T, E>        // not custom result<T>
+std::string_view           // not const string&
+
+// exception: when std type has wrong semantics
+// (e.g., need ring buffer — std::deque wrong guarantees)
+```
+
+**rationale**: less code, fewer bugs. interop with ecosystem. performance validated by committee.
+
+### const correctness
+
+```
+class archive {
+  // const methods don't modify observable state
+  [[nodiscard]] size_t file_count() const;
+  [[nodiscard]] std::optional<file_entry> find(std::string_view name) const;
+  
+  // non-const modifies
+  void extract_all(std::filesystem::path dest);
+};
+
+// pass by const& or value (if cheap/movable)
+void process(const archive& ar);        // expensive to copy
+void process(std::string_view name);   // cheap view
+void process(std::unique_ptr<T> ptr);  // transfer ownership
+```
+
+---
+
+## performance patterns (muratori-aware)
+
+### measure, don't guess
+
+```
+// no premature optimization
+// but: understand std lib complexity guarantees
+
+std::vector<T>     // amortized O(1) push_back, contiguous
+std::unordered_map // O(1) avg lookup, heap alloc
+std::map           // O(log n), avoid unless ordering needed
+
+// cache-friendly: prefer vector over list/map for small N
+// data-oriented: struct-of-arrays > array-of-structs for bulk ops
+```
+
+### explicit resource management
+
+```
+// RAII everywhere
+{
+  std::ifstream file("data.bin");  // no manual fclose
+  std::lock_guard lock(mutex);     // no manual unlock
+  
+  // file/mutex released on scope exit (exception-safe)
+}
+
+// unique_ptr for exclusive, shared_ptr for shared (prefer unique)
+std::unique_ptr<texture> load_texture(std::filesystem::path path);
+```
+
+### avoid hidden allocations
+
+```
+// good: reserve if size known
+std::vector<file_entry> entries;
+entries.reserve(file_count);  // single allocation
+for (...) { entries.push_back(...); }
+
+// good: preallocate buffer
+std::vector<uint8_t> buffer(required_size);
+read_into(buffer);
+
+// bad: repeated reallocation
+std::vector<int> v;
+for (int i = 0; i < 1000000; ++i) {
+  v.push_back(i);  // many reallocations if no reserve
+}
+```
+
+---
+
+## testing (minimal, practical)
+
+```
+// simple catch2/doctest style (header-only preferred)
+#include <catch2/catch_test_macros.hpp>
+
+TEST_CASE("apk_archive::extract_file") {
+  apk_archive archive;
+  REQUIRE(archive.open("test_data/pak0.apk"));
+  
+  std::ostringstream out;
+  auto result = archive.extract_file("data/test.txt", out);
+  
+  REQUIRE(result.has_value());
+  CHECK(result.value() > 0);
+  CHECK(out.str() == "expected content");
+}
+```
+
+**coverage**: public api + edge cases. **not** every internal helper.
+
+---
+
+## cursor-specific hints
+
+### ignore patterns (add to .cursorignore)
+
+```
+build*/
+cmake-build*/
+.cache/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+compile_commands.json  # generated, don't analyze
+```
+
+### code generation prompts
+
+when asking cursor to generate:
+
+1. **"follow project style"** — enforces this mdc
+2. **"boost-style api"** — free functions, std types, explicit errors
+3. **"modern cmake target"** — no global vars, target properties
+4. **"explicit error handling"** — expected/optional, document failures
+5. **"snake_case, trailing _ for private"** — naming convention
+6. **"clang-style logging"** — lowercase, ascii, std::quoted
+
+### token economy
+
+cursor context trimming:
+
+- **include** this mdc + modified files + test files
+- **exclude** build outputs, generated headers, third-party
+- **compress** repetitive boilerplate into "follow pattern from X"
+
+example prompt:
+> "add xor decryption to apk_reader, follow pattern from existing extract_file, boost-style error handling, document in /// style"
+
+---
+
+## anti-patterns (forbidden)
+
+```
+// NO: macros for logic
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+// YES: constexpr function
+constexpr auto max(auto a, auto b) { return a > b ? a : b; }
+
+// NO: raw pointers for ownership
+void process(texture* tex);  // who owns? who deletes?
+// YES: smart pointers or references
+void process(const texture& tex);  // borrow
+std::unique_ptr<texture> load();   // ownership transfer
+
+// NO: hiding errors
+bool load_file() {
+  try { /* ... */ } catch (...) { return false; }  // lost context
+}
+// YES: explicit error propagation
+std::expected<file_data, error_code> load_file();
+
+// NO: global state
+static std::vector<file> g_files;  // testing nightmare
+// YES: dependency injection
+class processor {
+  explicit processor(file_registry& registry);
+};
+
+// NO: god classes
+class game {  // 5000 lines, does everything
+};
+// YES: composition
+class game {
+  asset_loader loader_;
+  renderer renderer_;
+  input_system input_;
+};
+```
+
+---
+
+## clang-tidy integration (cmake)
+
+```
+# enable clang-tidy in CI (optional locally)
+option(ENABLE_CLANG_TIDY "run clang-tidy" OFF)
+
+if(ENABLE_CLANG_TIDY)
+  find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+  if(CLANG_TIDY_EXE)
+    set(CMAKE_CXX_CLANG_TIDY
+      ${CLANG_TIDY_EXE};
+      -checks=-*,modernize-*,readability-*,performance-*;
+      -header-filter=.*include/airstrike3d.*;
+    )
+  endif()
+endif()
+```
+
+**.clang-tidy** (project root):
+
+```
+Checks: >
+  -*,
+  boost-*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -readability-identifier-length,
+  -modernize-use-trailing-return-type
+  
+CheckOptions:
+  - key: readability-identifier-naming.ClassCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: '_'
+```
+
+---
+
+## summary checklist
+
+- [ ] snake_case for all identifiers
+- [ ] files as `file_name.ext`, dirs as `dir-name/`
+- [ ] cmake: target properties, no global flags
+- [ ] explicit error handling: expected/optional/exceptions
+- [ ] logging: lowercase, ascii, std::quoted
+- [ ] free functions preferred
+- [ ] std lib over custom types
+- [ ] const correctness enforced
+- [ ] RAII for resources
+- [ ] documented with doxygen-style ///
+- [ ] tested with catch2/doctest if test present
+- [ ] clang-tidy passes
+
+**when in doubt**: check boost source (boost/filesystem, boost/asio), clang/llvm sources, not random github repos.
