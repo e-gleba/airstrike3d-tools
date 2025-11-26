@@ -1,563 +1,152 @@
 # C++ Project Style Guide
 
-**philosophy**: less code, fewer bugs. explicit > implicit. performance-aware. std lib over reinvention.
+**philosophy**: less code, fewer bugs. explicit > implicit. performance-aware. std lib over reinvention. Naming, file structure, and patterns should always be unix/clang/minimalist.
 
 **references**:
 - [boost design best practices](https://www.boost.org/doc/contributor-guide/design-guide/design-best-practices.html)
 - [boost development best practices](https://www.boost.org/doc/contributor-guide/best-practices.html)
 - c++ core guidelines (when boost doesn't conflict)
+- Clang/LLVM infra source as best practice
 
 ---
 
-## naming & structure
-
-### files & directories
+## directory & file layout
 
 ```
-dir-name/              # directories: kebab-case (unix/clang style)
-  file_name.cpp        # files: snake_case
-  file_name.hpp        # headers: snake_case
-  
-examples:
-  asset-extraction/
-    apk_reader.cpp
-    apk_reader.hpp
-```
-
-**rationale**: unix/clang convention. grep-friendly. sorts naturally.
-
-### code identifiers
-
-```
-namespace airstrike3d {  // snake_case, descriptive
-
-class apk_archive {      // snake_case, noun
-  std::vector<uint8_t> key_table_;  // snake_case, trailing underscore for private
-  
-public:
-  void extract_file(std::string_view path);  // snake_case, verb_noun
-  [[nodiscard]] size_t file_count() const;   // nodiscard for pure queries
-  
-private:
-  void decrypt_block_(std::span<uint8_t> buffer);  // private helper: trailing _
-};
-
-constexpr size_t KEY_TABLE_SIZE = 1024;  // UPPER_SNAKE for constants
-enum class archive_type { pak, mdl, save };  // snake_case enum
-
-template<typename T>
-concept extractable = requires(T t) {  // snake_case concepts
-  { t.extract() } -> std::same_as<bool>;
-};
-
-}  // namespace airstrike3d
-```
-
-**rules**:
-- `snake_case` everywhere: types, functions, variables, namespaces
-- `UPPER_SNAKE` only for macros/constants (minimize these)
-- private members: trailing `_`
-- free functions preferred over member functions (boost philosophy)
-- concepts: descriptive, snake_case
-
-**anti-patterns**:
-```
-class ApkArchive {};         // NO: CamelCase
-void ExtractFile() {}        // NO: CamelCase
-int m_fileCount;            // NO: hungarian notation
-std::string strPath;        // NO: type prefixes
+dir-name/            # kebab-case for dirs (no spaces, camelcase, underscores)
+  file_name.cpp      # snake_case for files (unix style)
+  file_name.hpp      # snake_case for headers
+  readme.md
+  cmakelists.txt     # always lowercase
+.cache/              # always ignore
+.idea/ .vscode/      # ignore editor configs
+build*/              # ignore build outputs
+cmake-build*/        # ignore cmake build dirs
 ```
 
 ---
 
-## cmake (target-based modern approach)
-
-### structure
+## naming: everything snake_case
 
 ```
-# CMakeLists.txt (root)
-cmake_minimum_required(VERSION 3.21)  # modern cmake only
-project(airstrike3d_tools VERSION 1.0.5 LANGUAGES CXX)
+namespace project_mod {};     // snake_case
 
-# standards & policies
+class asset_manager {};       // snake_case, trailing underscore for privates
+
+std::string_view file_path;   // snake_case
+size_t n_objects;             // snake_case (never hungarian, never camel)
+constexpr auto MAX_COUNT = 64;   // UPPER_SNAKE for constants
+enum class save_status { ok, error };
+template<typename T> concept serializable = requires(T t) { { t.serialize() } -> std::same_as<std::string>; };
+void log_error(std::string_view msg) noexcept; // snake_case, explicit noexcept
+```
+
+- no camelCase, no PascalCase
+- no hungarian, no member m_, no g_
+
+---
+
+## cmake (targets only, never global flags)
+
+```
+cmake_minimum_required(VERSION 3.21)
+project(any_project LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)  # no gnu extensions
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# === NO GLOBAL FLAGS ===
-# BAD: set(CMAKE_CXX_FLAGS "-Wall")  # affects everything
-# GOOD: per-target properties below
+add_library(core STATIC src/core.cpp)
+target_include_directories(core PUBLIC include)
+target_compile_features(core PUBLIC cxx_std_20)
+target_compile_options(core PRIVATE -Wall -Wextra -Wpedantic)
 
-# target: library
-add_library(apk_core STATIC
-  src/apk_reader.cpp
-  src/xor_cipher.cpp
-)
-
-target_include_directories(apk_core
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-target_compile_options(apk_core
-  PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
-)
-
-target_compile_features(apk_core PUBLIC cxx_std_20)
-
-# target: executable
-add_executable(extract_apk src/main.cpp)
-
-target_link_libraries(extract_apk
-  PRIVATE
-    apk_core  # transitive properties propagate
-)
-
-# install (boost-style)
-install(TARGETS apk_core extract_apk
-  EXPORT airstrike3d_targets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
-)
+add_executable(app src/main.cpp)
+target_link_libraries(app PRIVATE core)
 ```
 
-**key principles** (boost/modern cmake):
+- use targets for all settings (include, options, compile features)
+- never set global flags (CMAKE_CXX_FLAGS)
+- structure must allow simple disabling/enabling of tests, tools, options
 
-1. **target-centric**: properties on targets, not global vars
-2. **visibility levels**: 
-   - `PRIVATE`: only this target
-   - `INTERFACE`: consumers only
-   - `PUBLIC`: both
-3. **generator expressions**: `$<BUILD_INTERFACE:...>` for portability
-4. **no cmake_ prefix pollution**: avoid `CMAKE_CXX_FLAGS`, use target properties
-5. **transitive dependencies**: link targets, not paths
+---
 
-**forbidden**:
+## error handling
+
+- explicit error propagation; use `std::expected<T,E>` or error returns, never silent
+- exceptions only for true programmer errors (not regular control flow)
+- `std::optional` for valid "not found"
+- document what can fail (///, or markdown as appropriate)
+- never swallow errors
+
+---
+
+## logging
+
+- ascii only, no utf or emoji
+- log format: lowercase, std::quoted() for strings, `=>` for actions, `==` for errors
+
 ```
-include_directories(${SOME_PATH})        # NO: global scope
-link_libraries(some_lib)                 # NO: affects all targets
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")  # NO: mutation hell
+std::cout << "=> load: " << std::quoted(filename) << '\n';
+std::cerr << "== error: " << err_code << std::endl;
 ```
 
 ---
 
-## error handling (boost/explicit style)
+## documentation
 
-### philosophy
-
-**never hide errors**. study every function for exceptions/error codes. handle explicitly.
-
-### patterns
-
-```
-// 1. expected<T, E> for recoverable errors (boost.outcome style)
-std::expected<apk_archive, error_code> open_archive(std::filesystem::path path) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) {
-    return std::unexpected(error_code::file_not_found);
-  }
-  
-  apk_archive archive;
-  if (!archive.read_header(file)) {
-    return std::unexpected(error_code::invalid_header);
-  }
-  
-  return archive;
-}
-
-// usage
-auto result = open_archive("pak0.apk");
-if (!result) {
-  std::cerr << "failed to open: " << std::quoted(result.error()) << '\n';
-  return 1;
-}
-apk_archive& archive = *result;
-
-// 2. exceptions for unrecoverable/programmer errors
-class archive_corrupted : public std::runtime_error {
-  using std::runtime_error::runtime_error;
-};
-
-void decrypt_data(std::span<uint8_t> data) {
-  if (data.size() < BLOCK_SIZE) {
-    throw std::invalid_argument("data too small for decryption");
-  }
-  // decrypt...
-}
-
-// 3. optional<T> for "no value is valid"
-std::optional<file_entry> find_file(std::string_view name) {
-  auto it = std::ranges::find(entries_, name, &file_entry::name);
-  if (it == entries_.end()) {
-    return std::nullopt;
-  }
-  return *it;
-}
-```
-
-**rules**:
-- `std::expected` for expected failures (file io, parsing)
-- exceptions for logic errors/programmer bugs
-- `std::optional` for "absence is valid"
-- document what can fail in comments
-- **never** swallow errors silently
-
-**forbidden**:
-```
-void do_thing() {
-  try { risky_operation(); } 
-  catch (...) {}  // NO: silent failure
-}
-
-bool do_thing() {
-  // returns false on error but caller doesn't know why
-  // use expected<T, E> instead
-}
-```
+- only open formats (Markdown, Mermaid preferred)
+- public api uses doxygen/triple slash `///` for doc comments
+- diagram code/dataflow in mermaid in docs if useful
+- no docx, no proprietary
 
 ---
 
-## logging (minimal ascii, unix style)
+## api style / code economy
 
-```
-// lowercase, std::quoted for strings, ascii art for structure
-std::cout << "=> extracting file: " << std::quoted(filename) << '\n';
-std::cerr << "== error: invalid signature at offset 0x" << std::hex << offset << '\n';
-std::cout << "   processed " << count << " files\n";
-
-// progress indication
-for (size_t i = 0; i < total; ++i) {
-  std::cout << '\r' << "[" << i+1 << "/" << total << "] processing...";
-}
-std::cout << '\n';
-```
-
-**style**:
-- lowercase messages
-- `=>` for actions
-- `==` for errors
-- `std::quoted()` for user strings
-- no utf-8 art (cargo/rust style) — ascii only
-- no timestamps unless debugging (clang doesn't spam them)
-
-u can use spdlog if available
+- prefer free functions over member functions; use classes only if they truly have state/identity
+- all “manager” or “context” classes must have clear single-responsibility, minimal interface
+- never use inheritance/polymorphism unless forced by external api or performance
+- if using ECS or similar, composition over inheritance
 
 ---
 
-## documentation (open formats)
+## performance & resource management
 
-### code comments
-
-```
-/// extract file from archive by path.
-///
-/// @param path     relative path within archive (e.g., "data/texture.tga")
-/// @param output   destination stream (must be open and writable)
-/// @returns        bytes written, or error_code on failure
-///
-/// @throws std::ios_base::failure if output stream fails
-/// @note           path separators normalized to '/' internally
-[[nodiscard]] 
-std::expected<size_t, error_code> 
-extract_file(std::string_view path, std::ostream& output);
-```
-
-**rules**:
-- doxygen-style `///` for public api
-- brief first, details after blank line
-- `@param`, `@returns`, `@throws` explicit
-- `[[nodiscard]]` for non-mutating/important returns
-- internal helpers: minimal/no docs
-
-### markdown docs
-
-```
-# apk_reader
-
-## usage
-
-    apk_archive archive;
-    auto result = archive.open("pak0.apk");
-    if (!result) { /* handle error */ }
-
-## architecture
-
-    [encrypted .apk] -> [xor_cipher] -> [file_entry[]] -> [extract_file()]
-
-## file format
-
-| offset | size | description        |
-|--------|------|--------------------|
-| 0x00   | 4    | signature "DPAK"   |
-| 0x04   | 4    | file count (le)    |
-| 0x08   | ...  | file entries       |
-```
-
-**formats**: markdown, mermaid diagrams. **never** docx/pdf.
+- always prefer RAII for all resources
+- minimize dynamic allocation; reserve() on vectors if size is predictable
+- prefer std::vector over anything else for small/linear data sets; only use maps/sets for sparse/large data
+- never use raw pointers for ownership; `std::unique_ptr` or `std::shared_ptr` (but prefer unique)
+- optimize last, measure first — std::chrono for time
 
 ---
 
-## api design (boost principles)
+## clang-tidy/linters
 
-### free functions over methods
-
-```
-// prefer free functions for operations not requiring private access
-// better encapsulation, easier testing, generic programming friendly
-
-namespace apk {
-
-class archive { /* minimal interface */ };
-
-// free functions in same namespace
-std::vector<std::string> list_files(const archive& ar);
-bool validate_checksum(const archive& ar);
-
-}  // namespace apk
-```
-
-**rationale**: boost philosophy. see [how non-member functions increase encapsulation](https://www.drdobbs.com/cpp/how-non-member-functions-improve-encapsu/184401197).
-
-### std lib over custom
-
-```
-// use std types unless insufficient
-std::vector<uint8_t>       // not custom buffer class
-std::span<uint8_t>         // not custom view
-std::filesystem::path      // not char*/string
-std::expected<T, E>        // not custom result<T>
-std::string_view           // not const string&
-
-// exception: when std type has wrong semantics
-// (e.g., need ring buffer — std::deque wrong guarantees)
-```
-
-**rationale**: less code, fewer bugs. interop with ecosystem. performance validated by committee.
-
-### const correctness
-
-```
-class archive {
-  // const methods don't modify observable state
-  [[nodiscard]] size_t file_count() const;
-  [[nodiscard]] std::optional<file_entry> find(std::string_view name) const;
-  
-  // non-const modifies
-  void extract_all(std::filesystem::path dest);
-};
-
-// pass by const& or value (if cheap/movable)
-void process(const archive& ar);        // expensive to copy
-void process(std::string_view name);   // cheap view
-void process(std::unique_ptr<T> ptr);  // transfer ownership
-```
+- always provide and use a .clang-tidy with boost/cppcoreguidelines/modernize/performance/readability (see below)
+- prefer per-target integration; never global unless you control all code
+- in CI: run clang-tidy if native build, never for cross
+- enforce snake_case (see clang-tidy config below)
 
 ---
 
-## performance patterns (muratori-aware)
+## test integration
 
-### measure, don't guess
-
-```
-// no premature optimization
-// but: understand std lib complexity guarantees
-
-std::vector<T>     // amortized O(1) push_back, contiguous
-std::unordered_map // O(1) avg lookup, heap alloc
-std::map           // O(log n), avoid unless ordering needed
-
-// cache-friendly: prefer vector over list/map for small N
-// data-oriented: struct-of-arrays > array-of-structs for bulk ops
-```
-
-### explicit resource management
-
-```
-// RAII everywhere
-{
-  std::ifstream file("data.bin");  // no manual fclose
-  std::lock_guard lock(mutex);     // no manual unlock
-  
-  // file/mutex released on scope exit (exception-safe)
-}
-
-// unique_ptr for exclusive, shared_ptr for shared (prefer unique)
-std::unique_ptr<texture> load_texture(std::filesystem::path path);
-```
-
-### avoid hidden allocations
-
-```
-// good: reserve if size known
-std::vector<file_entry> entries;
-entries.reserve(file_count);  // single allocation
-for (...) { entries.push_back(...); }
-
-// good: preallocate buffer
-std::vector<uint8_t> buffer(required_size);
-read_into(buffer);
-
-// bad: repeated reallocation
-std::vector<int> v;
-for (int i = 0; i < 1000000; ++i) {
-  v.push_back(i);  // many reallocations if no reserve
-}
-```
+- provide `option(BUILD_TESTING "..." ON)` and use `enable_testing()` in top-level CMake
+- tests must be opt-in, easy to disable for cross builds or consumers
+- prefer Catch2 or doctest (header-only, minimal deps)
+- always use ctest integration; register tests for ci
 
 ---
 
-## testing (minimal, practical)
+## universal cursor/editor rules
 
-```
-// simple catch2/doctest style (header-only preferred)
-#include <catch2/catch_test_macros.hpp>
-
-TEST_CASE("apk_archive::extract_file") {
-  apk_archive archive;
-  REQUIRE(archive.open("test_data/pak0.apk"));
-  
-  std::ostringstream out;
-  auto result = archive.extract_file("data/test.txt", out);
-  
-  REQUIRE(result.has_value());
-  CHECK(result.value() > 0);
-  CHECK(out.str() == "expected content");
-}
-```
-
-**coverage**: public api + edge cases. **not** every internal helper.
-
----
-
-## cursor-specific hints
-
-### ignore patterns (add to .cursorignore)
-
-```
-build*/
-cmake-build*/
-.cache/
-*.o
-*.a
-*.so
-*.dll
-*.exe
-compile_commands.json  # generated, don't analyze
-```
-
-### code generation prompts
-
-when asking cursor to generate:
-
-1. **"follow project style"** — enforces this mdc
-2. **"boost-style api"** — free functions, std types, explicit errors
-3. **"modern cmake target"** — no global vars, target properties
-4. **"explicit error handling"** — expected/optional, document failures
-5. **"snake_case, trailing _ for private"** — naming convention
-6. **"clang-style logging"** — lowercase, ascii, std::quoted
-
-### token economy
-
-cursor context trimming:
-
-- **include** this mdc + modified files + test files
-- **exclude** build outputs, generated headers, third-party
-- **compress** repetitive boilerplate into "follow pattern from X"
-
-example prompt:
-> "add xor decryption to apk_reader, follow pattern from existing extract_file, boost-style error handling, document in /// style"
-
----
-
-## anti-patterns (forbidden)
-
-```
-// NO: macros for logic
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-// YES: constexpr function
-constexpr auto max(auto a, auto b) { return a > b ? a : b; }
-
-// NO: raw pointers for ownership
-void process(texture* tex);  // who owns? who deletes?
-// YES: smart pointers or references
-void process(const texture& tex);  // borrow
-std::unique_ptr<texture> load();   // ownership transfer
-
-// NO: hiding errors
-bool load_file() {
-  try { /* ... */ } catch (...) { return false; }  // lost context
-}
-// YES: explicit error propagation
-std::expected<file_data, error_code> load_file();
-
-// NO: global state
-static std::vector<file> g_files;  // testing nightmare
-// YES: dependency injection
-class processor {
-  explicit processor(file_registry& registry);
-};
-
-// NO: god classes
-class game {  // 5000 lines, does everything
-};
-// YES: composition
-class game {
-  asset_loader loader_;
-  renderer renderer_;
-  input_system input_;
-};
-```
-
----
-
-## clang-tidy integration (cmake)
-
-```
-# enable clang-tidy in CI (optional locally)
-option(ENABLE_CLANG_TIDY "run clang-tidy" OFF)
-
-if(ENABLE_CLANG_TIDY)
-  find_program(CLANG_TIDY_EXE NAMES clang-tidy)
-  if(CLANG_TIDY_EXE)
-    set(CMAKE_CXX_CLANG_TIDY
-      ${CLANG_TIDY_EXE};
-      -checks=-*,modernize-*,readability-*,performance-*;
-      -header-filter=.*include/airstrike3d.*;
-    )
-  endif()
-endif()
-```
-
-**.clang-tidy** (project root):
-
-```
-Checks: >
-  -*,
-  boost-*,
-  bugprone-*,
-  modernize-*,
-  performance-*,
-  readability-*,
-  -readability-identifier-length,
-  -modernize-use-trailing-return-type
-  
-CheckOptions:
-  - key: readability-identifier-naming.ClassCase
-    value: lower_case
-  - key: readability-identifier-naming.FunctionCase
-    value: lower_case
-  - key: readability-identifier-naming.VariableCase
-    value: lower_case
-  - key: readability-identifier-naming.PrivateMemberSuffix
-    value: '_'
-```
+- always add styling.mdc in project root for Cursor
+- ignore build/, .cache/, .idea/, etc
+- "follow project style": instructs Cursor and other AIs to use these conventions when generating
+- always edit in-place, never make “improvements” unless asked for
+- codegen requests must specify: “snake_case, boost/cppcoreguidelines, explicit error, minimal api, unix logging, minimal dependencies”
+- scripts: bash preferred (`set -e`, lowercase, quoted)
 
 ---
 
@@ -577,3 +166,4 @@ CheckOptions:
 - [ ] clang-tidy passes
 
 **when in doubt**: check boost source (boost/filesystem, boost/asio), clang/llvm sources, not random github repos.
+also do not overdocument, like document only where its required and may be misleading, the code must be self explanatory
