@@ -47,6 +47,9 @@ generate_proxy_def(
     bass_proxy_definitions
 )
 
+# TODO: as we have some aspect sensitivity problems, so its impossible to use
+# cmaera now with the all ui, so to compile camera, replace bass_proxy.cpp here
+# with todo_camera.cpp
 add_library(bass_proxy SHARED bass_proxy.cpp ${bass_proxy_definitions}
                                       dll_main.cpp)
 target_include_directories(bass_proxy PRIVATE ${CMAKE_CURRENT_LIST_DIR})
