@@ -58,8 +58,6 @@ constexpr uintptr_t video_set_res = 0x00401000;
 constexpr uintptr_t screen_width  = 0x00441874;
 constexpr uintptr_t screen_height = 0x00441878;
 constexpr uintptr_t video_mode    = 0x00441870;
-constexpr uintptr_t mouse_scale   = 0x004e53e8;
-constexpr uintptr_t ui_base_width = 0x00438088;
 constexpr uintptr_t update_mouse  = 0x0040ad30;
 constexpr uintptr_t mouse_x       = 0x004e53d0;
 constexpr uintptr_t mouse_y       = 0x004e53d4;
@@ -448,11 +446,7 @@ hook_result create_hook(
 }
 
 template <typename T>
-hook_result create_hook_addr(
-    uintptr_t            addr,
-    void*                det,
-    T**                  orig,
-    std::source_location l = std::source_location::current())
+hook_result create_hook_addr(uintptr_t addr, void* det, T** orig)
 {
     if (MH_CreateHook(reinterpret_cast<void*>(addr),
                       det,
@@ -487,7 +481,7 @@ void apply_resolution()
     spdlog::info("res => applied {}x{}", w, h);
 }
 
-PROXY_EXPORT void install_hooks()
+void install_hooks()
 {
     try
     {
@@ -547,7 +541,7 @@ PROXY_EXPORT void install_hooks()
         spdlog::info("core => hooks enabled");
 }
 
-PROXY_EXPORT void uninstall_hooks()
+void uninstall_hooks()
 {
     ctx.shutting_down.store(true);
     if (ctx.hwnd && ctx.orig_wnd_proc)
@@ -646,11 +640,6 @@ static void draw_ui()
                 ImGui::Text("Draws: %d | Frames: %d",
                             ctx.draw_cnt.load(),
                             ctx.frame_cnt.load());
-                PROCESS_MEMORY_COUNTERS pmc;
-                if (GetProcessMemoryInfo(
-                        GetCurrentProcess(), &pmc, sizeof(pmc)))
-                    ImGui::Text("RAM: %.1f MB",
-                                pmc.WorkingSetSize / 1048576.0f);
                 ImGui::Text(
                     "Viewport: %dx%d", ctx.viewport[2], ctx.viewport[3]);
                 ImGui::Text("GPU: %s", glGetString(GL_RENDERER));
