@@ -22,4 +22,5 @@ target_link_libraries(
         imgui_sdl3
         EnTT::EnTT
         spdlog
+        tinyobjloader
 )
