@@ -136,3 +136,4 @@ __pycache__
 !ghidra/dumps/**
 !src/overlay/*.dll
 llvm-mingw/
+!assets/**
