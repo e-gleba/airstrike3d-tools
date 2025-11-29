@@ -26,7 +26,7 @@ file(
 
 include(${CPM_DOWNLOAD_LOCATION})
 
-set(CPM_USE_LOCAL_PACKAGES ON)
+#set(CPM_USE_LOCAL_PACKAGES ON)
 
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR}/cpm)
 
@@ -39,8 +39,8 @@ find_package(cpm_sdl3 CONFIG REQUIRED)
 find_package(cpm_sdl3_mixer CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
-find_package(raylib CONFIG REQUIRED)
 find_package(cpm_stb CONFIG REQUIRED)
 find_package(cpm_tinyobjloader CONFIG REQUIRED)
 find_package(cpm_sol2 CONFIG REQUIRED)
 find_package(cpm_bullet3 CONFIG REQUIRED)
+find_package(cpm_shadercross CONFIG REQUIRED)

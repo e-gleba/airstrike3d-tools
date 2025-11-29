@@ -13,10 +13,10 @@ target_link_libraries(
     game
     PRIVATE
         warnings
-        SDL3::SDL3
+        SDL3::SDL3-static
         SDL3_mixer::SDL3_mixer
+        SDL3_shadercross::SDL3_shadercross
         yaml-cpp
-        raylib
         stb
         glm
         imgui_sdl3
