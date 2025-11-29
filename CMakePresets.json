@@ -19,6 +19,16 @@
       }
     },
     {
+      "name": "clang",
+      "displayName": "LLVM Clang",
+      "description": "Clang toolchain configuration with modern C++ standards and optimizations",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
       "name": "msvc",
       "displayName": "Microsoft Visual C++",
       "description": "MSVC toolchain configuration with Windows-specific optimizations",
@@ -91,6 +101,12 @@
       "name": "msvc",
       "displayName": "MSVC Build",
       "configurePreset": "msvc",
+      "configuration": "Release"
+    },
+    {
+      "name": "clang",
+      "displayName": "Clang Build",
+      "configurePreset": "clang",
       "configuration": "Release"
     },
     {

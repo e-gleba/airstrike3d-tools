@@ -18,6 +18,8 @@ cpmaddpackage(
         "SDL_EXAMPLES OFF"
         "SDL_INSTALL_TESTS OFF"
         "SDL_DISABLE_INSTALL_DOCS ON"
+"SDL_X11_XSCRNSAVER OFF"
+"SDL_X11_XTEST OFF"
         "SDL_X11
         OFF"
         "SDL_WAYLAND
