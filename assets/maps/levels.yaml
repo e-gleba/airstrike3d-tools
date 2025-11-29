@@ -1,0 +1,694 @@
+source_file: levels.txt
+level_count: 26
+levels:
+- properties:
+    name: 'Operation 1: Recon'
+    id: mission1
+    map: maps\level01.hsc
+    music: music\track02.mo3
+    textures: textures\rock
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.26
+    - 0.24
+    - 0.16
+    - 650.0
+    - 900.0
+    sun:
+    - 0.9
+    - 0.7
+    - 0.55
+    - -0.7
+    - -0.2
+    - 0.6
+    - 0.15
+    - 0.15
+    - 0.25
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+- properties:
+    name: 'Operation 2: Steel Beach'
+    id: mission2
+    map: maps\level02.hsc
+    music: music\track01.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.4
+    - 0.4
+    - 0.25
+    - 620.0
+    - 900.0
+    sun:
+    - 0.8
+    - 0.8
+    - 0.5
+    - -0.7
+    - -0.6
+    - 1.0
+    - 0.2
+    - 0.2
+    - 0.15
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -80
+      0.5'
+- properties:
+    name: 'Operation 3: Toxic Night'
+    id: mission3
+    map: maps\level03.hsc
+    music: music\track03.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.13
+    - 0.2
+    - 0.13
+    - 500.0
+    - 800.0
+    sun:
+    - 0.4
+    - 0.35
+    - 0.3
+    - -1.0
+    - -0.5
+    - 0.5
+    - 0.1
+    - 0.1
+    - 0.1
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -120 0.5'
+    night: ''
+- properties:
+    name: 'Operation 4: Break-Through'
+    id: mission4
+    map: maps\level04.hsc
+    music: music\track04.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.35
+    - 0.26
+    - 0.11
+    - 500.0
+    - 800.0
+    sun:
+    - 0.8
+    - 0.6
+    - 0.2
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.1
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -90
+      0.5'
+    enableHelic: 1
+- properties:
+    name: 'Operation 5: Chemical Valley'
+    id: mission5
+    map: maps\level05.hsc
+    music: music\track05.mo3
+    textures: textures\grass
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+- properties:
+    name: 'Operation 6: Abandoned Nuclear Plant'
+    id: mission6
+    map: maps\level06.hsc
+    music: music\track02.mo3
+    textures: textures\rock
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.35
+    - 0.26
+    - 0.11
+    - 500.0
+    - 800.0
+    sun:
+    - 0.8
+    - 0.6
+    - 0.2
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.1
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+- properties:
+    name: 'Operation 7: Mass Destruction'
+    id: mission7
+    map: maps\level07.hsc
+    music: music\track01.mo3
+    textures: textures\rock
+    hmin: -200
+    hmax: 150
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -135
+      0.8'
+- properties:
+    name: 'Operation 8: Thunder Sky'
+    id: mission8
+    map: maps\level08.hsc
+    music: music\track04.mo3
+    textures: textures\wasterland
+    hmin: -120
+    hmax: 130
+    fog:
+    - 0.2
+    - 0.12
+    - 0.12
+    - 630.0
+    - 850.0
+    sun:
+    - 0.6
+    - 0.4
+    - 0.4
+    - -1.0
+    - -0.4
+    - 0.6
+    - 0.1
+    - 0.1
+    - 0.3
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -100
+      0.8'
+    night: ''
+- properties:
+    name: 'Operation 9: Secret Labs'
+    id: mission9
+    map: maps\level09.hsc
+    music: music\track03.mo3
+    textures: textures\rock
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.26
+    - 0.24
+    - 0.16
+    - 650.0
+    - 900.0
+    sun:
+    - 0.9
+    - 0.7
+    - 0.55
+    - -0.7
+    - -0.2
+    - 0.6
+    - 0.15
+    - 0.15
+    - 0.25
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+    enableHelic: 2
+- properties:
+    name: 'Operation 10: Prototype of Evil'
+    id: mission10
+    map: maps\level10_boss.hsc
+    music: music\track03.mo3
+    textures: textures\rock
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.35
+    - 0.26
+    - 0.11
+    - 500.0
+    - 800.0
+    sun:
+    - 0.8
+    - 0.6
+    - 0.2
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.1
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+    enableHelic: 2
+- properties:
+    name: 'Operation 11: Shooting Practice'
+    id: mission11
+    map: maps\level11_bonus.hsc
+    music: music\track01.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.42
+    - 0.39
+    - 0.27
+    - 400.0
+    - 800.0
+    sun:
+    - 0.9
+    - 0.93
+    - 0.41
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.15
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -100
+      0.5'
+- properties:
+    name: 'Operation 12: Area 961F'
+    id: mission12
+    map: maps\level12.hsc
+    music: music\track01.mo3
+    textures: textures\desert
+    hmin: -250
+    hmax: 50
+    fog:
+    - 0.4
+    - 0.4
+    - 0.25
+    - 620.0
+    - 900.0
+    sun:
+    - 0.8
+    - 0.8
+    - 0.5
+    - -0.7
+    - -0.6
+    - 1.0
+    - 0.2
+    - 0.2
+    - 0.15
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -200 0.5'
+- properties:
+    name: 'Operation 13: Shell Shock'
+    id: mission13
+    map: maps\level13.hsc
+    music: music\track05.mo3
+    textures: textures\grass
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+- properties:
+    name: 'Operation 14: Nuclear Leak'
+    id: mission14
+    map: maps\level14.hsc
+    music: music\track03.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.13
+    - 0.2
+    - 0.13
+    - 500.0
+    - 800.0
+    sun:
+    - 0.15
+    - 0.13
+    - 0.14
+    - -1.0
+    - -0.5
+    - 0.5
+    - 0.1
+    - 0.1
+    - 0.1
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -85 0.7'
+    night: ''
+- properties:
+    name: 'Operation 15: Devastation'
+    id: mission15
+    map: maps\level15.hsc
+    music: music\track02.mo3
+    textures: textures\grass
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -150
+      0.5'
+- properties:
+    name: 'Operation 16: Highland Area'
+    id: mission16
+    map: maps\level16.hsc
+    music: music\track01.mo3
+    textures: textures\rock
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.26
+    - 0.24
+    - 0.16
+    - 650.0
+    - 900.0
+    sun:
+    - 0.9
+    - 0.7
+    - 0.55
+    - -0.7
+    - -0.2
+    - 0.6
+    - 0.15
+    - 0.15
+    - 0.25
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -100
+      0.5'
+    enableHelic: 3
+- properties:
+    name: 'Operation 17: Gromigan Strait'
+    id: mission17
+    map: maps\level17.hsc
+    music: music\track01.mo3
+    textures: textures\grass
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -100
+      0.3'
+- properties:
+    name: 'Operation 18: Air-raid drill'
+    id: mission18
+    map: maps\level18_bonus.hsc
+    music: music\track03.mo3
+    textures: textures\desert
+    hmin: -250
+    hmax: 50
+    fog:
+    - 0.5
+    - 0.45
+    - 0.25
+    - 500.0
+    - 800.0
+    sun:
+    - 0.9
+    - 0.93
+    - 0.41
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.15
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -190 0.5'
+- properties:
+    name: 'Operation 19: Cannon Fodder'
+    id: mission19
+    map: maps\level19.hsc
+    music: music\track01.mo3
+    textures: textures\rock
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.26
+    - 0.24
+    - 0.16
+    - 650.0
+    - 900.0
+    sun:
+    - 0.9
+    - 0.7
+    - 0.55
+    - -0.7
+    - -0.2
+    - 0.6
+    - 0.15
+    - 0.15
+    - 0.25
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -100
+      0.5'
+    enableHelic: 3
+- properties:
+    name: 'Operation 20: Forsaken Town'
+    id: mission20
+    map: maps\level20.hsc
+    music: music\track03.mo3
+    textures: textures\grass
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.5
+    - 0.45
+    - 0.25
+    - 500.0
+    - 800.0
+    sun:
+    - 0.9
+    - 0.93
+    - 0.41
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.15
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -75
+      0.5'
+- properties:
+    name: 'Operation 21: Urban Trip'
+    id: mission21
+    map: maps\level21.hsc
+    music: music\track05.mo3
+    textures: textures\grass
+    hmin: -100
+    hmax: 100
+    fog:
+    - 0.3
+    - 0.4
+    - 0.3
+    - 650.0
+    - 850.0
+    sun:
+    - 0.9
+    - 0.9
+    - 0.6
+    - -1.0
+    - -0.2
+    - 1.0
+    - 0.15
+    - 0.15
+    - 0.05
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -70
+      0.8'
+- properties:
+    name: 'Operation 22: Metal Storm'
+    id: mission22
+    map: maps\level22.hsc
+    music: music\track04.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.4
+    - 0.4
+    - 0.25
+    - 620.0
+    - 900.0
+    sun:
+    - 0.8
+    - 0.8
+    - 0.5
+    - -0.7
+    - -0.6
+    - 1.0
+    - 0.2
+    - 0.2
+    - 0.15
+- properties:
+    name: 'Operation 23: Close to Headquarters'
+    id: mission23
+    map: maps\level23.hsc
+    music: music\track01.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.4
+    - 0.4
+    - 0.25
+    - 620.0
+    - 900.0
+    sun:
+    - 0.8
+    - 0.8
+    - 0.5
+    - -0.7
+    - -0.6
+    - 1.0
+    - 0.2
+    - 0.2
+    - 0.15
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -80 0.7'
+- properties:
+    name: 'Operation 24: Phoenix Burning'
+    id: mission24
+    map: maps\level24_boss.hsc
+    music: music\track03.mo3
+    textures: textures\rock
+    hmin: -250
+    hmax: 250
+    fog:
+    - 0.15
+    - 0.1
+    - 0.1
+    - 700.0
+    - 950.0
+    sun:
+    - 0.8
+    - 0.6
+    - 0.5
+    - -1.0
+    - -0.4
+    - 0.6
+    - 0.1
+    - 0.1
+    - 0.15
+    water: '"gfx\water\water_sand_1.tga" "gfx\water\water_sand_1_shine.tga" -150 0.5'
+    night: ''
+- properties:
+    id: intro1
+    intermission:
+    - 150.0
+    - 100.0
+    - 80.0
+    - -70.0
+    - 0.0
+    - 30.0
+    map: maps\intro.hsc
+    music: music\track02.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.09
+    - 0.08
+    - 0.05
+    - 800.0
+    - 1000.0
+    sun:
+    - 0.07
+    - 0.07
+    - 0.07
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.1
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -70
+      0.8'
+    night: ''
+- properties:
+    id: intro2
+    intermission:
+    - 150.0
+    - 100.0
+    - 80.0
+    - -70.0
+    - 0.0
+    - 30.0
+    map: maps\intro.hsc
+    music: music\track02.mo3
+    textures: textures\desert
+    hmin: -150
+    hmax: 150
+    fog:
+    - 0.09
+    - 0.08
+    - 0.05
+    - 800.0
+    - 1000.0
+    sun:
+    - 0.07
+    - 0.07
+    - 0.07
+    - -1.0
+    - -0.4
+    - 1.0
+    - 0.1
+    - 0.1
+    - 0.14
+    water: '"gfx\water\water_ocean_1.tga" "gfx\water\water_ocean_1_shine.tga" -70
+      0.8'
+    night: ''
