@@ -45,7 +45,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     as3::init_renderer(renderer, window);
 
     bool               running = true;
-    SDL_Event          event;
+    SDL_Event          event{};
     constexpr uint32_t max_fps = 60;
 
     while (running)
