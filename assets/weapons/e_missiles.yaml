@@ -1,5 +1,3 @@
-source_file: e_missiles.wpn
-weapon_count: 10
 weapons:
   wpn_missile_small:
     missile: e_missile_small

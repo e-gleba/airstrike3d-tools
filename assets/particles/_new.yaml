@@ -1,0 +1,271 @@
+particle_systems:
+  PS_METEORITE_FALLING:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 20
+    life_time: 0.8
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 32
+      max: 2
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -18
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.2
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_METEORITE_FALLING_SMOKE:
+    blend_mode: BLEND_FILTER
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\smoke3.tga
+      width: 4
+      height: 2
+    emit_rate: 8
+    life_time: 1.6
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 43
+      max: 1
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -15
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    anim_mode: ANIM_LINEAR
+  PS_METEORITE_MEDIUM_FALLING:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 15
+    life_time: 0.6
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 24
+      max: 1
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -14
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.3
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_METEORITE_MEDIUM_FALLING_SMOKE:
+    blend_mode: BLEND_FILTER
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\smoke3.tga
+      width: 4
+      height: 2
+    emit_rate: 7
+    life_time: 1.5
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 30
+      max: 1
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -12
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+    anim_mode: ANIM_LINEAR
+  PS_METEORITE_SMALL_FALLING:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 20
+    life_time: 0.6
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 8
+      max: 1
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -8
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_METEORITE_SMALL_FALLING_SMOKE:
+    blend_mode: BLEND_FILTER
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\smoke3.tga
+      width: 4
+      height: 2
+    emit_rate: 10
+    life_time: 1.5
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 10
+      max: 1
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - -3
+    size: -7
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+    anim_mode: ANIM_LINEAR

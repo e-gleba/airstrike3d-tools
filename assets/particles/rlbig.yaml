@@ -1,0 +1,82 @@
+particle_systems:
+  PS_RLBIG_FIRE:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\smoke.tga
+      width: 4
+      height: 2
+    emit_rate: 100
+    life_time: 0.5
+    init_offset:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 15
+      max: 5
+    init_frame:
+      min: 0
+      max: 2
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    size: -5
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_RLBIG_STARTUP_SMOKE:
+    texture:
+      name: gfx\smoke.tga
+      width: 4
+      height: 2
+    blend_mode: BLEND_ADD
+    coords: COORD_CILINDER
+    emit_rate: 40
+    life_time: 3
+    init_offset:
+      x:
+        - 0
+        - 360
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - 5
+    init_size:
+      min: 5
+      max: 1
+    init_frame:
+      min: 0
+      max: 2
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 15
+        - 10
+      z:
+        - 0
+        - 3
+    size: 15
+    accel:
+      - 0
+      - 10
+      - 0
+    fade_mode: FADE_LINEAR

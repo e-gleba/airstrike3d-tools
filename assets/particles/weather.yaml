@@ -1,0 +1,274 @@
+particle_systems:
+  PS_SNOW:
+    draw_mode: DRAW_VERT
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_white_red_small.tga
+      width: 2
+      height: 1
+    emit_rate: 200
+    life_time: 3
+    init_offset:
+      x:
+        - 0
+        - 250
+      y:
+        - -200
+        - 300
+      z:
+        - 100
+        - -50
+    init_size:
+      min: 1
+      max: 1
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 0
+        - 20
+      z:
+        - -22
+        - -15
+    size: -1
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+  PS_PEPEL:
+    draw_mode: DRAW_VERT
+    blend_mode: BLEND_FILTER
+    texture:
+      name: gfx\pepel.tga
+      width: 1
+      height: 1
+    emit_rate: 120
+    life_time: 2
+    init_offset:
+      x:
+        - 0
+        - 250
+      y:
+        - -200
+        - 300
+      z:
+        - -50
+        - -50
+    init_size:
+      min: 12
+      max: 1
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 0
+        - 20
+      z:
+        - 22
+        - 15
+    size: 40
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - 10
+  PS_IZMOROS:
+    draw_mode: DRAW_VERT
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_white_red_small.tga
+      width: 2
+      height: 1
+    emit_rate: 200
+    life_time: 4
+    init_offset:
+      x:
+        - 0
+        - 250
+      y:
+        - -200
+        - 300
+      z:
+        - 100
+        - -50
+    init_size:
+      min: 0.5
+      max: 0.5
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 40
+      y:
+        - 0
+        - 40
+      z:
+        - -22
+        - -15
+    size: -0.5
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+    fade_factor: 0.5
+  PS_RAIN:
+    draw_mode: DRAW_VERT
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\rain.tga
+      width: 2
+      height: 1
+    emit_rate: 200
+    life_time: 0.5
+    init_offset:
+      x:
+        - 0
+        - 300
+      y:
+        - -230
+        - 300
+      z:
+        - 100
+        - 10
+    init_size:
+      min: 20
+      max: 1
+    init_frame:
+      min: 0
+      max: 2
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 15
+      y:
+        - 0
+        - 15
+      z:
+        - -400
+        - 200
+    size: -20
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+  PS_SPICE_STORM:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\spice.tga
+      width: 1
+      height: 1
+    emit_rate: 300
+    life_time: 1
+    init_offset:
+      x:
+        - 0
+        - 360
+      y:
+        - 0
+        - 100
+      z:
+        - 30
+        - 30
+    init_velocity:
+      x:
+        - 70
+        - 20
+      y:
+        - 70
+        - 20
+      z:
+        - 20
+        - 30
+    init_size:
+      min: 1.5
+      max: 1
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    size: -1
+    coords: COORD_CILINDER
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+  PS_SPICE_STORM2:
+    blend_mode: BLEND_ALPHA
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\combust2.tga
+      width: 4
+      height: 4
+    emit_rate: 30
+    life_time: 0.7
+    init_offset:
+      x:
+        - 0
+        - 360
+      y:
+        - 0
+        - 2
+      z:
+        - 3
+        - 3
+    init_velocity:
+      x:
+        - 100
+        - 0
+      y:
+        - 80
+        - 10
+      z:
+        - 1
+        - 2
+    init_size:
+      min: 5
+      max: 3
+    init_color:
+      r: 0.6
+      g: 0.5
+      b: 0.3
+      a: 1
+    init_frame:
+      min: 4
+      max: 7
+    size: 70
+    coords: COORD_CILINDER
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.4

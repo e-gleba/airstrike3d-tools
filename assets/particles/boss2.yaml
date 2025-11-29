@@ -1,0 +1,98 @@
+particle_systems:
+  PS_BOSS2_FIRE:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    rflag:
+      - RF_NODEPTHTEST
+    damage:
+      TOUCH_PLAYER:
+        min: 6
+        max: 2
+        value: 0
+    emit_rate: 80
+    life_time: 0.6
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 3
+      max: 1
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 250
+        - 20
+      z:
+        - 0
+        - 20
+    size: 14
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 3
+      - -20
+  PS_BOSS2_SMOKE:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\smoke.tga
+      width: 4
+      height: 2
+    emit_rate: 40
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 3
+      max: 2
+    init_frame:
+      min: 0
+      max: 2
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - -150
+        - 50
+      z:
+        - 0
+        - 0
+    size: 30
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - 0

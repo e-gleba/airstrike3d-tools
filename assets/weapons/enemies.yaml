@@ -1,5 +1,3 @@
-source_file: enemies.wpn
-weapon_count: 1
 weapons:
   wpn_e_machinegun:
     missile: e_mgun_proj

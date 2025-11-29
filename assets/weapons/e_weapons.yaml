@@ -1,4 +1,3 @@
-source_file: e_weapons.wpn
 weapon_count: 32
 weapons:
   e_wpn_machinegun:

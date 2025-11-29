@@ -1,0 +1,1795 @@
+particle_systems:
+  PS_LASER_ISKRA:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_orange_green_small.tga
+      width: 2
+      height: 1
+    emit_rate: 5
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 40
+      z:
+        - 2
+        - 0
+    init_size:
+      min: 2
+      max: 0
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 0
+        - 20
+      z:
+        - -15
+        - -10
+    size: -3
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+  PS_LASER_NAKOPL:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_orange_green_small.tga
+      width: 2
+      height: 1
+    emit_rate: 5
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 40
+      z:
+        - 2
+        - 0
+    init_size:
+      min: 2
+      max: 0
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 0
+        - 20
+      z:
+        - -15
+        - -10
+    size: -3
+    coords: COORD_SPHERE
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+  PS_LASER_GREEN_ISKRA:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_orange_green_small.tga
+      width: 2
+      height: 1
+    emit_rate: 20
+    life_time: 0.4
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 20
+        - 250
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 2
+      max: 0
+    init_frame:
+      min: 1
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 0
+        - 20
+      z:
+        - -15
+        - -10
+    size: -3
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 1
+      - -10
+  PS_LASER_SPIRAL:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_orange_green_small.tga
+      width: 2
+      height: 1
+    emit_rate: 100
+    emit_mode: EMIT_ONCE
+    life_time: 2
+    init_offset:
+      x:
+        - 0
+        - 360
+      y:
+        - 0
+        - 200
+      z:
+        - 0
+        - 16
+    init_velocity:
+      x:
+        - 144
+        - 32
+      y:
+        - 76
+        - 12
+      z:
+        - -10
+        - 0
+    init_size:
+      min: 2
+      max: 0
+    init_frame:
+      min: 1
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    size: -3
+    coords: COORD_CILINDER
+    fade_mode: FADE_LINEAR
+  PS_FIREBALL_HVOST:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 60
+    life_time: 0.25
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 8
+      max: 0
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    size: -27
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_FIREBALL2_HVOST:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 60
+    life_time: 0.4
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 10
+      max: 0
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    size: -20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_METEORITE:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 90
+    life_time: 0.15
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 4
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -25
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.8
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_BFG:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_white_red_small.tga
+      width: 2
+      height: 1
+    emit_rate: 50
+    life_time: 0.5
+    init_offset:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - 3
+      z:
+        - 0
+        - 3
+    init_size:
+      min: 3
+      max: 3
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 10
+      y:
+        - 150
+        - 10
+      z:
+        - 0
+        - 10
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_WAVEGUN:
+    blend_mode: BLEND_ADD
+    texture:
+      name: models\weapons\plasma\bpg_flash.tga
+      width: 1
+      height: 1
+    emit_rate: 40
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 5
+      y:
+        - 5
+        - 5
+      z:
+        - 0
+        - 1
+    init_size:
+      min: 8
+      max: 1
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -10
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_FLAMEFROWER_HOR:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    rflag:
+      - RF_NODEPTHTEST
+    damage:
+      TOUCH_ENEMIES:
+        min: 10
+        max: 5
+        value: 0
+    emit_rate: 90
+    life_time: 0.6
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 3
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 1
+      max: 0
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 13
+      y:
+        - 200
+        - 13
+      z:
+        - 0
+        - 13
+    size: 20
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 100
+      - 3
+  PS_FLAMEFROWER_BLUE_HOR:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_rate: 100
+    life_time: 0.16
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 1
+        - 0
+    init_size:
+      min: 2
+      max: 1
+    init_frame:
+      min: 0
+      max: 4
+    init_color:
+      r: 0.8
+      g: 0.8
+      b: 1.2
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 220
+        - 0
+      z:
+        - 0
+        - 3
+    size: 6
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 100
+      - 0
+  PS_FLAMEFROWER_HOR2:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 95
+    damage:
+      TOUCH_ENEMIES:
+        min: 10
+        max: 6
+        value: 0
+    life_time: 0.75
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 3
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 1
+      max: 0
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 13
+      y:
+        - 230
+        - 13
+      z:
+        - 0
+        - 13
+    size: 19
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 100
+      - 3
+  PS_FLAMEFROWER_BLUE_HOR2:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 100
+    life_time: 0.18
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 1
+        - 0
+    init_size:
+      min: 2
+      max: 1
+    init_frame:
+      min: 0
+      max: 4
+    init_color:
+      r: 0.8
+      g: 0.8
+      b: 1.2
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 240
+        - 0
+      z:
+        - 0
+        - 3
+    size: 7
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 100
+      - 0
+  PS_FLAMEFROWER_HOR3:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 100
+    life_time: 0.9
+    damage:
+      TOUCH_ENEMIES:
+        min: 10
+        max: 7
+        value: 1
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 3
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 1
+      max: 0
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 13
+      y:
+        - 260
+        - 13
+      z:
+        - 0
+        - 13
+    size: 18
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 100
+      - 3
+  PS_FLAMEFROWER_BLUE_HOR3:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 100
+    life_time: 0.2
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 1
+        - 0
+    init_size:
+      min: 2
+      max: 1
+    init_frame:
+      min: 0
+      max: 4
+    init_color:
+      r: 0.8
+      g: 0.8
+      b: 1.2
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 280
+        - 0
+      z:
+        - 0
+        - 3
+    size: 8
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 100
+      - 0
+  PS_ISKORKA:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\iskra.tga
+      width: 3
+      height: 3
+    rflag:
+      - RF_NODEPTHTEST
+    emit_mode: EMIT_ONCE
+    emit_rate: 6
+    life_time: 0.6
+    init_frame:
+      min: 0
+      max: 6
+    init_offset:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 6
+        - 1
+    init_size:
+      min: 1.5
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 30
+      y:
+        - 0
+        - 30
+      z:
+        - 20
+        - 30
+    size: -3
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - -150
+  PS_BIGLASER_HIT:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_orange_green_small.tga
+      width: 2
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_rate: 10
+    life_time: 0.6
+    init_frame:
+      min: 1
+      max: 0
+    init_offset:
+      x:
+        - 0
+        - 1
+      y:
+        - -3
+        - 10
+      z:
+        - 4
+        - 1
+    init_size:
+      min: 2
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 30
+      y:
+        - 0
+        - 30
+      z:
+        - 20
+        - 30
+    size: -3
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - -150
+  PS_MISSILE_EXPLOSION_FIRE_FLASH:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\expl_missile.tga
+      width: 2
+      height: 1
+    emit_mode: EMIT_ONCE
+    emit_rate: 3
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 2
+      y:
+        - 0
+        - 2
+      z:
+        - 10
+        - 2
+    init_size:
+      min: 8
+      max: 2
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1.5
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 5
+      y:
+        - 0
+        - 5
+      z:
+        - 14
+        - 5
+    size: -10
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+  PS_MISSILE_BIG_EXPLOSION_FIRE_FLASH:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\expl_missile.tga
+      width: 2
+      height: 1
+    emit_mode: EMIT_ONCE
+    emit_rate: 2
+    life_time: 0.4
+    init_offset:
+      x:
+        - 0
+        - 2
+      y:
+        - 0
+        - 2
+      z:
+        - 10
+        - 2
+    init_size:
+      min: 12
+      max: 2
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1.5
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 5
+      y:
+        - 0
+        - 5
+      z:
+        - 14
+        - 5
+    size: -11
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+  PS_MISSILE_EXPLOSION_FIRE_FLASH2:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\effects\gibspark.tga
+      width: 1
+      height: 1
+    emit_mode: EMIT_ONCE
+    emit_rate: 1
+    life_time: 0.4
+    init_offset:
+      x:
+        - 0
+        - 2
+      y:
+        - 0
+        - 2
+      z:
+        - 10
+        - 2
+    init_size:
+      min: 30
+      max: 2
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1.5
+      g: 1.5
+      b: 1.5
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 5
+      y:
+        - 0
+        - 5
+      z:
+        - 14
+        - 5
+    size: -10
+    fade_mode: FADE_LINEAR
+  PS_MISSILE_BIG_EXPLOSION_FIRE_FLASH2:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\effects\gibspark.tga
+      width: 1
+      height: 1
+    emit_mode: EMIT_ONCE
+    emit_rate: 1
+    life_time: 0.5
+    init_offset:
+      x:
+        - 0
+        - 2
+      y:
+        - 0
+        - 2
+      z:
+        - 10
+        - 2
+    init_size:
+      min: 50
+      max: 10
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1.5
+      g: 1.5
+      b: 1.5
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 5
+      y:
+        - 0
+        - 5
+      z:
+        - 14
+        - 5
+    size: -15
+    fade_mode: FADE_LINEAR
+  PS_FLAMEFROWER_DIAG:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    rflag:
+      - RF_NODEPTHTEST
+    damage:
+      TOUCH_PLAYER:
+        min: 25
+        max: 10
+        value: 0
+    emit_rate: 80
+    life_time: 1.1
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 1
+      max: 0
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 20
+      y:
+        - 250
+        - 20
+      z:
+        - 0
+        - 20
+    size: 20
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 3
+      - -20
+  PS_FLAMEFROWER_BLUE_DIAG:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_rate: 100
+    life_time: 0.2
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 1
+        - 0
+    init_size:
+      min: 2
+      max: 1
+    init_frame:
+      min: 0
+      max: 4
+    init_color:
+      r: 0.8
+      g: 0.8
+      b: 1.2
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 250
+        - 0
+      z:
+        - 0
+        - 3
+    size: 9
+    fade_mode: FADE_LINEAR
+    accel:
+      - 3
+      - 3
+      - -20
+  PS_EXPLOSION_ABOMB_FIRE_FLASH:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\weapons\expl_missile.tga
+      width: 2
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_mode: EMIT_ONCE
+    emit_rate: 2
+    life_time: 0.4
+    init_offset:
+      x:
+        - 0
+        - 2
+      y:
+        - 0
+        - 2
+      z:
+        - 10
+        - 2
+    init_size:
+      min: 400
+      max: 10
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1.5
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 5
+      y:
+        - 0
+        - 5
+      z:
+        - 14
+        - 5
+    size: -100
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.8
+  PS_LBOMB_HIT:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\flare_blue_small.tga
+      width: 1
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_mode: EMIT_ONCE
+    emit_rate: 10
+    life_time: 0.6
+    init_frame:
+      min: 0
+      max: 6
+    init_offset:
+      x:
+        - 0
+        - 1
+      y:
+        - 0
+        - 1
+      z:
+        - 6
+        - 1
+    init_size:
+      min: 1.5
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 30
+      y:
+        - 0
+        - 30
+      z:
+        - 20
+        - 30
+    size: -3
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - 0
+      - -150
+  PS_RIPER:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\bublik.tga
+      width: 1
+      height: 1
+    emit_rate: 30
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 1
+    init_size:
+      min: 6
+      max: 0
+    init_frame:
+      min: 0
+      max: 0
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    size: 11
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.2
+    accel:
+      - 0
+      - 0
+      - 1
+  PS_PHOTON:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 60
+    life_time: 0.15
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 6
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PHOTON2:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 350
+    life_time: 0.11
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 8
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -5
+      z:
+        - 0
+        - 5
+    size: 0
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PHOTON3:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_rate: 300
+    life_time: 0.11
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 7
+      max: 2
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -5
+      z:
+        - 0
+        - 5
+    size: -20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PHOTON2_1:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 100
+    life_time: 0.24
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 10
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -40
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.5
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PHOTON_2:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 60
+    life_time: 0.15
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 8
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PHOTON_1:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 60
+    life_time: 0.15
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 6
+      max: 0
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 3
+      y:
+        - 0
+        - -3
+      z:
+        - 0
+        - 3
+    size: -20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.6
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PLASMA_LAZER:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 2500
+    damage:
+      TOUCH_ENEMIES:
+        min: 3
+        max: 1
+        value: 0
+    life_time: 0.1
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - -25
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 6
+      max: 1
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 6000
+        - 3000
+      z:
+        - 0
+        - 0
+    size: 20
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.8
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_PLASMA_LAZER_BIG:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower2.tga
+      width: 4
+      height: 1
+    emit_rate: 400
+    life_time: 0.2
+    damage:
+      TOUCH_ENEMIES:
+        min: 5
+        max: 3
+        value: 1
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - -5
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 15
+      max: 3
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 2500
+        - 1300
+      z:
+        - 0
+        - 0
+    size: 100
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.3
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_WAVE_BONUS:
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\combust2.tga
+      width: 4
+      height: 4
+    emit_rate: 8000
+    life_time: 0.3
+    init_offset:
+      x:
+        - 0
+        - 300
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - -22
+        - 10
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 6
+      max: 2
+    init_frame:
+      min: 0
+      max: 4
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    size: -10
+    fade_mode: FADE_LINEAR
+    accel:
+      - 0
+      - -10
+      - 0
+  PS_ABOMB_RING:
+    blend_mode: BLEND_ADD
+    rflag:
+      - RF_NODEPTHTEST
+    texture:
+      name: gfx\weapons\combust_flamefrower.tga
+      width: 4
+      height: 2
+    emit_mode: EMIT_ONCE
+    emit_rate: 500
+    life_time: 2.0
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - -25
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 10
+      max: 1
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - -8000
+        - 3000
+      y:
+        - -300
+        - 0
+      z:
+        - 0
+        - 0
+    size: 60
+    coords: COORD_CILINDER
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.8
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_EXPL_DUST:
+    blend_mode: BLEND_ALPHA
+    texture:
+      name: gfx\effects\expl_dust.tga
+      width: 4
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_rate: 15
+    emit_mode: EMIT_ONCE
+    life_time: 1.0
+    init_offset:
+      x:
+        - 0
+        - 50
+      y:
+        - 0
+        - 50
+      z:
+        - 0
+        - 30
+    init_size:
+      min: 3
+      max: 3
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 150
+      y:
+        - 0
+        - 150
+      z:
+        - 5
+        - 0
+    size: 100
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+    accel:
+      - 0
+      - 0
+      - 0
+  PS_EXPL_DUST_SMALL:
+    blend_mode: BLEND_ALPHA
+    texture:
+      name: gfx\effects\expl_dust.tga
+      width: 4
+      height: 1
+    rflag:
+      - RF_NODEPTHTEST
+    emit_rate: 15
+    emit_mode: EMIT_ONCE
+    life_time: 1.0
+    init_offset:
+      x:
+        - 0
+        - 50
+      y:
+        - 0
+        - 50
+      z:
+        - 0
+        - 30
+    init_size:
+      min: 2
+      max: 2
+    init_frame:
+      min: 0
+      max: 7
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 100
+      y:
+        - 0
+        - 100
+      z:
+        - 5
+        - 0
+    size: 50
+    fade_mode: FADE_LINEAR
+    fade_factor: 0.7
+    accel:
+      - 0
+      - 0
+      - 0

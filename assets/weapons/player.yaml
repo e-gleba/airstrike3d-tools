@@ -1,5 +1,3 @@
-source_file: player.wpn
-weapon_count: 45
 weapons:
   p_wpn_machinegun:
     missile: mgun_proj

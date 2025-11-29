@@ -1,0 +1,43 @@
+particle_systems:
+  PS_SHIP_SPLASHES:
+    draw_mode: DRAW_HORIZ
+    blend_mode: BLEND_ADD
+    texture:
+      name: gfx\splash_ship.tga
+      width: 1
+      height: 1
+    emit_rate: 4
+    life_time: 1.3
+    init_offset:
+      x:
+        - 0
+        - 0
+      y:
+        - 0
+        - 0
+      z:
+        - 0
+        - 0
+    init_size:
+      min: 12
+      max: 2
+    init_frame:
+      min: 0
+      max: 8
+    init_color:
+      r: 1
+      g: 1
+      b: 1
+      a: 1
+    init_velocity:
+      x:
+        - 0
+        - 0
+      y:
+        - 10
+        - 0
+      z:
+        - 0
+        - 0
+    size: 45
+    fade_mode: FADE_LINEAR
