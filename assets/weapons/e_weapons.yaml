@@ -1,0 +1,126 @@
+source_file: e_weapons.wpn
+weapon_count: 32
+weapons:
+  e_wpn_machinegun:
+    missile: e_mgun_proj
+    flash: e_mgun2_flash
+    speed: 350
+  e_wpn_machinegun_blue:
+    missile: e_mgun_blue_proj
+    flash: e_mgun_blue_flash
+    speed: 300
+  e_wpn_machinegun2:
+    missile: e_mgun_proj
+    flash: e_mgun2_flash
+    speed: 600
+  e_wpn_laser_red_small:
+    missile: e_laser_red_small_proj
+    flash: e_laser_red_flash2
+    speed: 240
+  e_wpn_impulsegun:
+    missile: e_impulse_proj
+    flash: e_impulse_flash
+    speed: 230
+  e_wpn_laser_orange_small:
+    missile: e_laser_orange_small_proj
+    flash: e_laser_orange_small_flash
+    speed: 230
+  e_wpn_laser_blue_small:
+    missile: e_laser_blue_small_proj
+    flash: e_laser_blue_small_flash
+    speed: 240
+  e_wpn_laser_blue:
+    missile: e_laser_blue_proj
+    flash: e_laser_blue_flash
+    speed: 360
+  e_wpn_laser_red:
+    missile: e_laser_red_proj
+    flash: e_laser_red_flash2
+    speed: 260
+  e_wpn_laser_red2:
+    missile: e_laser_red_proj
+    flash: e_laser_red_flash2
+    speed: 300
+  e_wpn_laser_green:
+    missile: e_laser_green_proj
+    flash: e_laser_green_flash
+    speed: 300
+  e_wpn_laser_long:
+    missile: e_laser_long_proj
+    flash: e_laser_long_flash
+  e_wpn_fball:
+    missile: e_fball_proj
+    flash: e_fball_flash
+    speed: 300
+  e_wpn_fball_blue_small:
+    missile: e_fball_blue_small_proj
+    flash: e_fball_blue_small_flash
+    speed: 300
+  e_wpn_fball_red:
+    missile: e_fball_red_proj
+    flash: e_fball_red_flash
+    speed: 250
+  e_wpn_fball_red_green:
+    missile: e_fball_red_gr_proj
+    flash: e_fball_red_flash
+    speed: 300
+  e_wpn_fball_green:
+    missile: e_fball_green_proj
+    flash: e_fball_green_flash
+    speed: 250
+  e_wpn_fball_green_small:
+    missile: e_fball_green_small_proj
+    flash: e_fball_green_flash
+    speed: 250
+  e_wpn_fball_mag:
+    missile: e_fball_mag_proj
+    flash: e_fball_mag_flash
+    speed: 250
+  e_wpn_fball_red_small:
+    missile: e_fball_red_small_proj
+    flash: e_fball_red_small_flash
+    speed: 250
+  e_wpn_fball_red_small2:
+    missile: e_fball_red_small2_proj
+    flash: e_fball_red_small_flash
+    speed: 250
+  e_wpn_fball_big1:
+    missile: e_fball_big1_proj
+    flash: e_fball_big1_flash
+    speed: 250
+  e_wpn_fball_big2:
+    missile: e_fball_big2_proj
+    flash: e_fball_big1_flash
+    speed: 250
+  e_wpn_fball_big3:
+    missile: e_fball_big3_proj
+    flash: e_fball_big1_flash
+    speed: 270
+  e_wpn_fball_big4:
+    missile: e_fball_big4_proj
+    flash: e_fball_big1_flash
+    speed: 270
+  e_wpn_mortyr_magenta_small:
+    missile: mortyr_magenta_small
+    speed: 180
+  e_wpn_mortyr_orange_small:
+    missile: mortyr_orange_small
+    speed: 180
+  e_bfg:
+    missile: lightingbomb_proj2
+    flash: lightingbomb_proj2_flash
+    speed: 200
+  e_wpn_scatter_tiger:
+    missile: e_wpn_scatter_tiger_proj
+    flash: e_wpn_scatter_tiger_flash
+    speed: 300
+  boss_1_weapon:
+    missile: boss_1_weapon_proj
+    flash: boss_1_weapon_flash
+    speed: 400
+  boss_1_weapon_prot:
+    flash: boss_1_weapon_flash
+  boss#2_rocket_wpn:
+    missile: boss#2_rocket
+    flash: boss_1_weapon_flash
+    speed: 500

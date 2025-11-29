@@ -1,0 +1,172 @@
+source_file: player.wpn
+weapon_count: 45
+weapons:
+  p_wpn_machinegun:
+    missile: mgun_proj
+    flash: mgun_flash
+    speed: 1600
+  p_wpn_impulsegun:
+    missile: impulse_proj
+    flash: impulse_flash
+    speed: 1000
+  p_wpn_laser:
+    missile: laser_proj
+    flash: laser_flash
+    speed: 750
+  p_wpn_laser2:
+    missile: laser2_proj
+    flash: laser_flash2
+    speed: 500
+  p_wpn_plasmagun:
+    missile: plasmagun_proj
+    flash: plasmagun_flash
+    speed: 800
+  p_wpn_plasmagun2:
+    missile: plasmagun_proj2
+    flash: plasmagun_flash2
+    speed: 700
+  p_wpn_wavegun:
+    missile: wavegun_proj
+    flash: wavegun_flash
+    speed: 700
+  p_wpn_lightinggun:
+    missile: lightinggun_proj
+    flash: lightinggun_flash
+    speed: 500
+  p_wpn_photon:
+    missile: photon_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon2:
+    missile: photon2_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon2_1:
+    missile: photon2_1_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon3:
+    missile: photon3_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon3_2:
+    missile: photon3_2_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon3_3:
+    missile: photon3_3_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon4:
+    missile: photon4_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon4_1:
+    missile: photon4_1_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon4_2:
+    missile: photon4_2_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon4_3:
+    missile: photon4_3_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon5:
+    missile: photon5_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon5_1:
+    missile: photon5_1_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_photon3_1:
+    missile: photon3_1_proj
+    flash: photon_flash
+    speed: 500
+  p_wpn_missilegun:
+    missile: missilegun_proj
+    flash: missilegun_flash
+    speed: 500
+  p_wpn_missilegun2:
+    missile: missilegun_proj2
+    flash: missilegun_flash
+    speed: 600
+  p_wpn_gorox:
+    missile: gorox_proj
+    flash: gorox_flash
+    speed: 400
+  p_wpn_biglaser:
+    missile: biglaser_proj
+    flash: biglaser_flash
+    speed: 200
+  p_wpn_biglaser2:
+    missile: biglaser2_proj
+    flash: biglaser_flash
+    speed: 200
+  p_wpn_biglaser3:
+    missile: biglaser3_proj
+    flash: biglaser_flash
+    speed: 200
+  p_wpn_biglaser4:
+    missile: biglaser4_proj
+    flash: biglaser_flash
+    speed: 200
+  p_wpn_biglaser5:
+    missile: biglaser5_proj
+    flash: biglaser_flash
+    speed: 200
+  p_wpn_plasma_lazer:
+    missile: plasma_lazer_proj
+    speed: 500
+  p_wpn_flamefrower:
+    missile: flamefrower_proj
+    speed: 100
+  p_wpn_bpg:
+    missile: bpg_proj
+    flash: bpg_flash
+    speed: 425
+  p_wpn2_missile:
+    missile: missile
+    flash: missile_smoke_small
+  p_wpn2_missile_big:
+    missile: missile_big
+    flash: missile_smoke
+  p_wpn2_heatmis:
+    missile: missile_heat
+    flash: missile_smoke_small
+  p_wpn2_heatmis_big:
+    missile: missile_heat_big
+    flash: missile_smoke
+  p_wpn2_mis_mad:
+    missile: missile_mad
+    flash: missile_smoke
+  p_bonus_missile_big:
+    missile: missile_bonus_big
+    flash: missile_smoke
+    speed: 300
+  p_bonus_lightingb:
+    missile: lightingbomb_proj
+    speed: 100
+  p_bonus_clusterbomb:
+    missile: clusterbomb_proj
+    speed: 200
+  p_bonus_abomb:
+    missile: abomb_proj
+    speed: 200
+  p_bonus_annihilator:
+    missile: laser2_proj
+    flash: laser_flash2
+    speed: 1300
+  p_bonus_rocketbomb:
+    missile: rocketbomb_proj
+    flash: missile_smoke
+    speed: 250
+  satellite_gun:
+    missile: satellite_proj
+    speed: 800
+  satellite_laser_gun:
+    missile: satellite_laser_proj
+    flash: laser_flash
+    speed: 700

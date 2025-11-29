@@ -1,0 +1,38 @@
+source_file: e_missiles.wpn
+weapon_count: 10
+weapons:
+  wpn_missile_small:
+    missile: e_missile_small
+    flash: e_fball_red_small_flash
+    speed: 200
+  wpn_missile_small2:
+    missile: e_missile_small2
+    flash: e_fball_red_small_flash
+    speed: 220
+  wpn_missile_vsmall:
+    missile: e_missile_vsmall
+    flash: e_fball_red_small_flash
+    speed: 200
+  wpn_missile_heat_small:
+    missile: e_missile_heat_small
+    speed: 230
+  wpn_missile:
+    missile: e_missile
+    speed: 250
+  wpn_missile_fast:
+    missile: e_missile
+    speed: 320
+  wpn_missile_big:
+    missile: e_missile_big
+    flash: missile_smoke
+    speed: 200
+  wpn_missile_heat:
+    missile: e_missile_heat
+    speed: 250
+  wpn_missile_heat_cannon:
+    missile: e_missile_heat_cannon
+    speed: 250
+  wpn_apl_missile:
+    missile: enem_missile_heat_big_ground
+    flash: e_fball_red_small_flash
+    speed: 200
