@@ -59,6 +59,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         return EXIT_FAILURE;
     }
 
+    SDL_SetGPUSwapchainParameters(device,
+                                  window,
+                                  SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+                                  SDL_GPU_PRESENTMODE_IMMEDIATE);
+
     as3::init_renderer(device, window);
 
     bool      running = true;

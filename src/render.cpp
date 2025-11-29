@@ -347,7 +347,6 @@ void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
         SDL_GetGPUSwapchainTextureFormat(device, window);
     init_info.MSAASamples          = SDL_GPU_SAMPLECOUNT_1;
     init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
-    init_info.PresentMode          = SDL_GPU_PRESENTMODE_VSYNC;
 
     ImGui_ImplSDLGPU3_Init(&init_info);
 
