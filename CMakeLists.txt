@@ -33,4 +33,3 @@ add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
 add_subdirectory(src)
-add_subdirectory(2.06)
