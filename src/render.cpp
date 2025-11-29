@@ -76,10 +76,10 @@ constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
     { 3, 7 },
 } };
 
-[[nodiscard]] glm::vec2 project_3d_to_2d(const glm::vec3& world_pos,
-                                         const glm::mat4& vp_matrix,
-                                         int              screen_w,
-                                         int              screen_h) noexcept
+[[nodiscard]] static glm::vec2 project_3d_to_2d(const glm::vec3& world_pos,
+                                                const glm::mat4& vp_matrix,
+                                                int              screen_w,
+                                                int screen_h) noexcept
 {
     const glm::vec4 clip = vp_matrix * glm::vec4(world_pos, 1.0f);
 
@@ -94,14 +94,14 @@ constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
     return { x, y };
 }
 
-[[nodiscard]] constexpr float clamp_pitch(float pitch) noexcept
+[[nodiscard]] static constexpr float clamp_pitch(float pitch) noexcept
 {
     return std::clamp(pitch, k_min_pitch, k_max_pitch);
 }
 
-void update_camera_direction(camera& c) noexcept
+static void update_camera_direction(camera& c) noexcept
 {
-    glm::vec3 direction;
+    glm::vec3 direction{};
     direction.x =
         std::cos(glm::radians(c.yaw)) * std::cos(glm::radians(c.pitch));
     direction.y = std::sin(glm::radians(c.pitch));
@@ -110,23 +110,23 @@ void update_camera_direction(camera& c) noexcept
     c.front = glm::normalize(direction);
 }
 
-void handle_mouse_motion(camera& c,
-                         float   xrel,
-                         float   yrel,
-                         float   sensitivity) noexcept
+static void handle_mouse_motion(camera& c,
+                                float   xrel,
+                                float   yrel,
+                                float   sensitivity) noexcept
 {
     c.yaw += xrel * sensitivity;
     c.pitch = clamp_pitch(c.pitch + (-yrel) * sensitivity);
     update_camera_direction(c);
 }
 
-void draw_cube(SDL_Renderer*    renderer,
-               const glm::vec3& center,
-               float            size,
-               const glm::vec3& color,
-               const glm::mat4& vp,
-               int              w,
-               int              h) noexcept
+static void draw_cube(SDL_Renderer*    renderer,
+                      const glm::vec3& center,
+                      float            size,
+                      const glm::vec3& color,
+                      const glm::mat4& vp,
+                      int              w,
+                      int              h) noexcept
 {
     const float half_size = size * 0.5f;
 
@@ -154,9 +154,9 @@ void draw_cube(SDL_Renderer*    renderer,
     }
 }
 
-void update_camera_position(camera&     c,
-                            const bool* keys,
-                            float       velocity) noexcept
+static void update_camera_position(camera&     c,
+                                   const bool* keys,
+                                   float       velocity) noexcept
 {
     if (keys[SDL_SCANCODE_W])
         c.position += c.front * velocity;
