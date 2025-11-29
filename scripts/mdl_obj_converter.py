@@ -203,103 +203,116 @@ def convert_to_mdl_exact(input_path: Path, output_path: Path) -> bool:
 def convert_to_obj_exact(input_path: Path, output_path: Path) -> bool:
     """Convert MDL to OBJ - EXACT replication of original JS logic."""
     try:
+        # Check if file is empty
+        file_size = input_path.stat().st_size
+        if file_size == 0:
+            logging.error("file is empty")
+            return False
+        
         with open(input_path, 'rb') as f:
-            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-                if len(mm) < MDL_DATA_OFFSET or mm[:9] != MDL_SIGNATURE:
-                    logging.error("invalid MDL file format")
-                    return False
+            # Use regular read for small files, mmap for larger ones
+            if file_size < 1024:
+                data = f.read()
+            else:
+                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                    data = mm[:]
+            
+            # Check for valid MDL signature (accept both 0x00 and 0x01 in last byte)
+            if len(data) < MDL_DATA_OFFSET or data[:4] != b'MDL!' or data[4] != 0x02:
+                logging.error("invalid MDL file format")
+                return False
+            
+            # Read counts exactly like JS
+            vertices_count = (data[79] * 256**3 + data[78] * 256**2 + 
+                            data[77] * 256 + data[76])
+            uvs_count = (data[83] * 256**3 + data[82] * 256**2 + 
+                       data[81] * 256 + data[80])
+            faces_count = (data[87] * 256**3 + data[86] * 256**2 + 
+                         data[85] * 256 + data[84])
+            normals_count = (data[91] * 256**3 + data[90] * 256**2 + 
+                           data[89] * 256 + data[88])
+            
+            vertices = []
+            uvs = []
+            faces = []
+            uv_indices = []
+            normals = []
+            
+            current_pos = 120
+            
+            # Read vertices exactly like JS
+            for i in range(vertices_count):
+                x, z, y = F32x3_UNPACK(data, current_pos)
+                vertices.append([x, z, y])
+                current_pos += 12
+            
+            # Read UVs
+            for i in range(uvs_count):
+                u, v = F32x2_UNPACK(data, current_pos)
+                uvs.append([u, v])
+                current_pos += 8
+            
+            # Read faces exactly like JS
+            for i in range(faces_count):
+                v1 = data[current_pos] + data[current_pos + 1] * 256
+                v2 = data[current_pos + 2] + data[current_pos + 3] * 256
+                v3 = data[current_pos + 4] + data[current_pos + 5] * 256
+                faces.append([v1, v2, v3])
+                current_pos += 6
                 
-                # Read counts exactly like JS
-                vertices_count = (mm[79] * 256**3 + mm[78] * 256**2 + 
-                                mm[77] * 256 + mm[76])
-                uvs_count = (mm[83] * 256**3 + mm[82] * 256**2 + 
-                           mm[81] * 256 + mm[80])
-                faces_count = (mm[87] * 256**3 + mm[86] * 256**2 + 
-                             mm[85] * 256 + mm[84])
-                normals_count = (mm[91] * 256**3 + mm[90] * 256**2 + 
-                               mm[89] * 256 + mm[88])
+                uv1 = data[current_pos] + data[current_pos + 1] * 256
+                uv2 = data[current_pos + 2] + data[current_pos + 3] * 256
+                uv3 = data[current_pos + 4] + data[current_pos + 5] * 256
+                uv_indices.append([uv1, uv2, uv3])
+                current_pos += 6
+            
+            # Read normals
+            for i in range(normals_count):
+                x, z, y = F32x3_UNPACK(data, current_pos)
+                normals.append([x, z, y])
+                current_pos += 12
+            
+            # Format precision exactly like JS
+            for i in range(vertices_count):
+                vertices[i][0] = round(vertices[i][0], 4)
+                vertices[i][1] = round(vertices[i][1], 4)
+                vertices[i][2] = round(vertices[i][2], 4)
+            
+            for i in range(uvs_count):
+                uvs[i][0] = round(uvs[i][0], 4)
+                uvs[i][1] = round(uvs[i][1], 4)
+            
+            for i in range(normals_count):
+                normals[i][0] = round(normals[i][0], 4)
+                normals[i][1] = round(normals[i][1], 4)
+                normals[i][2] = round(normals[i][2], 4)
+            
+            # Build OBJ exactly like JS
+            output_lines = [f"# Vertices {vertices_count}"]
+            
+            for i in range(vertices_count):
+                # JS: vertices[i][0] + " " + vertices[i][2] + " " + (-vertices[i][1])
+                output_lines.append(f"v  {vertices[i][0]} {vertices[i][2]} {-vertices[i][1]}")
+            
+            output_lines.append(f"\n# UVs {uvs_count}")
+            
+            for i in range(uvs_count):
+                output_lines.append(f"vt  {uvs[i][0]} {uvs[i][1]}")
+            
+            output_lines.append(f"\n# Normals {normals_count}")
+            
+            for i in range(normals_count):
+                # JS: normals[i][0] + " " + normals[i][2] + " " + normals[i][1]
+                output_lines.append(f"vn  {normals[i][0]} {normals[i][2]} {normals[i][1]}")
+            
+            output_lines.append(f"\n# Faces {faces_count}")
+            
+            for i in range(faces_count):
+                # JS: (faces[i][0] + 1) + "/" + (uvIndices[i][0] + 1) + "/" + (faces[i][0] + 1)
+                v1, v2, v3 = faces[i][0] + 1, faces[i][1] + 1, faces[i][2] + 1
+                uv1, uv2, uv3 = uv_indices[i][0] + 1, uv_indices[i][1] + 1, uv_indices[i][2] + 1
                 
-                vertices = []
-                uvs = []
-                faces = []
-                uv_indices = []
-                normals = []
-                
-                current_pos = 120
-                
-                # Read vertices exactly like JS
-                for i in range(vertices_count):
-                    x, z, y = F32x3_UNPACK(mm, current_pos)
-                    vertices.append([x, z, y])
-                    current_pos += 12
-                
-                # Read UVs
-                for i in range(uvs_count):
-                    u, v = F32x2_UNPACK(mm, current_pos)
-                    uvs.append([u, v])
-                    current_pos += 8
-                
-                # Read faces exactly like JS
-                for i in range(faces_count):
-                    v1 = mm[current_pos] + mm[current_pos + 1] * 256
-                    v2 = mm[current_pos + 2] + mm[current_pos + 3] * 256
-                    v3 = mm[current_pos + 4] + mm[current_pos + 5] * 256
-                    faces.append([v1, v2, v3])
-                    current_pos += 6
-                    
-                    uv1 = mm[current_pos] + mm[current_pos + 1] * 256
-                    uv2 = mm[current_pos + 2] + mm[current_pos + 3] * 256
-                    uv3 = mm[current_pos + 4] + mm[current_pos + 5] * 256
-                    uv_indices.append([uv1, uv2, uv3])
-                    current_pos += 6
-                
-                # Read normals
-                for i in range(normals_count):
-                    x, z, y = F32x3_UNPACK(mm, current_pos)
-                    normals.append([x, z, y])
-                    current_pos += 12
-                
-                # Format precision exactly like JS
-                for i in range(vertices_count):
-                    vertices[i][0] = round(vertices[i][0], 4)
-                    vertices[i][1] = round(vertices[i][1], 4)
-                    vertices[i][2] = round(vertices[i][2], 4)
-                
-                for i in range(uvs_count):
-                    uvs[i][0] = round(uvs[i][0], 4)
-                    uvs[i][1] = round(uvs[i][1], 4)
-                
-                for i in range(normals_count):
-                    normals[i][0] = round(normals[i][0], 4)
-                    normals[i][1] = round(normals[i][1], 4)
-                    normals[i][2] = round(normals[i][2], 4)
-                
-                # Build OBJ exactly like JS
-                output_lines = [f"# Vertices {vertices_count}"]
-                
-                for i in range(vertices_count):
-                    # JS: vertices[i][0] + " " + vertices[i][2] + " " + (-vertices[i][1])
-                    output_lines.append(f"v  {vertices[i][0]} {vertices[i][2]} {-vertices[i][1]}")
-                
-                output_lines.append(f"\n# UVs {uvs_count}")
-                
-                for i in range(uvs_count):
-                    output_lines.append(f"vt  {uvs[i][0]} {uvs[i][1]}")
-                
-                output_lines.append(f"\n# Normals {normals_count}")
-                
-                for i in range(normals_count):
-                    # JS: normals[i][0] + " " + normals[i][2] + " " + normals[i][1]
-                    output_lines.append(f"vn  {normals[i][0]} {normals[i][2]} {normals[i][1]}")
-                
-                output_lines.append(f"\n# Faces {faces_count}")
-                
-                for i in range(faces_count):
-                    # JS: (faces[i][0] + 1) + "/" + (uvIndices[i][0] + 1) + "/" + (faces[i][0] + 1)
-                    v1, v2, v3 = faces[i][0] + 1, faces[i][1] + 1, faces[i][2] + 1
-                    uv1, uv2, uv3 = uv_indices[i][0] + 1, uv_indices[i][1] + 1, uv_indices[i][2] + 1
-                    
-                    output_lines.append(f"f  {v1}/{uv1}/{v1} {v2}/{uv2}/{v2} {v3}/{uv3}/{v3}")
+                output_lines.append(f"f  {v1}/{uv1}/{v1} {v2}/{uv2}/{v2} {v3}/{uv3}/{v3}")
         
         # Write file
         with open(output_path, 'w', encoding='utf-8') as f:
