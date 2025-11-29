@@ -1,3 +1,4 @@
+
 #include "render.hpp"
 
 #include <SDL3/SDL.h>
@@ -11,9 +12,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     if (!SDL_Init(SDL_INIT_EVENTS | SDL_INIT_VIDEO))
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "SDL_Init failed: %s",
-                     SDL_GetError());
+        SDL_LogError(
+            SDL_LOG_CATEGORY_APPLICATION, "init failed: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
 
@@ -23,30 +23,46 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     } sdl_guard;
 
     SDL_Window* window =
-        SDL_CreateWindow("Hello World", 800, 600, SDL_WINDOW_RESIZABLE);
+        SDL_CreateWindow("airstrike3d",
+                         800,
+                         600,
+                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "SDL_CreateWindow failed: %s",
+                     "window creation failed: %s",
                      SDL_GetError());
         return EXIT_FAILURE;
     }
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer)
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV |
+                                                    SDL_GPU_SHADERFORMAT_DXIL |
+                                                    SDL_GPU_SHADERFORMAT_MSL,
+                                                true,
+                                                nullptr);
+    if (!device)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "SDL_CreateRenderer failed: %s",
+                     "gpu device creation failed: %s",
                      SDL_GetError());
         SDL_DestroyWindow(window);
         return EXIT_FAILURE;
     }
 
-    as3::init_renderer(renderer, window);
+    if (!SDL_ClaimWindowForGPUDevice(device, window))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                     "window claim failed: %s",
+                     SDL_GetError());
+        SDL_DestroyGPUDevice(device);
+        SDL_DestroyWindow(window);
+        return EXIT_FAILURE;
+    }
 
-    bool               running = true;
-    SDL_Event          event{};
-    constexpr uint32_t max_fps = 60;
+    as3::init_renderer(device, window);
+
+    bool      running = true;
+    SDL_Event event{};
 
     while (running)
     {
@@ -59,12 +75,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             }
         }
 
-        as3::render(renderer);
-        SDL_Delay(1000 / max_fps);
+        as3::render(device, window);
     }
 
     as3::shutdown_renderer();
-    SDL_DestroyRenderer(renderer);
+    SDL_ReleaseWindowFromGPUDevice(device, window);
+    SDL_DestroyGPUDevice(device);
     SDL_DestroyWindow(window);
     return EXIT_SUCCESS;
 }
