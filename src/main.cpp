@@ -3,6 +3,10 @@
 
 #include "render.hpp"
 
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
+
 #include <cstdlib>
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
@@ -42,6 +46,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         return EXIT_FAILURE;
     }
 
+    // Init ImGui here
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer3_Init(renderer);
+
     bool      running = true;
     SDL_Event event;
 
@@ -50,15 +63,21 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     {
         while (SDL_PollEvent(&event))
         {
+            ImGui_ImplSDL3_ProcessEvent(&event); // Now safe to call
             if (event.type == SDL_EVENT_QUIT)
             {
                 running = false;
             }
         }
 
-        render(renderer);
+        as3::render(renderer, window);
         SDL_Delay(1000 / max_fps);
     }
+
+    // Cleanup ImGui
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

@@ -1,6 +1,6 @@
 add_executable(game main.cpp)
 
-file(GLOB_RECURSE src CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/**/*.cpp)
+file(GLOB_RECURSE src CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
 target_sources(game PRIVATE ${src})
 target_include_directories(game PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
