@@ -29,7 +29,6 @@ find_package(clang_format CONFIG REQUIRED)
 find_package(clang_tidy CONFIG REQUIRED)
 find_package(clang_doc CONFIG REQUIRED)
 
-add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
 add_subdirectory(src)
