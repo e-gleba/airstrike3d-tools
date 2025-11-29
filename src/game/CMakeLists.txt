@@ -10,11 +10,10 @@ set_target_properties(
     CXX_EXTENSIONS OFF
 )
 
-target_link_libraries(game PRIVATE 
+target_link_libraries(game PRIVATE
     warnings
     SDL3::SDL3
     SDL3_mixer::SDL3_mixer
     yaml-cpp
     raylib
 )
-

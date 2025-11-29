@@ -1,13 +1,10 @@
-# SDL3 configuration for CPM
-# Must be included before SDL3_mixer
-
 cpmaddpackage(
         NAME
         SDL3
         GITHUB_REPOSITORY
         libsdl-org/SDL
         GIT_TAG
-        a8589a84226a6202831a3d49ff4edda4acab9acd
+        main
         SYSTEM
         ON
         GIT_SHALLOW
