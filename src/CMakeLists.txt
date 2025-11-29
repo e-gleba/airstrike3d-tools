@@ -23,4 +23,8 @@ target_link_libraries(
         EnTT::EnTT
         spdlog
         tinyobjloader
+        sol2::sol2
+        BulletDynamics # Rigid body dynamics
+        BulletCollision # Collision detection
+        LinearMath # Math library
 )
