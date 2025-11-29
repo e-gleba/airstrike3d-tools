@@ -1,11 +1,7 @@
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
-
 #include "render.hpp"
 
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_sdlrenderer3.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
 #include <cstdlib>
 
@@ -46,39 +42,28 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         return EXIT_FAILURE;
     }
 
-    // Init ImGui here
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
-    ImGui_ImplSDLRenderer3_Init(renderer);
+    as3::init_renderer(renderer, window);
 
-    bool      running = true;
-    SDL_Event event;
-
+    bool               running = true;
+    SDL_Event          event;
     constexpr uint32_t max_fps = 60;
+
     while (running)
     {
         while (SDL_PollEvent(&event))
         {
-            ImGui_ImplSDL3_ProcessEvent(&event); // Now safe to call
+            as3::handle_event(&event);
             if (event.type == SDL_EVENT_QUIT)
             {
                 running = false;
             }
         }
 
-        as3::render(renderer, window);
+        as3::render(renderer);
         SDL_Delay(1000 / max_fps);
     }
 
-    // Cleanup ImGui
-    ImGui_ImplSDLRenderer3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
-
+    as3::shutdown_renderer();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     return EXIT_SUCCESS;
