@@ -27,8 +27,9 @@ bool AudioManager::init()
 
     SDL_AudioSpec spec{};
     spec.format   = SDL_AUDIO_S16;
-    spec.freq     = 44100;
     spec.channels = 2;
+    spec.freq     = 44100;
+
     mixer_ = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
     if (!mixer_)
     {
@@ -59,13 +60,21 @@ void AudioManager::shutdown()
         return;
 
     stop_music();
-    for (auto& [h, m] : music_map_)
-        if (m)
-            MIX_DestroyAudio(m);
-    for (auto& [h, s] : sounds_map_)
-        if (s)
-            MIX_DestroyAudio(s);
+
+    // Release all music resources
+    for (auto& [handle, audio] : music_map_)
+    {
+        if (audio)
+            MIX_DestroyAudio(audio);
+    }
     music_map_.clear();
+
+    // Release all sound resources
+    for (auto& [handle, audio] : sounds_map_)
+    {
+        if (audio)
+            MIX_DestroyAudio(audio);
+    }
     sounds_map_.clear();
 
     if (music_track_)
@@ -73,6 +82,7 @@ void AudioManager::shutdown()
         MIX_DestroyTrack(music_track_);
         music_track_ = nullptr;
     }
+
     if (mixer_)
     {
         MIX_DestroyMixer(mixer_);
@@ -220,10 +230,37 @@ void AudioManager::set_sound_volume(float volume)
     sound_volume_ = std::clamp(volume, 0.0f, 1.0f);
 }
 
-std::vector<std::string> AudioManager::list_music_files() const
+namespace
 {
-    std::vector<std::string>    files;
-    const std::filesystem::path dir = "assets/music";
+
+/// Audio file extensions for music
+constexpr std::array k_music_extensions{ ".ogg", ".mp3", ".wav", ".flac" };
+
+/// Audio file extensions for sounds
+constexpr std::array k_sound_extensions{ ".wav", ".ogg", ".mp3" };
+
+/// Check if extension matches any in the array (case-insensitive)
+[[nodiscard]] bool matches_extension(std::string_view             ext,
+                                     std::span<const char* const> valid_exts)
+{
+    std::string lower_ext;
+    lower_ext.reserve(ext.size());
+    std::ranges::transform(ext,
+                           std::back_inserter(lower_ext),
+                           [](unsigned char c)
+                           { return static_cast<char>(std::tolower(c)); });
+
+    return std::ranges::any_of(valid_exts,
+                               [&lower_ext](const char* valid)
+                               { return lower_ext == valid; });
+}
+
+/// List audio files from directory with given extensions
+[[nodiscard]] std::vector<std::string> list_audio_files(
+    const std::filesystem::path& dir, std::span<const char* const> extensions)
+{
+    std::vector<std::string> files;
+
     if (!std::filesystem::exists(dir))
         return files;
 
@@ -231,9 +268,9 @@ std::vector<std::string> AudioManager::list_music_files() const
     {
         if (!entry.is_regular_file())
             continue;
-        auto ext = entry.path().extension().string();
-        std::ranges::transform(ext, ext.begin(), ::tolower);
-        if (ext == ".ogg" || ext == ".mp3" || ext == ".wav" || ext == ".flac")
+
+        const auto ext = entry.path().extension().string();
+        if (matches_extension(ext, extensions))
             files.push_back(entry.path().filename().string());
     }
 
@@ -241,25 +278,16 @@ std::vector<std::string> AudioManager::list_music_files() const
     return files;
 }
 
+} // namespace
+
+std::vector<std::string> AudioManager::list_music_files() const
+{
+    return list_audio_files("assets/music", k_music_extensions);
+}
+
 std::vector<std::string> AudioManager::list_sound_files() const
 {
-    std::vector<std::string>    files;
-    const std::filesystem::path dir = "assets/sounds";
-    if (!std::filesystem::exists(dir))
-        return files;
-
-    for (const auto& entry : std::filesystem::directory_iterator(dir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-        auto ext = entry.path().extension().string();
-        std::ranges::transform(ext, ext.begin(), ::tolower);
-        if (ext == ".wav" || ext == ".ogg" || ext == ".mp3")
-            files.push_back(entry.path().filename().string());
-    }
-
-    std::ranges::sort(files);
-    return files;
+    return list_audio_files("assets/sounds", k_sound_extensions);
 }
 
 } // namespace as3

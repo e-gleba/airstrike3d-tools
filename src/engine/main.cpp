@@ -1,32 +1,50 @@
 #include "engine.hpp"
 
+#include "../shared/platform.hpp"
+#include "../shared/window_settings.hpp"
+
 #include <SDL3/SDL_main.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
 #include <filesystem>
 
+namespace
+{
+
+/// Build game library path for current platform
+[[nodiscard]] std::filesystem::path get_game_library_path()
+{
+    const char* base_path = SDL_GetBasePath();
+    if (!base_path)
+        return {};
+
+    return std::filesystem::path(base_path) /
+           as3::platform::game_library_name();
+}
+
+} // namespace
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    // Find game library next to executable
-    std::filesystem::path game_path;
-    if (const char* base_path = SDL_GetBasePath(); base_path)
-    {
-#ifdef _WIN32
-        game_path = std::filesystem::path(base_path) / "game.dll";
-#else
-        game_path = std::filesystem::path(base_path) / "libgame.so";
-#endif
-    }
+    using namespace as3;
 
-    const as3::engine_config config{
-        .title    = "airstrike3d",
-        .width    = 1280,
-        .height   = 720,
-        .game_lib = game_path,
+    const window_settings window{
+        .title     = "airstrike3d",
+        .width     = 1280,
+        .height    = 720,
+        .mode      = window_mode::windowed,
+        .vsync     = vsync_mode::enabled,
+        .resizable = true,
+        .high_dpi  = true,
     };
 
-    as3::engine eng;
+    const engine_config config{
+        .window   = window,
+        .game_lib = get_game_library_path(),
+    };
+
+    engine eng;
 
     if (!eng.init(config))
     {

@@ -26,6 +26,9 @@ bool         g_wireframe     = false;
 bool g_mouse_was_pressed_left  = false;
 bool g_mouse_was_pressed_right = false;
 
+// Settings window state
+bool g_show_settings = false;
+
 // Convert screen position to world position on ground plane (Y=0)
 glm::vec3 screen_to_ground(float                       screen_x,
                            float                       screen_y,
@@ -223,6 +226,9 @@ GAME_API void game_ui(as3::engine_context* ctx)
         if (ImGui::Checkbox("Scene Editor", &editor_visible))
             g_editor.set_visible(editor_visible);
 
+        if (ImGui::Button("Engine Settings"))
+            g_show_settings = !g_show_settings;
+
         // Camera info
         if (g_camera_entity != entt::null &&
             g_ctx->registry->valid(g_camera_entity))
@@ -276,6 +282,128 @@ GAME_API void game_ui(as3::engine_context* ctx)
 
     // Scene Editor
     g_editor.draw_ui();
+
+    // Engine Settings Window
+    if (g_show_settings && ctx->settings)
+    {
+        ImGui::SetNextWindowSize(ImVec2(320, 380), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(260, 10), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Engine Settings", &g_show_settings))
+        {
+            // Display section
+            ImGui::TextColored({ 0.6f, 0.9f, 0.6f, 1.0f }, "Display");
+            ImGui::Separator();
+
+            // Resolution info
+            ImGui::Text("Resolution: %dx%d",
+                        ctx->settings->get_window_width(),
+                        ctx->settings->get_window_height());
+
+            // GPU driver
+            ImGui::Text("GPU: %s", ctx->settings->get_gpu_driver().data());
+
+            // Fullscreen toggle
+            bool fullscreen = ctx->settings->is_fullscreen();
+            if (ImGui::Checkbox("Fullscreen (F11)", &fullscreen))
+                ctx->settings->set_fullscreen(fullscreen);
+
+            // VSync mode
+            ImGui::Spacing();
+            ImGui::TextColored({ 0.6f, 0.9f, 0.6f, 1.0f }, "VSync");
+            ImGui::Separator();
+
+            int vsync_mode = static_cast<int>(ctx->settings->get_vsync());
+            ImGui::RadioButton("Off (Uncapped)", &vsync_mode, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("On", &vsync_mode, 1);
+            ImGui::SameLine();
+            ImGui::RadioButton("Adaptive", &vsync_mode, 2);
+
+            if (vsync_mode != static_cast<int>(ctx->settings->get_vsync()))
+                ctx->settings->set_vsync(
+                    static_cast<as3::vsync_mode>(vsync_mode));
+
+            // Audio section
+            if (ctx->audio)
+            {
+                ImGui::Spacing();
+                ImGui::TextColored({ 0.6f, 0.9f, 0.6f, 1.0f }, "Audio");
+                ImGui::Separator();
+
+                float music_vol = ctx->audio->get_music_volume();
+                if (ImGui::SliderFloat(
+                        "Music##vol", &music_vol, 0.0f, 1.0f, "%.2f"))
+                    ctx->audio->set_music_volume(music_vol);
+
+                float sound_vol = ctx->audio->get_sound_volume();
+                if (ImGui::SliderFloat(
+                        "Sound##vol", &sound_vol, 0.0f, 1.0f, "%.2f"))
+                    ctx->audio->set_sound_volume(sound_vol);
+
+                // Music playing indicator
+                if (ctx->audio->is_music_playing())
+                {
+                    ImGui::TextColored({ 0.4f, 0.8f, 0.4f, 1.0f },
+                                       "Music: Playing");
+                    if (ImGui::Button("Pause"))
+                        ctx->audio->pause_music();
+                }
+                else if (ctx->audio->is_music_paused())
+                {
+                    ImGui::TextColored({ 1.0f, 0.8f, 0.3f, 1.0f },
+                                       "Music: Paused");
+                    if (ImGui::Button("Resume"))
+                        ctx->audio->resume_music();
+                }
+            }
+
+            // Shader section
+            if (ctx->shaders)
+            {
+                ImGui::Spacing();
+                ImGui::TextColored({ 0.6f, 0.9f, 0.6f, 1.0f }, "Shaders");
+                ImGui::Separator();
+
+                bool hot_reload = ctx->shaders->hot_reload_enabled();
+                if (ImGui::Checkbox("Hot Reload", &hot_reload))
+                    ctx->shaders->enable_hot_reload(hot_reload);
+                ImGui::SameLine();
+                ImGui::TextColored({ 0.5f, 0.5f, 0.5f, 1.0f },
+                                   "(auto-reload on save)");
+            }
+
+            // Performance section
+            ImGui::Spacing();
+            ImGui::TextColored({ 0.6f, 0.9f, 0.6f, 1.0f }, "Performance");
+            ImGui::Separator();
+
+            const float fps      = 1.0f / ctx->delta_time;
+            const float frame_ms = ctx->delta_time * 1000.0f;
+            ImGui::Text("FPS: %.1f (%.2f ms)", fps, frame_ms);
+
+            // Simple FPS graph
+            static float fps_history[60] = {};
+            static int   fps_idx         = 0;
+            fps_history[fps_idx]         = fps;
+            fps_idx                      = (fps_idx + 1) % 60;
+            ImGui::PlotLines("##fps",
+                             fps_history,
+                             60,
+                             fps_idx,
+                             nullptr,
+                             0.0f,
+                             200.0f,
+                             ImVec2(0, 40));
+
+            // Quit button
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImGui::Button("Quit", ImVec2(-1, 0)))
+                ctx->settings->request_quit();
+        }
+        ImGui::End();
+    }
 
     // Quick help
     ImGui::SetNextWindowPos(ImVec2(10, ImGui::GetIO().DisplaySize.y - 60),

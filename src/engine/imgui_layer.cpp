@@ -41,12 +41,11 @@ bool ImGuiLayer::init(SDL_Window* window, SDL_GPUDevice* device)
         return false;
     }
 
-    ImGui_ImplSDLGPU3_InitInfo init_info{
-        .Device               = device,
-        .ColorTargetFormat    = target_format_,
-        .MSAASamples          = SDL_GPU_SAMPLECOUNT_1,
-        .SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR
-    };
+    ImGui_ImplSDLGPU3_InitInfo init_info{};
+    init_info.Device               = device;
+    init_info.ColorTargetFormat    = target_format_;
+    init_info.MSAASamples          = SDL_GPU_SAMPLECOUNT_1;
+    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
 
     if (!ImGui_ImplSDLGPU3_Init(&init_info))
     {
@@ -72,9 +71,7 @@ void ImGuiLayer::shutdown()
 void ImGuiLayer::process_event(const SDL_Event& event)
 {
     if (input_enabled_)
-    {
         ImGui_ImplSDL3_ProcessEvent(&event);
-    }
 }
 
 void ImGuiLayer::begin_frame()
@@ -84,9 +81,7 @@ void ImGuiLayer::begin_frame()
     ImGui::NewFrame();
 
     if (draw_callback_)
-    {
         draw_callback_();
-    }
 }
 
 void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
@@ -95,21 +90,10 @@ void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
     ImDrawData* draw_data = ImGui::GetDrawData();
     ImGui_ImplSDLGPU3_PrepareDrawData(draw_data, cmd);
 
-    SDL_GPUColorTargetInfo color_target{
-        .texture               = target,
-        .mip_level             = 0,
-        .layer_or_depth_plane  = 0,
-        .clear_color           = {},
-        .load_op               = SDL_GPU_LOADOP_LOAD,
-        .store_op              = SDL_GPU_STOREOP_STORE,
-        .resolve_texture       = nullptr,
-        .resolve_mip_level     = 0,
-        .resolve_layer         = 0,
-        .cycle                 = false,
-        .cycle_resolve_texture = false,
-        .padding1              = {},
-        .padding2              = {},
-    };
+    SDL_GPUColorTargetInfo color_target{};
+    color_target.texture  = target;
+    color_target.load_op  = SDL_GPU_LOADOP_LOAD;
+    color_target.store_op = SDL_GPU_STOREOP_STORE;
 
     SDL_GPURenderPass* pass =
         SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);

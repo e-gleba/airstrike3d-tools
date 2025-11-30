@@ -116,8 +116,8 @@ void Editor::create_default_scene()
 
     // Tanks
     {
-        auto& u      = scene_.add_unit("Tiger Tank", unit_type::ground_vehicle);
-        u.model_path = "assets/models/tanks/tiger/tiger_base.obj";
+        auto& u      = scene_.add_unit("t72", unit_type::ground_vehicle);
+        u.model_path = "assets/models/tanks/t72/t72_base.obj";
         u.position   = { 20.0f, 0.0f, 12.0f };
         u.rotation   = { 0.0f, -120.0f, 0.0f };
         u.scale      = glm::vec3(0.04f);
