@@ -22,5 +22,6 @@ target_link_libraries(game PRIVATE
     EnTT::EnTT
     spdlog
     imgui
+    yaml-cpp
 )
 
