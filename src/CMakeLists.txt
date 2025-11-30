@@ -14,7 +14,7 @@ target_link_libraries(
     PRIVATE
         warnings
         SDL3::SDL3-static
-        SDL3_mixer::SDL3_mixer
+        SDL3_mixer::SDL3_mixer-static
         SDL3_shadercross::SDL3_shadercross
         yaml-cpp
         stb

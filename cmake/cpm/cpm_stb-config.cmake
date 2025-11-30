@@ -10,7 +10,12 @@ cpmaddpackage(
     GIT_TAG
     master
     DOWNLOAD_ONLY
-    TRUE)
+    YES
+)
 
-add_library(stb INTERFACE)
-target_include_directories(stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
+if(stb_ADDED)
+    add_library(stb INTERFACE)
+    add_library(stb::stb ALIAS stb) # Create namespace alias for consistency
+
+    target_include_directories(stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
+endif()

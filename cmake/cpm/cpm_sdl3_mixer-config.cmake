@@ -12,15 +12,34 @@ cpmaddpackage(
         GIT_SHALLOW
         ON
         OPTIONS
-        "MIX_WAV ON"
-        "MIX_OGG ON"
-        "MIX_MP3 ON"
-        "MIX_FLAC OFF"
-        "MIX_MOD OFF"
-        "MIX_MIDI OFF"
-        "MIX_OPUS OFF"
-        "SDL3MIXER_BUILD_SHARED OFF"
-        "SDL3MIXER_BUILD_STATIC ON"
-        "SDL3MIXER_SAMPLES OFF"
-        "SDL3MIXER_TESTS OFF"
-    )
+        "BUILD_SHARED_LIBS OFF"
+        "SDLMIXER_DEPS_SHARED OFF"       # Disable dynamic loading of deps
+        "SDLMIXER_VENDORED ON"           # Prefer vendored code (ensure STB usage)
+        
+        # Allowed Formats
+        "SDLMIXER_WAVE ON"               # .wav
+        "SDLMIXER_VORBIS_STB ON"         # .ogg (minimal, header-only)
+
+        # Blocked OGG variants (too complex)
+        "SDLMIXER_VORBIS_VORBISFILE OFF" # Requires libvorbis
+        "SDLMIXER_VORBIS_TREMOR OFF"
+        
+        # Blocked Formats
+        "SDLMIXER_AIFF OFF"
+        "SDLMIXER_VOC OFF"
+        "SDLMIXER_AU OFF"
+        "SDLMIXER_FLAC_LIBFLAC OFF"
+        "SDLMIXER_FLAC_DRFLAC OFF"
+        "SDLMIXER_GME OFF"               # Game Music Emu
+        "SDLMIXER_MOD_XMP OFF"           # Tracker formats
+        "SDLMIXER_MP3_DRMP3 OFF"
+        "SDLMIXER_MP3_MPG123 OFF"
+        "SDLMIXER_MIDI_FLUIDSYNTH OFF"
+        "SDLMIXER_MIDI_TIMIDITY OFF"
+        "SDLMIXER_OPUS OFF"
+        "SDLMIXER_WAVPACK OFF"
+        
+        # Bloat removal
+        "SDLMIXER_SAMPLES OFF"
+        "SDLMIXER_TESTS OFF"
+)
