@@ -7,6 +7,7 @@
 - [boost development best practices](https://www.boost.org/doc/contributor-guide/best-practices.html)
 - c++ core guidelines (when boost doesn't conflict)
 - Clang/LLVM infra source as best practice
+- userver yandex
 
 ---
 
@@ -107,7 +108,11 @@ std::cerr << "== error: " << err_code << std::endl;
 - prefer free functions over member functions; use classes only if they truly have state/identity
 - all “manager” or “context” classes must have clear single-responsibility, minimal interface
 - never use inheritance/polymorphism unless forced by external api or performance
-- if using ECS or similar, composition over inheritance
+- if using ECS or similar, composition over classic oop (casey muratori)
+- if const is possible use it, if object is struct use const {.} dot initializer
+- use ranges, std algos, projections
+- use int32_t like types, not just int, to explicitely declare
+- as much as possible constexpr
 
 ---
 
@@ -166,4 +171,6 @@ std::cerr << "== error: " << err_code << std::endl;
 - [ ] clang-tidy passes
 
 **when in doubt**: check boost source (boost/filesystem, boost/asio), clang/llvm sources, not random github repos.
-also do not overdocument, like document only where its required and may be misleading, the code must be self explanatory
+also do not overdocument, like document only where its required and may be misleading, the code must be self explanatory, also u can refer to casey muratori, userver (yandex)
+
+to build projects, search for cmake presets and use one already used (to not regenerate the proj each time from 0), to check it see the build dir dirs
