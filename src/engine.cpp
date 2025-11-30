@@ -5,7 +5,6 @@
 #include "render.hpp"
 #include "shader.hpp"
 
-#include <imgui.h>
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -31,11 +30,10 @@ bool engine::init(const engine_config& config)
         return false;
     }
 
-    window_ =
-        SDL_CreateWindow(config.title,
-                         config.width,
-                         config.height,
-                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    window_ = SDL_CreateWindow(config.title,
+                               config.width,
+                               config.height,
+                               SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window_)
     {
         spdlog::error("Window creation failed: {}", SDL_GetError());
@@ -71,8 +69,8 @@ bool engine::init(const engine_config& config)
     const char* base_path = SDL_GetBasePath();
     if (base_path)
     {
-        shader_manager_->set_shader_directory(std::filesystem::path(base_path) /
-                                              "shaders");
+        shader_manager_->set_shader_directory(
+            std::filesystem::path(base_path) / "shaders");
     }
 
     // Initialize renderer
@@ -95,44 +93,6 @@ bool engine::init(const engine_config& config)
     }
 
     setup_default_scene();
-
-    // Setup ImGui debug callback
-    imgui_layer_->set_draw_callback(
-        [this]()
-        {
-            auto cam_entity = camera_system_->get_active_camera(registry_);
-            if (cam_entity != entt::null)
-            {
-                auto& cam = registry_.get<CameraComponent>(cam_entity);
-                ImGui::Begin("Debug");
-                ImGui::Text("pos: (%.2f, %.2f, %.2f)",
-                            cam.position.x,
-                            cam.position.y,
-                            cam.position.z);
-                ImGui::Text("yaw: %.1f | pitch: %.1f", cam.yaw, cam.pitch);
-                ImGui::SliderFloat("speed", &cam.speed, 1.0f, 20.0f);
-                ImGui::Text("fps: %.1f", ImGui::GetIO().Framerate);
-
-                if (mouse_captured_)
-                {
-                    ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f),
-                                       "mouse: captured (ESC to release)");
-                }
-                else
-                {
-                    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
-                                       "mouse: free (ESC to capture)");
-                }
-
-                ImGui::Separator();
-                bool hot_reload = shader_manager_->hot_reload_enabled();
-                if (ImGui::Checkbox("Shader Hot-Reload", &hot_reload))
-                {
-                    shader_manager_->enable_hot_reload(hot_reload);
-                }
-                ImGui::End();
-            }
-        });
 
     set_mouse_captured(true);
     last_time_ = SDL_GetTicks();
@@ -176,22 +136,14 @@ void engine::setup_default_scene()
     registry_.emplace<CameraComponent>(camera);
 
     // Create test cubes
-    test_meshes.push_back(create_wireframe_cube(device_,
-                                                glm::vec3(0.0f, 1.0f, 0.0f),
-                                                2.0f,
-                                                glm::vec3(0.0f, 1.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(device_,
-                                                glm::vec3(-4.0f, 0.5f, -3.0f),
-                                                1.0f,
-                                                glm::vec3(1.0f, 0.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(device_,
-                                                glm::vec3(4.0f, 1.5f, 2.0f),
-                                                3.0f,
-                                                glm::vec3(0.0f, 0.0f, 1.0f)));
-    test_meshes.push_back(create_wireframe_cube(device_,
-                                                glm::vec3(0.0f, 0.5f, -6.0f),
-                                                1.0f,
-                                                glm::vec3(1.0f, 1.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(
+        device_, glm::vec3(0.0f, 1.0f, 0.0f), 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(
+        device_, glm::vec3(-4.0f, 0.5f, -3.0f), 1.0f, glm::vec3(1.0f, 0.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(
+        device_, glm::vec3(4.0f, 1.5f, 2.0f), 3.0f, glm::vec3(0.0f, 0.0f, 1.0f)));
+    test_meshes.push_back(create_wireframe_cube(
+        device_, glm::vec3(0.0f, 0.5f, -6.0f), 1.0f, glm::vec3(1.0f, 1.0f, 0.0f)));
 }
 
 void engine::set_mouse_captured(bool captured)
@@ -204,6 +156,14 @@ void engine::set_mouse_captured(bool captured)
     if (imgui_layer_)
     {
         imgui_layer_->set_input_enabled(!captured);
+    }
+}
+
+void engine::set_ui_callback(ui_callback callback)
+{
+    if (imgui_layer_)
+    {
+        imgui_layer_->set_draw_callback(std::move(callback));
     }
 }
 
@@ -305,7 +265,6 @@ void engine::render()
             renderer_->begin_frame(cmd);
             renderer_->set_view_projection(matrices.view_projection);
 
-            // Bind pipeline and draw meshes
             renderer_->bind_pipeline(pass);
             for (const auto& mesh : test_meshes)
             {

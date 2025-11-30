@@ -8,7 +8,7 @@
 namespace as3
 {
 
-struct CameraComponent
+struct CameraComponent final
 {
     glm::vec3 position    = glm::vec3(0.0f, 2.0f, 8.0f);
     glm::vec3 front       = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -23,14 +23,14 @@ struct CameraComponent
     bool      active      = true;
 };
 
-struct CameraMatrices
+struct CameraMatrices final
 {
     glm::mat4 view;
     glm::mat4 projection;
     glm::mat4 view_projection;
 };
 
-class CameraSystem
+class CameraSystem final
 {
 public:
     static constexpr float k_max_pitch = 89.0f;
@@ -38,9 +38,7 @@ public:
 
     void update(entt::registry& registry, float delta_time, bool process_input);
 
-    void handle_mouse_motion(entt::registry& registry,
-                             float           xrel,
-                             float           yrel);
+    void handle_mouse_motion(entt::registry& registry, float xrel, float yrel);
 
     [[nodiscard]] CameraMatrices get_matrices(const entt::registry& registry,
                                               float aspect) const;

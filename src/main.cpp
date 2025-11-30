@@ -1,3 +1,4 @@
+#include "debug_ui.hpp"
 #include "engine.hpp"
 
 #include <SDL3/SDL_main.h>
@@ -6,7 +7,8 @@
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    as3::engine engine;
+    as3::engine   eng;
+    as3::debug_ui ui;
 
     const as3::engine_config config{
         .title  = "airstrike3d",
@@ -14,13 +16,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         .height = 600,
     };
 
-    if (!engine.init(config))
+    if (!eng.init(config))
     {
         return EXIT_FAILURE;
     }
 
-    engine.run();
-    engine.shutdown();
+    eng.set_ui_callback([&eng, &ui]() { ui.draw(eng); });
+
+    eng.run();
+    eng.shutdown();
 
     return EXIT_SUCCESS;
 }

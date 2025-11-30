@@ -5,6 +5,7 @@
 
 #include <entt/entt.hpp>
 
+#include <functional>
 #include <memory>
 
 namespace as3
@@ -25,6 +26,8 @@ struct engine_config final
 class engine final
 {
 public:
+    using ui_callback = std::function<void()>;
+
     engine();
     ~engine();
     engine(const engine&)            = delete;
@@ -38,21 +41,17 @@ public:
     void run();
     void stop() { running_ = false; }
 
+    void set_ui_callback(ui_callback callback);
+
     [[nodiscard]] entt::registry&       registry() { return registry_; }
     [[nodiscard]] const entt::registry& registry() const { return registry_; }
 
     [[nodiscard]] SDL_GPUDevice* device() const { return device_; }
     [[nodiscard]] SDL_Window*    window() const { return window_; }
-    [[nodiscard]] ShaderManager* shaders() const
-    {
-        return shader_manager_.get();
-    }
-    [[nodiscard]] CameraSystem* camera_system() const
-    {
-        return camera_system_.get();
-    }
-    [[nodiscard]] ImGuiLayer* imgui() const { return imgui_layer_.get(); }
-    [[nodiscard]] Renderer*   renderer() const { return renderer_.get(); }
+    [[nodiscard]] ShaderManager* shaders() const { return shader_manager_.get(); }
+    [[nodiscard]] CameraSystem*  camera_system() const { return camera_system_.get(); }
+    [[nodiscard]] ImGuiLayer*    imgui() const { return imgui_layer_.get(); }
+    [[nodiscard]] Renderer*      renderer() const { return renderer_.get(); }
 
     [[nodiscard]] float delta_time() const { return delta_time_; }
     [[nodiscard]] bool  mouse_captured() const { return mouse_captured_; }
