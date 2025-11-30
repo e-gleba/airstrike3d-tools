@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio_interface.hpp"
 #include "camera.hpp"
 #include "renderer_interface.hpp"
 
@@ -31,6 +32,7 @@ struct engine_context final
     entt::registry*  registry    = nullptr;
     IRenderer*       renderer    = nullptr;
     IShaderManager*  shaders     = nullptr;
+    IAudio*          audio       = nullptr;
     void*            imgui_ctx   = nullptr;
     display_info     display;
     input_state      input;
