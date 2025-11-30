@@ -1,4 +1,3 @@
-
 #include "render.hpp"
 
 #include <SDL3_shadercross/SDL_shadercross.h>
@@ -98,12 +97,13 @@ constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
 
 static void update_camera_direction(camera& c) noexcept
 {
-    glm::vec3 direction;
+    glm::vec3 direction{};
     direction.x =
         std::cos(glm::radians(c.yaw)) * std::cos(glm::radians(c.pitch));
     direction.y = std::sin(glm::radians(c.pitch));
     direction.z =
         std::sin(glm::radians(c.yaw)) * std::cos(glm::radians(c.pitch));
+
     c.front = glm::normalize(direction);
 }
 
@@ -202,7 +202,7 @@ static void update_camera_position(camera&     c,
 [[nodiscard]] static SDL_GPUGraphicsPipeline* create_pipeline(
     SDL_GPUDevice* device, const SDL_GPUTextureFormat format) noexcept
 {
-    constexpr const char* vertex_shader = R"(
+    static constexpr const char* vertex_shader = R"(
 struct VertexInput
 {
     float3 position : POSITION;
@@ -229,7 +229,7 @@ VertexOutput main(VertexInput input)
 }
 )";
 
-    constexpr const char* fragment_shader = R"(
+    static constexpr const char* fragment_shader = R"(
 struct PixelInput
 {
     float3 color : COLOR;
@@ -312,7 +312,7 @@ float4 main(PixelInput input) : SV_Target0
         .padding2                   = {},
     };
 
-    const SDL_GPUMultisampleState multisample_state = {
+    const SDL_GPUMultisampleState multisample_state{
         .sample_count             = SDL_GPU_SAMPLECOUNT_1,
         .sample_mask              = 0,
         .enable_mask              = false,
@@ -321,7 +321,7 @@ float4 main(PixelInput input) : SV_Target0
         .padding3                 = {},
     };
 
-    const SDL_GPUGraphicsPipelineCreateInfo pipeline_info = {
+    const SDL_GPUGraphicsPipelineCreateInfo pipeline_info{
         .vertex_shader       = vert,
         .fragment_shader     = frag,
         .vertex_input_state  = vertex_input,
@@ -409,7 +409,7 @@ void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
         return;
     }
 
-    ImGui_ImplSDLGPU3_InitInfo init_info = {
+    ImGui_ImplSDLGPU3_InitInfo init_info{
         .Device               = device,
         .ColorTargetFormat    = swapchain_format,
         .MSAASamples          = SDL_GPU_SAMPLECOUNT_1,
@@ -432,11 +432,10 @@ void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
     constexpr size_t max_vertices = 4 * 8;
     constexpr size_t max_indices  = 4 * 24;
 
-    const SDL_GPUBufferCreateInfo vb_info = {
-        .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-        .size  = max_vertices * sizeof(vertex_data),
-        .props = 0
-    };
+    const SDL_GPUBufferCreateInfo vb_info{ .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+                                           .size  = max_vertices *
+                                                   sizeof(vertex_data),
+                                           .props = 0 };
 
     vertex_buffer = SDL_CreateGPUBuffer(device, &vb_info);
     if (!vertex_buffer)
@@ -447,11 +446,9 @@ void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
         return;
     }
 
-    const SDL_GPUBufferCreateInfo ib_info = { .usage =
-                                                  SDL_GPU_BUFFERUSAGE_INDEX,
-                                              .size =
-                                                  max_indices * sizeof(Uint16),
-                                              .props = 0 };
+    const SDL_GPUBufferCreateInfo ib_info{ .usage = SDL_GPU_BUFFERUSAGE_INDEX,
+                                           .size = max_indices * sizeof(Uint16),
+                                           .props = 0 };
     index_buffer = SDL_CreateGPUBuffer(device, &ib_info);
     if (!index_buffer)
     {
@@ -461,7 +458,7 @@ void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
         return;
     }
 
-    const SDL_GPUTransferBufferCreateInfo tb_info = {
+    const SDL_GPUTransferBufferCreateInfo tb_info{
         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size  = vb_info.size + ib_info.size,
         .props = 0
@@ -502,8 +499,8 @@ void as3::handle_event(const SDL_Event* event) noexcept
 
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE)
     {
-        mouse_captured           = !mouse_captured;
-        const SDL_Window* window = SDL_GetWindowFromID(event->key.windowID);
+        mouse_captured     = !mouse_captured;
+        SDL_Window* window = SDL_GetWindowFromID(event->key.windowID);
         if (window)
         {
             if (!SDL_SetWindowRelativeMouseMode(window, mouse_captured))
@@ -556,7 +553,7 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
         glm::lookAt(cam.position, cam.position + cam.front, cam.up);
     const uniform_data uniforms = { .view_proj = projection * view };
 
-    std::array<renderable_cube, 4> cubes = { {
+    std::array<renderable_cube, 4> cubes{ {
         { .position        = glm::vec3(0.0f, 1.0f, 0.0f),
           .size            = 2.0f,
           .color           = glm::vec3(0.0f, 1.0f, 0.0f),
@@ -629,12 +626,12 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
         return;
     }
 
-    const SDL_GPUTransferBufferLocation src_vb = {
+    const SDL_GPUTransferBufferLocation src_vb{
         .transfer_buffer = transfer_buffer,
         .offset          = 0,
     };
 
-    const SDL_GPUBufferRegion dst_vb = {
+    const SDL_GPUBufferRegion dst_vb{
         .buffer = vertex_buffer,
         .offset = 0,
         .size   = vb_size,
@@ -666,7 +663,7 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
     if (swapchain)
     {
 
-        SDL_GPUColorTargetInfo color_target = {
+        SDL_GPUColorTargetInfo color_target{
             .texture               = swapchain,
             .mip_level             = 0,
             .layer_or_depth_plane  = 0,
