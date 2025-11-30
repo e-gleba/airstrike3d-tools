@@ -19,4 +19,5 @@ cpmaddpackage(
         "SPDLOG_FMT_EXTERNAL OFF"       # We use std::format, so no fmt lib needed
         "SPDLOG_BUILD_SHARED OFF"       # Static build
         "SPDLOG_SYSTEM_INCLUDES ON"     # Suppress warnings from spdlog headers
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"  # Required for shared library linking
 )

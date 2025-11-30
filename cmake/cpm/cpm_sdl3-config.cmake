@@ -29,6 +29,8 @@ cpmaddpackage(
         
         # Backend Specifics (Linux)
         "SDL_X11 ON"
+        "SDL_X11_XSCRNSAVER OFF"  # Optional, not always available
+        "SDL_X11_XTEST OFF"       # Optional, not always available
         "SDL_WAYLAND ON"       # Modern Linux default
         "SDL_VULKAN ON"        # Critical for SDL_GPU
         "SDL_RENDER_VULKAN ON" 
