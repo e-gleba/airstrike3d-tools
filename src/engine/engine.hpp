@@ -15,26 +15,24 @@ namespace as3
 {
 
 class ShaderManager;
-class CameraSystem;
 class ImGuiLayer;
 class Renderer;
 class AudioManager;
 
 struct engine_config final
 {
-    std::string_view title    = "airstrike3d";
-    int              width    = 800;
-    int              height   = 600;
+    std::string_view      title    = "airstrike3d";
+    int                   width    = 800;
+    int                   height   = 600;
     std::filesystem::path game_lib = {};
 };
 
-// Custom deleters for SDL resources
-struct SDLWindowDeleter { void operator()(SDL_Window* w) const noexcept; };
-struct SDLGPUDeviceDeleter { void operator()(SDL_GPUDevice* d) const noexcept; };
+struct SDLWindowDeleter       { void operator()(SDL_Window* w) const noexcept; };
+struct SDLGPUDeviceDeleter    { void operator()(SDL_GPUDevice* d) const noexcept; };
 struct SDLSharedObjectDeleter { void operator()(SDL_SharedObject* o) const noexcept; };
 
-using SDLWindowPtr = std::unique_ptr<SDL_Window, SDLWindowDeleter>;
-using SDLGPUDevicePtr = std::unique_ptr<SDL_GPUDevice, SDLGPUDeviceDeleter>;
+using SDLWindowPtr       = std::unique_ptr<SDL_Window, SDLWindowDeleter>;
+using SDLGPUDevicePtr    = std::unique_ptr<SDL_GPUDevice, SDLGPUDeviceDeleter>;
 using SDLSharedObjectPtr = std::unique_ptr<SDL_SharedObject, SDLSharedObjectDeleter>;
 
 class engine final
@@ -74,23 +72,18 @@ private:
     void update_context() noexcept;
     void cleanup_game_pointers() noexcept;
 
-    // ECS
     entt::registry registry_;
     engine_context context_{};
 
-    // SDL resources (order matters for destruction)
     SDLWindowPtr    window_;
     SDLGPUDevicePtr device_;
     bool            sdl_initialized_ = false;
 
-    // Subsystems
     std::unique_ptr<ShaderManager> shader_manager_;
-    std::unique_ptr<CameraSystem>  camera_system_;
     std::unique_ptr<ImGuiLayer>    imgui_layer_;
     std::unique_ptr<Renderer>      renderer_;
     std::unique_ptr<AudioManager>  audio_;
 
-    // Game DLL
     SDLSharedObjectPtr    game_lib_;
     std::filesystem::path game_lib_path_;
     game_init_fn          game_init_     = nullptr;
@@ -99,7 +92,6 @@ private:
     game_render_fn        game_render_   = nullptr;
     game_ui_fn            game_ui_       = nullptr;
 
-    // State
     Uint64      last_time_      = 0;
     float       delta_time_     = 0.016f;
     bool        running_        = false;

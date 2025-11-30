@@ -1,11 +1,9 @@
 #include "render.hpp"
 #include "shader.hpp"
+#include "texture.hpp"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
@@ -19,14 +17,14 @@ namespace as3
 
 namespace
 {
-constexpr std::array<glm::vec3, 8> k_cube_offsets = { {
-    glm::vec3(-1, -1, -1), glm::vec3(1, -1, -1), glm::vec3(1, 1, -1), glm::vec3(-1, 1, -1),
-    glm::vec3(-1, -1,  1), glm::vec3(1, -1,  1), glm::vec3(1, 1,  1), glm::vec3(-1, 1,  1),
-} };
+constexpr std::array<glm::vec3, 8> k_cube_offsets = {{
+    {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
+    {-1, -1,  1}, {1, -1,  1}, {1, 1,  1}, {-1, 1,  1},
+}};
 
-constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
+constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = {{
     {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {0,4}, {1,5}, {2,6}, {3,7},
-} };
+}};
 } // namespace
 
 Renderer::~Renderer() { shutdown(); }
@@ -36,29 +34,25 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
     device_  = device;
     shaders_ = shaders;
 
-    // Load wireframe shader
     const ShaderProgramDesc wireframe_desc{
         .name     = "wireframe",
         .vertex   = { .path = "wireframe.vert.hlsl", .stage = ShaderStage::Vertex },
         .fragment = { .path = "wireframe.frag.hlsl", .stage = ShaderStage::Fragment },
     };
-
     if (auto r = shaders_->load_program(wireframe_desc); !r)
     {
-        spdlog::error("Failed to load wireframe shader: {}", r.error());
+        spdlog::error("=> load wireframe shader: {}", r.error());
         return false;
     }
 
-    // Load textured shader
     const ShaderProgramDesc textured_desc{
         .name     = "textured",
         .vertex   = { .path = "textured.vert.hlsl", .stage = ShaderStage::Vertex },
         .fragment = { .path = "textured.frag.hlsl", .stage = ShaderStage::Fragment },
     };
-
     if (auto r = shaders_->load_program(textured_desc); !r)
     {
-        spdlog::error("Failed to load textured shader: {}", r.error());
+        spdlog::error("=> load textured shader: {}", r.error());
         return false;
     }
 
@@ -66,63 +60,12 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
         if (n == "wireframe" || n == "textured") pipeline_dirty_ = true;
     });
 
-    if (!create_wireframe_pipeline()) return false;
-    if (!create_textured_pipeline()) return false;
+    if (!create_wireframe_pipeline() || !create_textured_pipeline()) return false;
     
-    // Create default white texture
-    uint32_t white_pixel = 0xFFFFFFFF;
-    
-    SDL_GPUTextureCreateInfo tex_info{};
-    tex_info.type = SDL_GPU_TEXTURETYPE_2D;
-    tex_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    tex_info.width = 1;
-    tex_info.height = 1;
-    tex_info.layer_count_or_depth = 1;
-    tex_info.num_levels = 1;
-    tex_info.sample_count = SDL_GPU_SAMPLECOUNT_1;
-    tex_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-    
-    auto* default_tex = SDL_CreateGPUTexture(device_, &tex_info);
-    if (default_tex)
+    if (auto tex = create_default_texture(device_))
     {
-        SDL_GPUSamplerCreateInfo sampler_info{};
-        sampler_info.min_filter = SDL_GPU_FILTER_NEAREST;
-        sampler_info.mag_filter = SDL_GPU_FILTER_NEAREST;
-        sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-        sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-        sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-        
-        auto* sampler = SDL_CreateGPUSampler(device_, &sampler_info);
-        
-        // Upload white pixel
-        SDL_GPUTransferBufferCreateInfo tb_info{};
-        tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        tb_info.size = 4;
-        auto* tb = SDL_CreateGPUTransferBuffer(device_, &tb_info);
-        auto* ptr = SDL_MapGPUTransferBuffer(device_, tb, false);
-        std::memcpy(ptr, &white_pixel, 4);
-        SDL_UnmapGPUTransferBuffer(device_, tb);
-        
-        auto* cmd = SDL_AcquireGPUCommandBuffer(device_);
-        auto* cp = SDL_BeginGPUCopyPass(cmd);
-        
-        SDL_GPUTextureTransferInfo src{};
-        src.transfer_buffer = tb;
-        src.offset = 0;
-        
-        SDL_GPUTextureRegion dst{};
-        dst.texture = default_tex;
-        dst.w = 1;
-        dst.h = 1;
-        dst.d = 1;
-        
-        SDL_UploadToGPUTexture(cp, &src, &dst, false);
-        SDL_EndGPUCopyPass(cp);
-        SDL_SubmitGPUCommandBuffer(cmd);
-        SDL_ReleaseGPUTransferBuffer(device_, tb);
-        
         default_texture_ = next_texture_handle_++;
-        textures_[default_texture_] = { default_tex, sampler, 1, 1 };
+        textures_[default_texture_] = { tex->texture, tex->sampler, tex->width, tex->height };
     }
 
     return true;
@@ -154,10 +97,10 @@ void Renderer::shutdown()
     }
     textures_.clear();
 
-    if (wireframe_pipeline_) { SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_pipeline_); wireframe_pipeline_ = nullptr; }
-    if (textured_pipeline_)  { SDL_ReleaseGPUGraphicsPipeline(device_, textured_pipeline_); textured_pipeline_ = nullptr; }
+    if (wireframe_pipeline_)          { SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_pipeline_); wireframe_pipeline_ = nullptr; }
+    if (textured_pipeline_)           { SDL_ReleaseGPUGraphicsPipeline(device_, textured_pipeline_); textured_pipeline_ = nullptr; }
     if (textured_wireframe_pipeline_) { SDL_ReleaseGPUGraphicsPipeline(device_, textured_wireframe_pipeline_); textured_wireframe_pipeline_ = nullptr; }
-    if (depth_texture_) { SDL_ReleaseGPUTexture(device_, depth_texture_); depth_texture_ = nullptr; }
+    if (depth_texture_)               { SDL_ReleaseGPUTexture(device_, depth_texture_); depth_texture_ = nullptr; }
 }
 
 void Renderer::ensure_depth_texture(Uint32 width, Uint32 height)
@@ -165,33 +108,21 @@ void Renderer::ensure_depth_texture(Uint32 width, Uint32 height)
     if (width == 0 || height == 0) return;
     if (depth_texture_ && depth_width_ == width && depth_height_ == height) return;
     
-    if (depth_texture_)
-    {
-        SDL_ReleaseGPUTexture(device_, depth_texture_);
-        depth_texture_ = nullptr;
-    }
+    if (depth_texture_) { SDL_ReleaseGPUTexture(device_, depth_texture_); depth_texture_ = nullptr; }
     
     SDL_GPUTextureCreateInfo info{};
-    info.type = SDL_GPU_TEXTURETYPE_2D;
-    info.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    info.width = width;
-    info.height = height;
+    info.type                 = SDL_GPU_TEXTURETYPE_2D;
+    info.format               = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    info.usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+    info.width                = width;
+    info.height               = height;
     info.layer_count_or_depth = 1;
-    info.num_levels = 1;
-    info.sample_count = SDL_GPU_SAMPLECOUNT_1;
-    info.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+    info.num_levels           = 1;
+    info.sample_count         = SDL_GPU_SAMPLECOUNT_1;
     
     depth_texture_ = SDL_CreateGPUTexture(device_, &info);
-    if (depth_texture_)
-    {
-        depth_width_ = width;
-        depth_height_ = height;
-        spdlog::info("Created depth texture {}x{}", width, height);
-    }
-    else
-    {
-        spdlog::error("Failed to create depth texture: {}", SDL_GetError());
-    }
+    if (depth_texture_) { depth_width_ = width; depth_height_ = height; }
+    else                { spdlog::error("== depth texture: {}", SDL_GetError()); }
 }
 
 bool Renderer::create_wireframe_pipeline()
@@ -199,7 +130,6 @@ bool Renderer::create_wireframe_pipeline()
     auto* prog = shaders_->get_program("wireframe");
     if (!prog || !prog->valid()) return false;
 
-    // Vertex attributes for wireframe (position + color)
     SDL_GPUVertexAttribute attrs[2] = {};
     attrs[0].location = 0;
     attrs[0].buffer_slot = 0;
@@ -221,56 +151,41 @@ bool Renderer::create_wireframe_pipeline()
     vi.vertex_attributes = attrs;
     vi.num_vertex_attributes = 2;
 
-    // Color target - no blending
     SDL_GPUColorTargetDescription ct{};
     ct.format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
     ct.blend_state.enable_blend = false;
 
-    // Pipeline target info WITH depth format
     SDL_GPUGraphicsPipelineTargetInfo ti{};
     ti.color_target_descriptions = &ct;
     ti.num_color_targets = 1;
     ti.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
-    // Rasterizer
     SDL_GPURasterizerState rs{};
     rs.fill_mode = SDL_GPU_FILLMODE_FILL;
     rs.cull_mode = SDL_GPU_CULLMODE_NONE;
     rs.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
-    // Multisample
     SDL_GPUMultisampleState ms{};
     ms.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-    // DEPTH TESTING - enabled with LESS comparison
     SDL_GPUDepthStencilState ds{};
     ds.compare_op = SDL_GPU_COMPAREOP_LESS;
     ds.enable_depth_test = true;
     ds.enable_depth_write = true;
 
     SDL_GPUGraphicsPipelineCreateInfo info{};
-    info.vertex_shader = prog->vertex_shader();
-    info.fragment_shader = prog->fragment_shader();
-    info.vertex_input_state = vi;
-    info.primitive_type = SDL_GPU_PRIMITIVETYPE_LINELIST;
-    info.rasterizer_state = rs;
-    info.multisample_state = ms;
+    info.vertex_shader       = prog->vertex_shader();
+    info.fragment_shader     = prog->fragment_shader();
+    info.vertex_input_state  = vi;
+    info.primitive_type      = SDL_GPU_PRIMITIVETYPE_LINELIST;
+    info.rasterizer_state    = rs;
+    info.multisample_state   = ms;
     info.depth_stencil_state = ds;
-    info.target_info = ti;
+    info.target_info         = ti;
 
     if (wireframe_pipeline_) SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_pipeline_);
     wireframe_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &info);
-    
-    if (wireframe_pipeline_)
-    {
-        spdlog::info("Wireframe pipeline created with depth test");
-        return true;
-    }
-    else
-    {
-        spdlog::error("Failed to create wireframe pipeline: {}", SDL_GetError());
-        return false;
-    }
+    return wireframe_pipeline_ != nullptr;
 }
 
 bool Renderer::create_textured_pipeline()
@@ -278,7 +193,6 @@ bool Renderer::create_textured_pipeline()
     auto* prog = shaders_->get_program("textured");
     if (!prog || !prog->valid()) return false;
 
-    // Vertex attributes for textured (position + normal + texcoord)
     SDL_GPUVertexAttribute attrs[3] = {};
     attrs[0].location = 0;
     attrs[0].buffer_slot = 0;
@@ -304,54 +218,42 @@ bool Renderer::create_textured_pipeline()
     vi.vertex_attributes = attrs;
     vi.num_vertex_attributes = 3;
 
-    // Color target - no blending, opaque
     SDL_GPUColorTargetDescription ct{};
     ct.format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
     ct.blend_state.enable_blend = false;
 
-    // Pipeline target info WITH depth format
     SDL_GPUGraphicsPipelineTargetInfo ti{};
     ti.color_target_descriptions = &ct;
     ti.num_color_targets = 1;
     ti.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
-    // Rasterizer - backface culling
     SDL_GPURasterizerState rs{};
     rs.fill_mode = SDL_GPU_FILLMODE_FILL;
     rs.cull_mode = SDL_GPU_CULLMODE_BACK;
     rs.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
-    // Multisample
     SDL_GPUMultisampleState ms{};
     ms.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-    // DEPTH TESTING - enabled with LESS comparison
     SDL_GPUDepthStencilState ds{};
     ds.compare_op = SDL_GPU_COMPAREOP_LESS;
     ds.enable_depth_test = true;
     ds.enable_depth_write = true;
 
     SDL_GPUGraphicsPipelineCreateInfo info{};
-    info.vertex_shader = prog->vertex_shader();
-    info.fragment_shader = prog->fragment_shader();
-    info.vertex_input_state = vi;
-    info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
-    info.rasterizer_state = rs;
-    info.multisample_state = ms;
+    info.vertex_shader       = prog->vertex_shader();
+    info.fragment_shader     = prog->fragment_shader();
+    info.vertex_input_state  = vi;
+    info.primitive_type      = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    info.rasterizer_state    = rs;
+    info.multisample_state   = ms;
     info.depth_stencil_state = ds;
-    info.target_info = ti;
+    info.target_info         = ti;
 
     if (textured_pipeline_) SDL_ReleaseGPUGraphicsPipeline(device_, textured_pipeline_);
     textured_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &info);
+    if (!textured_pipeline_) return false;
     
-    if (!textured_pipeline_)
-    {
-        spdlog::error("Failed to create textured pipeline: {}", SDL_GetError());
-        return false;
-    }
-    spdlog::info("Textured pipeline created with depth test");
-    
-    // Also create wireframe version (line fill mode)
     rs.fill_mode = SDL_GPU_FILLMODE_LINE;
     rs.cull_mode = SDL_GPU_CULLMODE_NONE;
     info.rasterizer_state = rs;
@@ -359,12 +261,7 @@ bool Renderer::create_textured_pipeline()
     if (textured_wireframe_pipeline_) SDL_ReleaseGPUGraphicsPipeline(device_, textured_wireframe_pipeline_);
     textured_wireframe_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &info);
     
-    if (textured_wireframe_pipeline_)
-    {
-        spdlog::info("Textured wireframe pipeline created");
-    }
-    
-    return textured_pipeline_ != nullptr;
+    return true;
 }
 
 void Renderer::reload_pipelines()
@@ -405,15 +302,22 @@ gpu_mesh Renderer::upload_wireframe_mesh(std::span<const vertex_pos_color> verts
     mesh.vertex_count = static_cast<Uint32>(verts.size());
     mesh.index_count  = static_cast<Uint32>(idx.size());
 
-    auto vb_size = static_cast<Uint32>(verts.size_bytes());
-    auto ib_size = static_cast<Uint32>(idx.size_bytes());
+    const auto vb_size = static_cast<Uint32>(verts.size_bytes());
+    const auto ib_size = static_cast<Uint32>(idx.size_bytes());
 
-    SDL_GPUBufferCreateInfo vb_info{}; vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX; vb_info.size = vb_size;
+    SDL_GPUBufferCreateInfo vb_info{};
+    vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+    vb_info.size = vb_size;
     mesh.vertex_buffer = SDL_CreateGPUBuffer(device_, &vb_info);
-    SDL_GPUBufferCreateInfo ib_info{}; ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX; ib_info.size = ib_size;
+    
+    SDL_GPUBufferCreateInfo ib_info{};
+    ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+    ib_info.size = ib_size;
     mesh.index_buffer = SDL_CreateGPUBuffer(device_, &ib_info);
 
-    SDL_GPUTransferBufferCreateInfo tb_info{}; tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD; tb_info.size = vb_size + ib_size;
+    SDL_GPUTransferBufferCreateInfo tb_info{};
+    tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    tb_info.size = vb_size + ib_size;
     auto* tb = SDL_CreateGPUTransferBuffer(device_, &tb_info);
     auto* ptr = SDL_MapGPUTransferBuffer(device_, tb, false);
     std::memcpy(ptr, verts.data(), vb_size);
@@ -422,12 +326,25 @@ gpu_mesh Renderer::upload_wireframe_mesh(std::span<const vertex_pos_color> verts
 
     auto* cmd = SDL_AcquireGPUCommandBuffer(device_);
     auto* cp = SDL_BeginGPUCopyPass(cmd);
-    SDL_GPUTransferBufferLocation src1{}; src1.transfer_buffer = tb; src1.offset = 0;
-    SDL_GPUBufferRegion dst1{}; dst1.buffer = mesh.vertex_buffer; dst1.offset = 0; dst1.size = vb_size;
+    
+    SDL_GPUTransferBufferLocation src1{};
+    src1.transfer_buffer = tb;
+    src1.offset = 0;
+    SDL_GPUBufferRegion dst1{};
+    dst1.buffer = mesh.vertex_buffer;
+    dst1.offset = 0;
+    dst1.size = vb_size;
     SDL_UploadToGPUBuffer(cp, &src1, &dst1, false);
-    SDL_GPUTransferBufferLocation src2{}; src2.transfer_buffer = tb; src2.offset = vb_size;
-    SDL_GPUBufferRegion dst2{}; dst2.buffer = mesh.index_buffer; dst2.offset = 0; dst2.size = ib_size;
+    
+    SDL_GPUTransferBufferLocation src2{};
+    src2.transfer_buffer = tb;
+    src2.offset = vb_size;
+    SDL_GPUBufferRegion dst2{};
+    dst2.buffer = mesh.index_buffer;
+    dst2.offset = 0;
+    dst2.size = ib_size;
     SDL_UploadToGPUBuffer(cp, &src2, &dst2, false);
+    
     SDL_EndGPUCopyPass(cp);
     SDL_SubmitGPUCommandBuffer(cmd);
     SDL_ReleaseGPUTransferBuffer(device_, tb);
@@ -441,15 +358,22 @@ gpu_textured_mesh Renderer::upload_textured_mesh(std::span<const vertex_textured
     mesh.vertex_count = static_cast<Uint32>(verts.size());
     mesh.index_count  = static_cast<Uint32>(idx.size());
 
-    auto vb_size = static_cast<Uint32>(verts.size_bytes());
-    auto ib_size = static_cast<Uint32>(idx.size_bytes());
+    const auto vb_size = static_cast<Uint32>(verts.size_bytes());
+    const auto ib_size = static_cast<Uint32>(idx.size_bytes());
 
-    SDL_GPUBufferCreateInfo vb_info{}; vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX; vb_info.size = vb_size;
+    SDL_GPUBufferCreateInfo vb_info{};
+    vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+    vb_info.size = vb_size;
     mesh.vertex_buffer = SDL_CreateGPUBuffer(device_, &vb_info);
-    SDL_GPUBufferCreateInfo ib_info{}; ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX; ib_info.size = ib_size;
+    
+    SDL_GPUBufferCreateInfo ib_info{};
+    ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+    ib_info.size = ib_size;
     mesh.index_buffer = SDL_CreateGPUBuffer(device_, &ib_info);
 
-    SDL_GPUTransferBufferCreateInfo tb_info{}; tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD; tb_info.size = vb_size + ib_size;
+    SDL_GPUTransferBufferCreateInfo tb_info{};
+    tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    tb_info.size = vb_size + ib_size;
     auto* tb = SDL_CreateGPUTransferBuffer(device_, &tb_info);
     auto* ptr = SDL_MapGPUTransferBuffer(device_, tb, false);
     std::memcpy(ptr, verts.data(), vb_size);
@@ -458,12 +382,25 @@ gpu_textured_mesh Renderer::upload_textured_mesh(std::span<const vertex_textured
 
     auto* cmd = SDL_AcquireGPUCommandBuffer(device_);
     auto* cp = SDL_BeginGPUCopyPass(cmd);
-    SDL_GPUTransferBufferLocation src1{}; src1.transfer_buffer = tb; src1.offset = 0;
-    SDL_GPUBufferRegion dst1{}; dst1.buffer = mesh.vertex_buffer; dst1.offset = 0; dst1.size = vb_size;
+    
+    SDL_GPUTransferBufferLocation src1{};
+    src1.transfer_buffer = tb;
+    src1.offset = 0;
+    SDL_GPUBufferRegion dst1{};
+    dst1.buffer = mesh.vertex_buffer;
+    dst1.offset = 0;
+    dst1.size = vb_size;
     SDL_UploadToGPUBuffer(cp, &src1, &dst1, false);
-    SDL_GPUTransferBufferLocation src2{}; src2.transfer_buffer = tb; src2.offset = vb_size;
-    SDL_GPUBufferRegion dst2{}; dst2.buffer = mesh.index_buffer; dst2.offset = 0; dst2.size = ib_size;
+    
+    SDL_GPUTransferBufferLocation src2{};
+    src2.transfer_buffer = tb;
+    src2.offset = vb_size;
+    SDL_GPUBufferRegion dst2{};
+    dst2.buffer = mesh.index_buffer;
+    dst2.offset = 0;
+    dst2.size = ib_size;
     SDL_UploadToGPUBuffer(cp, &src2, &dst2, false);
+    
     SDL_EndGPUCopyPass(cp);
     SDL_SubmitGPUCommandBuffer(cmd);
     SDL_ReleaseGPUTransferBuffer(device_, tb);
@@ -473,14 +410,13 @@ gpu_textured_mesh Renderer::upload_textured_mesh(std::span<const vertex_textured
 
 mesh_handle Renderer::create_wireframe_cube(const glm::vec3& center, float size, const glm::vec3& color)
 {
-    float half = size * 0.5f;
+    const float half = size * 0.5f;
     std::vector<vertex_pos_color> verts;
     std::vector<uint16_t> idx;
     for (auto& o : k_cube_offsets) verts.push_back({ center + o * half, color });
     for (auto& [i, j] : k_cube_edges) { idx.push_back(static_cast<uint16_t>(i)); idx.push_back(static_cast<uint16_t>(j)); }
-    auto h = next_mesh_handle_++;
-    meshes_[h] = upload_wireframe_mesh(verts, idx);
-    return h;
+    meshes_[next_mesh_handle_] = upload_wireframe_mesh(verts, idx);
+    return next_mesh_handle_++;
 }
 
 mesh_handle Renderer::create_wireframe_sphere(const glm::vec3& center, float radius, const glm::vec3& color, int seg)
@@ -488,7 +424,7 @@ mesh_handle Renderer::create_wireframe_sphere(const glm::vec3& center, float rad
     std::vector<vertex_pos_color> verts;
     std::vector<uint16_t> idx;
     auto circle = [&](int a1, int a2) {
-        uint16_t base = static_cast<uint16_t>(verts.size());
+        auto base = static_cast<uint16_t>(verts.size());
         for (int i = 0; i <= seg; ++i) {
             float ang = 6.28318f * static_cast<float>(i) / static_cast<float>(seg);
             glm::vec3 p = center; p[a1] += radius * std::cos(ang); p[a2] += radius * std::sin(ang);
@@ -497,26 +433,24 @@ mesh_handle Renderer::create_wireframe_sphere(const glm::vec3& center, float rad
         }
     };
     circle(0, 1); circle(0, 2); circle(1, 2);
-    auto h = next_mesh_handle_++;
-    meshes_[h] = upload_wireframe_mesh(verts, idx);
-    return h;
+    meshes_[next_mesh_handle_] = upload_wireframe_mesh(verts, idx);
+    return next_mesh_handle_++;
 }
 
 mesh_handle Renderer::create_wireframe_grid(float size, int div, const glm::vec3& color)
 {
     std::vector<vertex_pos_color> verts;
     std::vector<uint16_t> idx;
-    float half = size * 0.5f, step = size / static_cast<float>(div);
+    const float half = size * 0.5f, step = size / static_cast<float>(div);
     for (int i = 0; i <= div; ++i) {
         float t = -half + step * static_cast<float>(i);
-        uint16_t b = static_cast<uint16_t>(verts.size());
+        auto b = static_cast<uint16_t>(verts.size());
         verts.push_back({ {t, 0, -half}, color }); verts.push_back({ {t, 0, half}, color });
         verts.push_back({ {-half, 0, t}, color }); verts.push_back({ {half, 0, t}, color });
         idx.push_back(b); idx.push_back(static_cast<uint16_t>(b+1)); idx.push_back(static_cast<uint16_t>(b+2)); idx.push_back(static_cast<uint16_t>(b+3));
     }
-    auto h = next_mesh_handle_++;
-    meshes_[h] = upload_wireframe_mesh(verts, idx);
-    return h;
+    meshes_[next_mesh_handle_] = upload_wireframe_mesh(verts, idx);
+    return next_mesh_handle_++;
 }
 
 mesh_handle Renderer::create_mesh(std::span<const vertex> verts, std::span<const uint16_t> idx, [[maybe_unused]] primitive_type)
@@ -524,9 +458,8 @@ mesh_handle Renderer::create_mesh(std::span<const vertex> verts, std::span<const
     if (verts.empty() || idx.empty()) return invalid_mesh;
     std::vector<vertex_pos_color> v(verts.size());
     for (size_t i = 0; i < verts.size(); ++i) v[i] = { verts[i].position, verts[i].color };
-    auto h = next_mesh_handle_++;
-    meshes_[h] = upload_wireframe_mesh(v, idx);
-    return h;
+    meshes_[next_mesh_handle_] = upload_wireframe_mesh(v, idx);
+    return next_mesh_handle_++;
 }
 
 void Renderer::destroy_mesh(mesh_handle h)
@@ -545,9 +478,14 @@ void Renderer::draw_mesh_internal(const gpu_mesh& m)
     uniform_mvp uniforms{ view_proj_ };
     SDL_PushGPUVertexUniformData(current_cmd_, 0, &uniforms, sizeof(uniforms));
 
-    SDL_GPUBufferBinding vb{}; vb.buffer = m.vertex_buffer; vb.offset = 0;
+    SDL_GPUBufferBinding vb{};
+    vb.buffer = m.vertex_buffer;
+    vb.offset = 0;
     SDL_BindGPUVertexBuffers(current_pass_, 0, &vb, 1);
-    SDL_GPUBufferBinding ib{}; ib.buffer = m.index_buffer; ib.offset = 0;
+    
+    SDL_GPUBufferBinding ib{};
+    ib.buffer = m.index_buffer;
+    ib.offset = 0;
     SDL_BindGPUIndexBuffer(current_pass_, &ib, SDL_GPU_INDEXELEMENTSIZE_16BIT);
     SDL_DrawGPUIndexedPrimitives(current_pass_, m.index_count, 1, 0, 0, 0);
 }
@@ -555,7 +493,6 @@ void Renderer::draw_mesh_internal(const gpu_mesh& m)
 void Renderer::draw(mesh_handle h)
 {
     if (auto it = meshes_.find(h); it != meshes_.end()) {
-        // Bind wireframe pipeline for meshes
         if (wireframe_pipeline_ && current_pass_)
             SDL_BindGPUGraphicsPipeline(current_pass_, wireframe_pipeline_);
         draw_mesh_internal(it->second);
@@ -578,9 +515,7 @@ std::filesystem::path Renderer::find_texture_for_model(const std::filesystem::pa
         if (!entry.is_regular_file()) continue;
         auto ext = entry.path().extension().string();
         if (ext == ".tga" || ext == ".TGA" || ext == ".png" || ext == ".PNG" || ext == ".jpg" || ext == ".JPG")
-        {
             return entry.path();
-        }
     }
     
     return {};
@@ -588,84 +523,21 @@ std::filesystem::path Renderer::find_texture_for_model(const std::filesystem::pa
 
 texture_handle Renderer::load_texture(const std::filesystem::path& path)
 {
-    if (path.empty() || !std::filesystem::exists(path)) return invalid_texture;
-    
-    int width, height, channels;
-    stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
-    
-    if (!data)
+    auto result = as3::load_texture(device_, path, true);
+    if (!result)
     {
-        spdlog::error("Failed to load texture '{}': {}", path.string(), stbi_failure_reason());
+        spdlog::error("== texture {}: {}", path.string(), result.error());
         return invalid_texture;
     }
     
-    SDL_GPUTextureCreateInfo tex_info{};
-    tex_info.type = SDL_GPU_TEXTURETYPE_2D;
-    tex_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    tex_info.width = static_cast<Uint32>(width);
-    tex_info.height = static_cast<Uint32>(height);
-    tex_info.layer_count_or_depth = 1;
-    tex_info.num_levels = 1;
-    tex_info.sample_count = SDL_GPU_SAMPLECOUNT_1;
-    tex_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-    
-    auto* texture = SDL_CreateGPUTexture(device_, &tex_info);
-    if (!texture)
-    {
-        spdlog::error("Failed to create GPU texture: {}", SDL_GetError());
-        stbi_image_free(data);
-        return invalid_texture;
-    }
-    
-    SDL_GPUSamplerCreateInfo sampler_info{};
-    sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-    sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-    sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-    sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-    sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-    
-    auto* sampler = SDL_CreateGPUSampler(device_, &sampler_info);
-    
-    Uint32 data_size = static_cast<Uint32>(width * height * 4);
-    SDL_GPUTransferBufferCreateInfo tb_info{};
-    tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    tb_info.size = data_size;
-    auto* tb = SDL_CreateGPUTransferBuffer(device_, &tb_info);
-    auto* ptr = SDL_MapGPUTransferBuffer(device_, tb, false);
-    std::memcpy(ptr, data, data_size);
-    SDL_UnmapGPUTransferBuffer(device_, tb);
-    
-    auto* cmd = SDL_AcquireGPUCommandBuffer(device_);
-    auto* cp = SDL_BeginGPUCopyPass(cmd);
-    
-    SDL_GPUTextureTransferInfo src{};
-    src.transfer_buffer = tb;
-    src.offset = 0;
-    
-    SDL_GPUTextureRegion dst{};
-    dst.texture = texture;
-    dst.w = static_cast<Uint32>(width);
-    dst.h = static_cast<Uint32>(height);
-    dst.d = 1;
-    
-    SDL_UploadToGPUTexture(cp, &src, &dst, false);
-    SDL_EndGPUCopyPass(cp);
-    SDL_SubmitGPUCommandBuffer(cmd);
-    SDL_ReleaseGPUTransferBuffer(device_, tb);
-    
-    stbi_image_free(data);
-    
-    auto h = next_texture_handle_++;
-    textures_[h] = { texture, sampler, width, height };
-    spdlog::info("Loaded texture '{}' ({}x{})", path.filename().string(), width, height);
-    return h;
+    textures_[next_texture_handle_] = { result->texture, result->sampler, result->width, result->height };
+    spdlog::info("=> texture: {} ({}x{})", path.filename().string(), result->width, result->height);
+    return next_texture_handle_++;
 }
 
 void Renderer::unload_texture(texture_handle h)
 {
     if (h == default_texture_) return;
-    
     if (auto it = textures_.find(h); it != textures_.end())
     {
         if (it->second.texture) SDL_ReleaseGPUTexture(device_, it->second.texture);
@@ -682,16 +554,15 @@ model_handle Renderer::load_model(const std::filesystem::path& path, const glm::
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.c_str())) {
-        spdlog::error("Failed to load OBJ '{}': {}", path.string(), err);
+        spdlog::error("== obj {}: {}", path.string(), err);
         return invalid_model;
     }
-    if (!warn.empty()) spdlog::warn("OBJ '{}': {}", path.string(), warn);
+    
 
     gpu_model model;
     model.color = color;
     model.has_uvs = !attrib.texcoords.empty();
     
-    // Calculate bounds from all vertices
     model.model_bounds.min = glm::vec3(std::numeric_limits<float>::max());
     model.model_bounds.max = glm::vec3(std::numeric_limits<float>::lowest());
     for (size_t i = 0; i < attrib.vertices.size(); i += 3)
@@ -701,11 +572,8 @@ model_handle Renderer::load_model(const std::filesystem::path& path, const glm::
         model.model_bounds.max = glm::max(model.model_bounds.max, v);
     }
     
-    auto tex_path = find_texture_for_model(path);
-    if (!tex_path.empty())
-    {
+    if (auto tex_path = find_texture_for_model(path); !tex_path.empty())
         model.texture = load_texture(tex_path);
-    }
 
     for (const auto& shape : shapes)
     {
@@ -722,6 +590,10 @@ model_handle Renderer::load_model(const std::filesystem::path& path, const glm::
             {
                 auto i = shape.mesh.indices[index_offset + static_cast<size_t>(v)];
                 
+                // Validate indices
+                if (i.vertex_index < 0 || static_cast<size_t>(i.vertex_index * 3 + 2) >= attrib.vertices.size())
+                    continue;
+                
                 vertex_textured vert{};
                 vert.position = glm::vec3(
                     attrib.vertices[static_cast<size_t>(3 * i.vertex_index + 0)],
@@ -729,47 +601,39 @@ model_handle Renderer::load_model(const std::filesystem::path& path, const glm::
                     attrib.vertices[static_cast<size_t>(3 * i.vertex_index + 2)]
                 );
                 
-                if (i.normal_index >= 0 && !attrib.normals.empty())
-                {
+                if (i.normal_index >= 0 && static_cast<size_t>(i.normal_index * 3 + 2) < attrib.normals.size())
                     vert.normal = glm::vec3(
                         attrib.normals[static_cast<size_t>(3 * i.normal_index + 0)],
                         attrib.normals[static_cast<size_t>(3 * i.normal_index + 1)],
                         attrib.normals[static_cast<size_t>(3 * i.normal_index + 2)]
                     );
-                }
                 else
-                {
                     vert.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-                }
                 
-                if (i.texcoord_index >= 0 && !attrib.texcoords.empty())
-                {
+                if (i.texcoord_index >= 0 && static_cast<size_t>(i.texcoord_index * 2 + 1) < attrib.texcoords.size())
                     vert.texcoord = glm::vec2(
                         attrib.texcoords[static_cast<size_t>(2 * i.texcoord_index + 0)],
                         attrib.texcoords[static_cast<size_t>(2 * i.texcoord_index + 1)]
                     );
-                }
                 
                 idx.push_back(static_cast<uint16_t>(verts.size()));
                 verts.push_back(vert);
             }
             index_offset += 3;
         }
-
-        if (!verts.empty() && !idx.empty()) {
+        
+        if (!verts.empty() && !idx.empty())
             model.meshes.push_back(upload_textured_mesh(verts, idx));
-        }
     }
 
     if (model.meshes.empty()) {
-        spdlog::error("No valid meshes in '{}'", path.string());
+        spdlog::error("== obj {}: no meshes", path.string());
         return invalid_model;
     }
 
     auto h = next_model_handle_++;
     models_[h] = std::move(model);
-    spdlog::info("Loaded model '{}' ({} meshes, texture: {})", path.filename().string(), models_[h].meshes.size(), 
-                 models_[h].texture != invalid_texture ? "yes" : "no");
+    spdlog::info("=> model: {} ({} meshes)", path.filename().string(), models_[h].meshes.size());
     return h;
 }
 
@@ -781,9 +645,7 @@ void Renderer::unload_model(model_handle h)
             if (m.index_buffer)  SDL_ReleaseGPUBuffer(device_, m.index_buffer);
         }
         if (it->second.texture != invalid_texture)
-        {
             unload_texture(it->second.texture);
-        }
         models_.erase(it);
     }
 }
@@ -796,16 +658,19 @@ void Renderer::draw_textured_mesh_internal(const gpu_textured_mesh& m, texture_h
     if (tex_it == textures_.end()) tex_it = textures_.find(default_texture_);
     if (tex_it == textures_.end()) return;
     
-    const auto& tex = tex_it->second;
-    
     SDL_GPUTextureSamplerBinding tsb{};
-    tsb.texture = tex.texture;
-    tsb.sampler = tex.sampler;
+    tsb.texture = tex_it->second.texture;
+    tsb.sampler = tex_it->second.sampler;
     SDL_BindGPUFragmentSamplers(current_pass_, 0, &tsb, 1);
     
-    SDL_GPUBufferBinding vb{}; vb.buffer = m.vertex_buffer; vb.offset = 0;
+    SDL_GPUBufferBinding vb{};
+    vb.buffer = m.vertex_buffer;
+    vb.offset = 0;
     SDL_BindGPUVertexBuffers(current_pass_, 0, &vb, 1);
-    SDL_GPUBufferBinding ib{}; ib.buffer = m.index_buffer; ib.offset = 0;
+    
+    SDL_GPUBufferBinding ib{};
+    ib.buffer = m.index_buffer;
+    ib.offset = 0;
     SDL_BindGPUIndexBuffer(current_pass_, &ib, SDL_GPU_INDEXELEMENTSIZE_16BIT);
     SDL_DrawGPUIndexedPrimitives(current_pass_, m.index_count, 1, 0, 0, 0);
 }
@@ -817,7 +682,6 @@ void Renderer::draw_model(model_handle h, const transform& xform)
     
     const auto& model = it->second;
 
-    // Compute model matrix
     glm::mat4 model_mat = glm::mat4(1.0f);
     model_mat = glm::translate(model_mat, xform.position);
     model_mat = glm::rotate(model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
@@ -825,34 +689,22 @@ void Renderer::draw_model(model_handle h, const transform& xform)
     model_mat = glm::rotate(model_mat, glm::radians(xform.rotation.z), glm::vec3(0, 0, 1));
     model_mat = glm::scale(model_mat, xform.scale);
 
-    // Select and bind pipeline
-    SDL_GPUGraphicsPipeline* pipeline = (render_mode_ == render_mode::wireframe) 
-        ? textured_wireframe_pipeline_ 
-        : textured_pipeline_;
-    
+    auto* pipeline = (render_mode_ == render_mode::wireframe) ? textured_wireframe_pipeline_ : textured_pipeline_;
     if (pipeline && current_pass_)
         SDL_BindGPUGraphicsPipeline(current_pass_, pipeline);
     
-    // Use SAME uniform layout as wireframe - just MVP
-    uniform_mvp uniforms{};
-    uniforms.mvp = view_proj_ * model_mat;
+    uniform_mvp uniforms{ view_proj_ * model_mat };
     SDL_PushGPUVertexUniformData(current_cmd_, 0, &uniforms, sizeof(uniforms));
     
-    // Draw all meshes
-    texture_handle tex = model.texture != invalid_texture ? model.texture : default_texture_;
+    auto tex = model.texture != invalid_texture ? model.texture : default_texture_;
     for (const auto& m : model.meshes)
-    {
         draw_textured_mesh_internal(m, tex);
-    }
 }
 
 bounds Renderer::get_bounds(model_handle h) const
 {
-    auto it = models_.find(h);
-    if (it != models_.end())
-    {
+    if (auto it = models_.find(h); it != models_.end())
         return it->second.model_bounds;
-    }
     return {};
 }
 
