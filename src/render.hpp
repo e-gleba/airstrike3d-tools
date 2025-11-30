@@ -9,29 +9,29 @@ namespace as3
 
 class ShaderManager;
 
-struct GPUMesh
+struct gpu_mesh final
 {
-    SDL_GPUBuffer* vertex_buffer   = nullptr;
-    SDL_GPUBuffer* index_buffer    = nullptr;
-    Uint32         index_count     = 0;
-    Uint32         vertex_count    = 0;
+    SDL_GPUBuffer* vertex_buffer = nullptr;
+    SDL_GPUBuffer* index_buffer  = nullptr;
+    Uint32         index_count   = 0;
+    Uint32         vertex_count  = 0;
 };
 
-struct VertexPosColor
+struct vertex_pos_color final
 {
     glm::vec3 position;
     glm::vec3 color;
 };
 
-struct UniformMVP
+struct uniform_mvp final
 {
     glm::mat4 view_proj;
 };
 
-class Renderer
+class Renderer final
 {
 public:
-    Renderer()                           = default;
+    Renderer() = default;
     ~Renderer();
     Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -46,7 +46,9 @@ public:
 
     void set_view_projection(const glm::mat4& vp);
     void bind_pipeline(SDL_GPURenderPass* pass);
-    void draw_mesh(SDL_GPURenderPass* pass, SDL_GPUCommandBuffer* cmd, const GPUMesh& mesh);
+    void draw_mesh(SDL_GPURenderPass*    pass,
+                   SDL_GPUCommandBuffer* cmd,
+                   const gpu_mesh&       mesh);
 
     [[nodiscard]] bool pipeline_valid() const { return pipeline_ != nullptr; }
 
@@ -55,19 +57,19 @@ public:
 private:
     bool create_pipeline();
 
-    SDL_GPUDevice*           device_          = nullptr;
-    ShaderManager*           shaders_         = nullptr;
-    SDL_GPUGraphicsPipeline* pipeline_        = nullptr;
-    UniformMVP               uniforms_        = {};
-    bool                     pipeline_dirty_  = false;
+    SDL_GPUDevice*           device_         = nullptr;
+    ShaderManager*           shaders_        = nullptr;
+    SDL_GPUGraphicsPipeline* pipeline_       = nullptr;
+    uniform_mvp              uniforms_       = {};
+    bool                     pipeline_dirty_ = false;
 };
 
 // Utility functions for mesh creation
-[[nodiscard]] GPUMesh create_wireframe_cube(SDL_GPUDevice* device,
-                                            const glm::vec3& center,
-                                            float            size,
-                                            const glm::vec3& color);
+[[nodiscard]] gpu_mesh create_wireframe_cube(SDL_GPUDevice*   device,
+                                             const glm::vec3& center,
+                                             float            size,
+                                             const glm::vec3& color);
 
-void destroy_mesh(SDL_GPUDevice* device, GPUMesh& mesh);
+void destroy_mesh(SDL_GPUDevice* device, gpu_mesh& mesh);
 
 } // namespace as3

@@ -6,9 +6,9 @@
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    as3::Engine engine;
+    as3::engine engine;
 
-    const as3::EngineConfig config{
+    const as3::engine_config config{
         .title  = "airstrike3d",
         .width  = 800,
         .height = 600,

@@ -15,24 +15,24 @@ class CameraSystem;
 class ImGuiLayer;
 class Renderer;
 
-struct EngineConfig
+struct engine_config final
 {
     const char* title  = "airstrike3d";
     int         width  = 800;
     int         height = 600;
 };
 
-class Engine
+class engine final
 {
 public:
-    Engine();
-    ~Engine();
-    Engine(const Engine&)            = delete;
-    Engine& operator=(const Engine&) = delete;
-    Engine(Engine&&)                 = delete;
-    Engine& operator=(Engine&&)      = delete;
+    engine();
+    ~engine();
+    engine(const engine&)            = delete;
+    engine& operator=(const engine&) = delete;
+    engine(engine&&)                 = delete;
+    engine& operator=(engine&&)      = delete;
 
-    bool init(const EngineConfig& config);
+    bool init(const engine_config& config);
     void shutdown();
 
     void run();
@@ -41,12 +41,18 @@ public:
     [[nodiscard]] entt::registry&       registry() { return registry_; }
     [[nodiscard]] const entt::registry& registry() const { return registry_; }
 
-    [[nodiscard]] SDL_GPUDevice*   device() const { return device_; }
-    [[nodiscard]] SDL_Window*      window() const { return window_; }
-    [[nodiscard]] ShaderManager*   shaders() const { return shader_manager_.get(); }
-    [[nodiscard]] CameraSystem*    camera_system() const { return camera_system_.get(); }
-    [[nodiscard]] ImGuiLayer*      imgui() const { return imgui_layer_.get(); }
-    [[nodiscard]] Renderer*        renderer() const { return renderer_.get(); }
+    [[nodiscard]] SDL_GPUDevice* device() const { return device_; }
+    [[nodiscard]] SDL_Window*    window() const { return window_; }
+    [[nodiscard]] ShaderManager* shaders() const
+    {
+        return shader_manager_.get();
+    }
+    [[nodiscard]] CameraSystem* camera_system() const
+    {
+        return camera_system_.get();
+    }
+    [[nodiscard]] ImGuiLayer* imgui() const { return imgui_layer_.get(); }
+    [[nodiscard]] Renderer*   renderer() const { return renderer_.get(); }
 
     [[nodiscard]] float delta_time() const { return delta_time_; }
     [[nodiscard]] bool  mouse_captured() const { return mouse_captured_; }
@@ -72,11 +78,10 @@ private:
 
     SDL_GPUTextureFormat swapchain_format_ = SDL_GPU_TEXTUREFORMAT_INVALID;
 
-    Uint64 last_time_   = 0;
-    float  delta_time_  = 0.016f;
-    bool   running_     = false;
+    Uint64 last_time_      = 0;
+    float  delta_time_     = 0.016f;
+    bool   running_        = false;
     bool   mouse_captured_ = false;
 };
 
 } // namespace as3
-

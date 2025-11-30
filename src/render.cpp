@@ -25,9 +25,18 @@ constexpr std::array<glm::vec3, 8> k_cube_offsets = { {
 } };
 
 constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
-    { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
-    { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
-    { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+    { 0, 1 },
+    { 1, 2 },
+    { 2, 3 },
+    { 3, 0 },
+    { 4, 5 },
+    { 5, 6 },
+    { 6, 7 },
+    { 7, 4 },
+    { 0, 4 },
+    { 1, 5 },
+    { 2, 6 },
+    { 3, 7 },
 } };
 } // namespace
 
@@ -44,8 +53,10 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
     // Load wireframe shader
     const ShaderProgramDesc wireframe_desc{
         .name     = "wireframe",
-        .vertex   = { .path = "wireframe.vert.hlsl", .stage = ShaderStage::Vertex },
-        .fragment = { .path = "wireframe.frag.hlsl", .stage = ShaderStage::Fragment },
+        .vertex   = { .path  = "wireframe.vert.hlsl",
+                      .stage = ShaderStage::Vertex },
+        .fragment = { .path  = "wireframe.frag.hlsl",
+                      .stage = ShaderStage::Fragment },
     };
 
     auto result = shaders_->load_program(wireframe_desc);
@@ -86,16 +97,21 @@ bool Renderer::create_pipeline()
     }
 
     const SDL_GPUVertexAttribute vertex_attrs[2] = {
-        { .location = 0, .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = 0 },
-        { .location = 1, .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-          .offset = sizeof(glm::vec3) },
+        { .location    = 0,
+          .buffer_slot = 0,
+          .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+          .offset      = 0 },
+        { .location    = 1,
+          .buffer_slot = 0,
+          .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+          .offset      = sizeof(glm::vec3) },
     };
 
     const SDL_GPUVertexBufferDescription vb_desc{
-        .slot = 0, .pitch = sizeof(VertexPosColor),
-        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0,
+        .slot               = 0,
+        .pitch              = sizeof(vertex_pos_color),
+        .input_rate         = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+        .instance_step_rate = 0,
     };
 
     const SDL_GPUVertexInputState vertex_input{
@@ -106,7 +122,8 @@ bool Renderer::create_pipeline()
     };
 
     const SDL_GPUColorTargetDescription color_desc{
-        .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM, .blend_state = {},
+        .format      = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
+        .blend_state = {},
     };
 
     const SDL_GPUGraphicsPipelineTargetInfo target_info{
@@ -183,9 +200,7 @@ void Renderer::begin_frame([[maybe_unused]] SDL_GPUCommandBuffer* cmd)
     reload_pipeline();
 }
 
-void Renderer::end_frame()
-{
-}
+void Renderer::end_frame() {}
 
 void Renderer::set_view_projection(const glm::mat4& vp)
 {
@@ -202,34 +217,37 @@ void Renderer::bind_pipeline(SDL_GPURenderPass* pass)
 
 void Renderer::draw_mesh(SDL_GPURenderPass*    pass,
                          SDL_GPUCommandBuffer* cmd,
-                         const GPUMesh&        mesh)
+                         const gpu_mesh&       mesh)
 {
     if (!pipeline_)
         return;
 
-    SDL_PushGPUVertexUniformData(cmd, 0, &uniforms_, sizeof(UniformMVP));
+    SDL_PushGPUVertexUniformData(cmd, 0, &uniforms_, sizeof(uniform_mvp));
 
-    const SDL_GPUBufferBinding vb_binding{ .buffer = mesh.vertex_buffer, .offset = 0 };
+    const SDL_GPUBufferBinding vb_binding{ .buffer = mesh.vertex_buffer,
+                                           .offset = 0 };
     SDL_BindGPUVertexBuffers(pass, 0, &vb_binding, 1);
 
-    const SDL_GPUBufferBinding ib_binding{ .buffer = mesh.index_buffer, .offset = 0 };
+    const SDL_GPUBufferBinding ib_binding{ .buffer = mesh.index_buffer,
+                                           .offset = 0 };
     SDL_BindGPUIndexBuffer(pass, &ib_binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
     SDL_DrawGPUIndexedPrimitives(pass, mesh.index_count, 1, 0, 0, 0);
 }
 
-GPUMesh create_wireframe_cube(SDL_GPUDevice*   device,
-                              const glm::vec3& center,
-                              float            size,
-                              const glm::vec3& color)
+gpu_mesh create_wireframe_cube(SDL_GPUDevice*   device,
+                               const glm::vec3& center,
+                               float            size,
+                               const glm::vec3& color)
 {
     const float half = size * 0.5f;
 
-    std::vector<VertexPosColor> vertices;
+    std::vector<vertex_pos_color> vertices;
     vertices.reserve(8);
     for (const auto& offset : k_cube_offsets)
     {
-        vertices.push_back({ .position = center + offset * half, .color = color });
+        vertices.push_back(
+            { .position = center + offset * half, .color = color });
     }
 
     std::vector<Uint16> indices;
@@ -240,13 +258,13 @@ GPUMesh create_wireframe_cube(SDL_GPUDevice*   device,
         indices.push_back(static_cast<Uint16>(j));
     }
 
-    GPUMesh mesh{};
+    gpu_mesh mesh{};
     mesh.vertex_count = static_cast<Uint32>(vertices.size());
     mesh.index_count  = static_cast<Uint32>(indices.size());
 
     const SDL_GPUBufferCreateInfo vb_info{
         .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-        .size  = static_cast<Uint32>(vertices.size() * sizeof(VertexPosColor)),
+        .size = static_cast<Uint32>(vertices.size() * sizeof(vertex_pos_color)),
         .props = 0,
     };
     mesh.vertex_buffer = SDL_CreateGPUBuffer(device, &vb_info);
@@ -264,22 +282,30 @@ GPUMesh create_wireframe_cube(SDL_GPUDevice*   device,
         .size  = vb_info.size + ib_info.size,
         .props = 0,
     };
-    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(device, &tb_info);
+    SDL_GPUTransferBuffer* transfer =
+        SDL_CreateGPUTransferBuffer(device, &tb_info);
 
     void* ptr = SDL_MapGPUTransferBuffer(device, transfer, false);
     std::memcpy(ptr, vertices.data(), vb_info.size);
-    std::memcpy(static_cast<char*>(ptr) + vb_info.size, indices.data(), ib_info.size);
+    std::memcpy(
+        static_cast<char*>(ptr) + vb_info.size, indices.data(), ib_info.size);
     SDL_UnmapGPUTransferBuffer(device, transfer);
 
-    SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device);
+    SDL_GPUCommandBuffer* cmd  = SDL_AcquireGPUCommandBuffer(device);
     SDL_GPUCopyPass*      copy = SDL_BeginGPUCopyPass(cmd);
 
-    SDL_GPUTransferBufferLocation src_vb{ .transfer_buffer = transfer, .offset = 0 };
-    SDL_GPUBufferRegion dst_vb{ .buffer = mesh.vertex_buffer, .offset = 0, .size = vb_info.size };
+    SDL_GPUTransferBufferLocation src_vb{ .transfer_buffer = transfer,
+                                          .offset          = 0 };
+    SDL_GPUBufferRegion           dst_vb{ .buffer = mesh.vertex_buffer,
+                                          .offset = 0,
+                                          .size   = vb_info.size };
     SDL_UploadToGPUBuffer(copy, &src_vb, &dst_vb, false);
 
-    SDL_GPUTransferBufferLocation src_ib{ .transfer_buffer = transfer, .offset = vb_info.size };
-    SDL_GPUBufferRegion dst_ib{ .buffer = mesh.index_buffer, .offset = 0, .size = ib_info.size };
+    SDL_GPUTransferBufferLocation src_ib{ .transfer_buffer = transfer,
+                                          .offset          = vb_info.size };
+    SDL_GPUBufferRegion           dst_ib{ .buffer = mesh.index_buffer,
+                                          .offset = 0,
+                                          .size   = ib_info.size };
     SDL_UploadToGPUBuffer(copy, &src_ib, &dst_ib, false);
 
     SDL_EndGPUCopyPass(copy);
@@ -290,7 +316,7 @@ GPUMesh create_wireframe_cube(SDL_GPUDevice*   device,
     return mesh;
 }
 
-void destroy_mesh(SDL_GPUDevice* device, GPUMesh& mesh)
+void destroy_mesh(SDL_GPUDevice* device, gpu_mesh& mesh)
 {
     if (mesh.vertex_buffer)
     {

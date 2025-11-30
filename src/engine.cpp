@@ -15,13 +15,13 @@ namespace as3
 
 namespace
 {
-std::vector<GPUMesh> test_meshes;
+std::vector<gpu_mesh> test_meshes;
 } // namespace
 
-Engine::Engine()  = default;
-Engine::~Engine() = default;
+engine::engine()  = default;
+engine::~engine() = default;
 
-bool Engine::init(const EngineConfig& config)
+bool engine::init(const engine_config& config)
 {
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "x11");
 
@@ -31,10 +31,11 @@ bool Engine::init(const EngineConfig& config)
         return false;
     }
 
-    window_ = SDL_CreateWindow(config.title,
-                               config.width,
-                               config.height,
-                               SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    window_ =
+        SDL_CreateWindow(config.title,
+                         config.width,
+                         config.height,
+                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window_)
     {
         spdlog::error("Window creation failed: {}", SDL_GetError());
@@ -66,12 +67,12 @@ bool Engine::init(const EngineConfig& config)
     swapchain_format_ = SDL_GetGPUSwapchainTextureFormat(device_, window_);
 
     // Initialize shader manager
-    shader_manager_ = std::make_unique<ShaderManager>(device_);
+    shader_manager_       = std::make_unique<ShaderManager>(device_);
     const char* base_path = SDL_GetBasePath();
     if (base_path)
     {
-        shader_manager_->set_shader_directory(
-            std::filesystem::path(base_path) / "shaders");
+        shader_manager_->set_shader_directory(std::filesystem::path(base_path) /
+                                              "shaders");
     }
 
     // Initialize renderer
@@ -105,11 +106,13 @@ bool Engine::init(const EngineConfig& config)
                 auto& cam = registry_.get<CameraComponent>(cam_entity);
                 ImGui::Begin("Debug");
                 ImGui::Text("pos: (%.2f, %.2f, %.2f)",
-                            cam.position.x, cam.position.y, cam.position.z);
+                            cam.position.x,
+                            cam.position.y,
+                            cam.position.z);
                 ImGui::Text("yaw: %.1f | pitch: %.1f", cam.yaw, cam.pitch);
                 ImGui::SliderFloat("speed", &cam.speed, 1.0f, 20.0f);
                 ImGui::Text("fps: %.1f", ImGui::GetIO().Framerate);
-                
+
                 if (mouse_captured_)
                 {
                     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f),
@@ -120,7 +123,7 @@ bool Engine::init(const EngineConfig& config)
                     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                                        "mouse: free (ESC to capture)");
                 }
-                
+
                 ImGui::Separator();
                 bool hot_reload = shader_manager_->hot_reload_enabled();
                 if (ImGui::Checkbox("Shader Hot-Reload", &hot_reload))
@@ -137,7 +140,7 @@ bool Engine::init(const EngineConfig& config)
     return true;
 }
 
-void Engine::shutdown()
+void engine::shutdown()
 {
     for (auto& mesh : test_meshes)
     {
@@ -167,23 +170,31 @@ void Engine::shutdown()
     SDL_Quit();
 }
 
-void Engine::setup_default_scene()
+void engine::setup_default_scene()
 {
     auto camera = registry_.create();
     registry_.emplace<CameraComponent>(camera);
 
     // Create test cubes
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(0.0f, 1.0f, 0.0f), 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(-4.0f, 0.5f, -3.0f), 1.0f, glm::vec3(1.0f, 0.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(4.0f, 1.5f, 2.0f), 3.0f, glm::vec3(0.0f, 0.0f, 1.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(0.0f, 0.5f, -6.0f), 1.0f, glm::vec3(1.0f, 1.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(device_,
+                                                glm::vec3(0.0f, 1.0f, 0.0f),
+                                                2.0f,
+                                                glm::vec3(0.0f, 1.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(device_,
+                                                glm::vec3(-4.0f, 0.5f, -3.0f),
+                                                1.0f,
+                                                glm::vec3(1.0f, 0.0f, 0.0f)));
+    test_meshes.push_back(create_wireframe_cube(device_,
+                                                glm::vec3(4.0f, 1.5f, 2.0f),
+                                                3.0f,
+                                                glm::vec3(0.0f, 0.0f, 1.0f)));
+    test_meshes.push_back(create_wireframe_cube(device_,
+                                                glm::vec3(0.0f, 0.5f, -6.0f),
+                                                1.0f,
+                                                glm::vec3(1.0f, 1.0f, 0.0f)));
 }
 
-void Engine::set_mouse_captured(bool captured)
+void engine::set_mouse_captured(bool captured)
 {
     mouse_captured_ = captured;
     if (window_)
@@ -196,7 +207,7 @@ void Engine::set_mouse_captured(bool captured)
     }
 }
 
-void Engine::process_events()
+void engine::process_events()
 {
     SDL_Event event{};
     while (SDL_PollEvent(&event))
@@ -225,7 +236,7 @@ void Engine::process_events()
     }
 }
 
-void Engine::update()
+void engine::update()
 {
     const Uint64 current_time = SDL_GetTicks();
     delta_time_ = static_cast<float>(current_time - last_time_) / 1000.0f;
@@ -243,7 +254,7 @@ void Engine::update()
     }
 }
 
-void Engine::render()
+void engine::render()
 {
     SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device_);
     if (!cmd)
@@ -262,7 +273,8 @@ void Engine::render()
     {
         int screen_w{}, screen_h{};
         SDL_GetWindowSizeInPixels(window_, &screen_w, &screen_h);
-        const float aspect = static_cast<float>(screen_w) / static_cast<float>(screen_h);
+        const float aspect =
+            static_cast<float>(screen_w) / static_cast<float>(screen_h);
 
         const auto matrices = camera_system_->get_matrices(registry_, aspect);
 
@@ -312,7 +324,7 @@ void Engine::render()
     SDL_SubmitGPUCommandBuffer(cmd);
 }
 
-void Engine::run()
+void engine::run()
 {
     running_ = true;
     while (running_)
