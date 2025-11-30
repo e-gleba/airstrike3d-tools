@@ -13,7 +13,7 @@ ImGuiLayer::~ImGuiLayer()
     shutdown();
 }
 
-bool ImGuiLayer::init(SDL_GPUDevice* device, SDL_Window* window)
+bool ImGuiLayer::init(SDL_Window* window, SDL_GPUDevice* device)
 {
     device_ = device;
 
@@ -69,11 +69,11 @@ void ImGuiLayer::shutdown()
     }
 }
 
-void ImGuiLayer::process_event(const SDL_Event* event)
+void ImGuiLayer::process_event(const SDL_Event& event)
 {
     if (input_enabled_)
     {
-        ImGui_ImplSDL3_ProcessEvent(event);
+        ImGui_ImplSDL3_ProcessEvent(&event);
     }
 }
 
@@ -111,8 +111,7 @@ void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
         .padding2              = {},
     };
 
-    SDL_GPURenderPass* pass =
-        SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
+    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
     if (pass)
     {
         ImGui_ImplSDLGPU3_RenderDrawData(draw_data, cmd, pass);
@@ -126,4 +125,3 @@ void ImGuiLayer::set_draw_callback(DrawCallback callback)
 }
 
 } // namespace as3
-

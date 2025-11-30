@@ -1,136 +1,173 @@
-#include "../shared/game_api.hpp"
+#include "game_api.hpp"
+#include "camera.hpp"
 
 #include <imgui.h>
+#include <spdlog/spdlog.h>
 
-#include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace
 {
-entt::entity g_camera = entt::null;
-std::vector<as3::mesh_handle> g_meshes;
 as3::engine_context* g_ctx = nullptr;
+
+// Meshes
+std::vector<as3::mesh_handle> g_meshes;
+
+// Models
+as3::model_handle g_cobra = as3::invalid_model;
+as3::model_handle g_mi24 = as3::invalid_model;
+as3::model_handle g_tiger_tank = as3::invalid_model;
+as3::model_handle g_kamov = as3::invalid_model;
+
+// Entity handles for cleanup
+entt::entity g_camera_entity = entt::null;
+
+// Time - reset on init!
+float g_time = 0.0f;
 } // namespace
 
 GAME_API bool game_init(as3::engine_context* ctx)
 {
     g_ctx = ctx;
+    g_time = 0.0f; // Full reset
+
+    // Clear any existing game entities from previous session
+    if (g_camera_entity != entt::null && g_ctx->registry->valid(g_camera_entity))
+    {
+        g_ctx->registry->destroy(g_camera_entity);
+    }
 
     // Create camera
-    g_camera = ctx->registry->create();
-    ctx->registry->emplace<as3::CameraComponent>(g_camera);
+    g_camera_entity = g_ctx->registry->create();
+    auto& cam = g_ctx->registry->emplace<as3::CameraComponent>(g_camera_entity);
+    cam.position = { 0.0f, 8.0f, 25.0f };
+    cam.pitch = -10.0f;
+    cam.yaw = -90.0f;
+    cam.move_speed = 15.0f;
 
-    // Grid on the ground
-    g_meshes.push_back(ctx->renderer->create_wireframe_grid(
-        20.0f, 20, glm::vec3(0.3f, 0.3f, 0.3f)));
+    // Ground grid
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_grid(60.0f, 60, { 0.2f, 0.25f, 0.2f }));
 
-    // Cubes
-    g_meshes.push_back(ctx->renderer->create_wireframe_cube(
-        glm::vec3(0.0f, 1.0f, 0.0f), 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)));
-    g_meshes.push_back(ctx->renderer->create_wireframe_cube(
-        glm::vec3(-4.0f, 0.5f, -3.0f), 1.0f, glm::vec3(1.0f, 0.0f, 0.0f)));
-    g_meshes.push_back(ctx->renderer->create_wireframe_cube(
-        glm::vec3(4.0f, 1.5f, 2.0f), 3.0f, glm::vec3(0.0f, 0.0f, 1.0f)));
+    // Landing pads
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_cube({ -12.0f, 0.05f, 0.0f }, 2.0f, { 0.3f, 0.3f, 0.5f }));
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_cube({ 0.0f, 0.05f, 0.0f }, 2.5f, { 0.3f, 0.3f, 0.5f }));
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_cube({ 12.0f, 0.05f, 0.0f }, 2.0f, { 0.3f, 0.3f, 0.5f }));
 
-    // Spheres
-    g_meshes.push_back(ctx->renderer->create_wireframe_sphere(
-        glm::vec3(0.0f, 3.0f, -6.0f), 1.5f, glm::vec3(1.0f, 1.0f, 0.0f)));
-    g_meshes.push_back(ctx->renderer->create_wireframe_sphere(
-        glm::vec3(-3.0f, 2.0f, 2.0f), 1.0f, glm::vec3(0.0f, 1.0f, 1.0f)));
+    // Buildings
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_cube({ -18.0f, 1.5f, -12.0f }, 3.0f, { 0.4f, 0.4f, 0.4f }));
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_cube({ 18.0f, 2.5f, -15.0f }, 5.0f, { 0.4f, 0.4f, 0.4f }));
 
-    // Custom mesh - a simple triangle
-    std::vector<as3::vertex> tri_verts = {
-        { glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f) },
-        { glm::vec3(6.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f) },
-        { glm::vec3(5.5f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f) },
-    };
-    std::vector<uint16_t> tri_idx = { 0, 1, 1, 2, 2, 0 };
-    g_meshes.push_back(ctx->renderer->create_mesh(tri_verts, tri_idx));
+    // Radar
+    g_meshes.push_back(g_ctx->renderer->create_wireframe_sphere({ -18.0f, 4.0f, -12.0f }, 1.0f, { 0.0f, 1.0f, 0.5f }, 12));
 
+    // Load models - SCALED DOWN (0.05 = 5% of original size)
+    g_cobra = g_ctx->renderer->load_model("assets/models/helics/cobra/cobra.obj", { 0.0f, 0.9f, 0.7f });
+    g_mi24 = g_ctx->renderer->load_model("assets/models/helics/mi_24/mi_24.obj", { 0.8f, 0.5f, 0.1f });
+    g_kamov = g_ctx->renderer->load_model("assets/models/helics/kamov/kamov.obj", { 0.2f, 0.8f, 0.3f });
+    g_tiger_tank = g_ctx->renderer->load_model("assets/models/tanks/tiger/tiger_base.obj", { 0.5f, 0.6f, 0.3f });
+
+    spdlog::info("Game initialized (time reset to 0)");
     return true;
 }
 
 GAME_API void game_shutdown()
 {
-    // Destroy meshes we created
-    if (g_ctx && g_ctx->renderer)
+    // Destroy meshes
+    for (auto h : g_meshes)
     {
-        for (auto mesh : g_meshes)
-        {
-            g_ctx->renderer->destroy_mesh(mesh);
-        }
+        if (h != as3::invalid_mesh)
+            g_ctx->renderer->destroy_mesh(h);
     }
     g_meshes.clear();
 
-    // Destroy entities we created
-    if (g_ctx && g_ctx->registry && g_camera != entt::null)
+    // Destroy models
+    if (g_cobra != as3::invalid_model) g_ctx->renderer->unload_model(g_cobra);
+    if (g_mi24 != as3::invalid_model) g_ctx->renderer->unload_model(g_mi24);
+    if (g_tiger_tank != as3::invalid_model) g_ctx->renderer->unload_model(g_tiger_tank);
+    if (g_kamov != as3::invalid_model) g_ctx->renderer->unload_model(g_kamov);
+
+    g_cobra = as3::invalid_model;
+    g_mi24 = as3::invalid_model;
+    g_tiger_tank = as3::invalid_model;
+    g_kamov = as3::invalid_model;
+
+    // Destroy camera entity
+    if (g_camera_entity != entt::null && g_ctx->registry->valid(g_camera_entity))
     {
-        g_ctx->registry->destroy(g_camera);
+        g_ctx->registry->destroy(g_camera_entity);
+        g_camera_entity = entt::null;
     }
-    g_camera = entt::null;
+
+    spdlog::info("Game shutdown");
     g_ctx = nullptr;
 }
 
 GAME_API void game_update(as3::engine_context* ctx)
 {
-    auto view = ctx->registry->view<as3::CameraComponent>();
-    for (auto entity : view)
-    {
-        auto& cam = view.get<as3::CameraComponent>(entity);
-
-        // Mouse look
-        if (ctx->input.mouse_captured)
-        {
-            cam.yaw += ctx->input.mouse_xrel * cam.sensitivity;
-            cam.pitch = std::clamp(
-                cam.pitch + (-ctx->input.mouse_yrel) * cam.sensitivity,
-                -89.0f, 89.0f);
-
-            glm::vec3 dir{};
-            dir.x = std::cos(glm::radians(cam.yaw)) * std::cos(glm::radians(cam.pitch));
-            dir.y = std::sin(glm::radians(cam.pitch));
-            dir.z = std::sin(glm::radians(cam.yaw)) * std::cos(glm::radians(cam.pitch));
-            cam.front = glm::normalize(dir);
-        }
-
-        // Movement (scancodes: W=26, S=22, A=4, D=7, Space=44, LCtrl=224)
-        if (ctx->input.mouse_captured && ctx->input.keyboard)
-        {
-            const float vel = cam.speed * ctx->delta_time;
-            const glm::vec3 right = glm::normalize(glm::cross(cam.front, cam.up));
-
-            if (ctx->input.keyboard[26]) cam.position += cam.front * vel;
-            if (ctx->input.keyboard[22]) cam.position -= cam.front * vel;
-            if (ctx->input.keyboard[4])  cam.position -= right * vel;
-            if (ctx->input.keyboard[7])  cam.position += right * vel;
-            if (ctx->input.keyboard[44]) cam.position += cam.up * vel;
-            if (ctx->input.keyboard[224]) cam.position -= cam.up * vel;
-        }
-    }
+    g_time += ctx->delta_time;
 }
 
 GAME_API void game_render(as3::engine_context* ctx)
 {
-    // Set camera matrices
-    auto view = ctx->registry->view<const as3::CameraComponent>();
-    for (auto entity : view)
+    // Draw meshes
+    for (auto h : g_meshes)
     {
-        const auto& cam = view.get<const as3::CameraComponent>(entity);
-
-        const glm::mat4 view_mat =
-            glm::lookAt(cam.position, cam.position + cam.front, cam.up);
-        const glm::mat4 proj = glm::perspective(
-            glm::radians(cam.fov), ctx->display.aspect, cam.near_plane, cam.far_plane);
-
-        ctx->renderer->set_view_projection(proj * view_mat);
-        break;
+        ctx->renderer->draw(h);
     }
 
-    // Draw all meshes
-    for (auto mesh : g_meshes)
+    // Hover animation
+    auto hover = [](float time, float phase) {
+        float t = time * 0.5f + phase;
+        return as3::transform{
+            .position = { std::sin(t * 0.8f) * 0.05f, std::sin(t * 1.2f) * 0.03f, std::cos(t * 0.6f) * 0.03f },
+            .rotation = { std::sin(t * 0.7f) * 1.5f, 0.0f, std::sin(t) * 1.0f },
+            .scale = { 0.05f, 0.05f, 0.05f }  // 5% scale
+        };
+    };
+
+    constexpr float MODEL_SCALE = 0.05f;
+
+    // Cobra - left pad
+    if (g_cobra != as3::invalid_model)
     {
-        ctx->renderer->draw(mesh);
+        auto h = hover(g_time, 0.0f);
+        ctx->renderer->draw_model(g_cobra, {
+            .position = { -12.0f + h.position.x, 3.0f + h.position.y, 0.0f + h.position.z },
+            .rotation = { h.rotation.x, 180.0f, h.rotation.z },
+            .scale = { MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }
+        });
+    }
+
+    // MI-24 - center pad
+    if (g_mi24 != as3::invalid_model)
+    {
+        auto h = hover(g_time, 1.5f);
+        ctx->renderer->draw_model(g_mi24, {
+            .position = { 0.0f + h.position.x, 4.0f + h.position.y, 0.0f + h.position.z },
+            .rotation = { h.rotation.x, 160.0f, h.rotation.z },
+            .scale = { MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }
+        });
+    }
+
+    // Kamov - right pad
+    if (g_kamov != as3::invalid_model)
+    {
+        auto h = hover(g_time, 3.0f);
+        ctx->renderer->draw_model(g_kamov, {
+            .position = { 12.0f + h.position.x, 3.0f + h.position.y, 0.0f + h.position.z },
+            .rotation = { h.rotation.x, 200.0f, h.rotation.z },
+            .scale = { MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }
+        });
+    }
+
+    // Tiger tank - ground
+    if (g_tiger_tank != as3::invalid_model)
+    {
+        ctx->renderer->draw_model(g_tiger_tank, {
+            .position = { 6.0f, 0.0f, 8.0f },
+            .rotation = { 0.0f, -30.0f, 0.0f },
+            .scale = { MODEL_SCALE, MODEL_SCALE, MODEL_SCALE }
+        });
     }
 }
 
@@ -138,35 +175,21 @@ GAME_API void game_ui(as3::engine_context* ctx)
 {
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
 
+    ImGui::Begin("Airstrike 3D");
+    ImGui::Text("FPS: %.0f (%.2f ms)", 1.0f / ctx->delta_time, ctx->delta_time * 1000.0f);
+    ImGui::Separator();
+    ImGui::TextColored({0.6f, 1.0f, 0.6f, 1.0f}, "WASD/QE - move | Mouse - look");
+    ImGui::TextColored({1.0f, 1.0f, 0.6f, 1.0f}, "F5 - hot reload | ESC - release");
+    ImGui::Separator();
+
     auto view = ctx->registry->view<as3::CameraComponent>();
     for (auto entity : view)
     {
         auto& cam = view.get<as3::CameraComponent>(entity);
-
-        ImGui::Begin("Debug");
-        ImGui::Text("pos: (%.2f, %.2f, %.2f)",
-                    cam.position.x, cam.position.y, cam.position.z);
-        ImGui::Text("yaw: %.1f | pitch: %.1f", cam.yaw, cam.pitch);
-        ImGui::SliderFloat("speed", &cam.speed, 1.0f, 20.0f);
-        ImGui::Text("fps: %.1f", ImGui::GetIO().Framerate);
-
-        if (ctx->input.mouse_captured)
-        {
-            ImGui::TextColored(ImVec4(0, 1, 0, 1), "mouse: captured (ESC)");
-        }
-        else
-        {
-            ImGui::TextColored(ImVec4(1, 0, 0, 1), "mouse: free (ESC)");
-        }
-
-        ImGui::Separator();
-        bool hr = ctx->shaders->hot_reload_enabled();
-        if (ImGui::Checkbox("Shader Hot-Reload", &hr))
-        {
-            ctx->shaders->enable_hot_reload(hr);
-        }
-        ImGui::Text("F5 - reload game");
-        ImGui::End();
-        break;
+        ImGui::Text("Pos: %.1f, %.1f, %.1f", cam.position.x, cam.position.y, cam.position.z);
+        ImGui::SliderFloat("FOV", &cam.fov, 30.0f, 120.0f);
+        ImGui::SliderFloat("Speed", &cam.move_speed, 5.0f, 50.0f);
     }
+
+    ImGui::End();
 }

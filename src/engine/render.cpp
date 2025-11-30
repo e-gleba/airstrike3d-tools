@@ -1,12 +1,14 @@
 #include "render.hpp"
-
 #include "shader.hpp"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
+#include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 
 #include <array>
 #include <cstring>
-#include <vector>
 
 namespace as3
 {
@@ -14,449 +16,381 @@ namespace as3
 namespace
 {
 constexpr std::array<glm::vec3, 8> k_cube_offsets = { {
-    glm::vec3(-1.0f, -1.0f, -1.0f),
-    glm::vec3(1.0f, -1.0f, -1.0f),
-    glm::vec3(1.0f, 1.0f, -1.0f),
-    glm::vec3(-1.0f, 1.0f, -1.0f),
-    glm::vec3(-1.0f, -1.0f, 1.0f),
-    glm::vec3(1.0f, -1.0f, 1.0f),
-    glm::vec3(1.0f, 1.0f, 1.0f),
-    glm::vec3(-1.0f, 1.0f, 1.0f),
+    glm::vec3(-1, -1, -1), glm::vec3(1, -1, -1), glm::vec3(1, 1, -1), glm::vec3(-1, 1, -1),
+    glm::vec3(-1, -1,  1), glm::vec3(1, -1,  1), glm::vec3(1, 1,  1), glm::vec3(-1, 1,  1),
 } };
 
 constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
-    { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
-    { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
-    { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+    {0,1}, {1,2}, {2,3}, {3,0}, {4,5}, {5,6}, {6,7}, {7,4}, {0,4}, {1,5}, {2,6}, {3,7},
 } };
-
-gpu_mesh create_cube_mesh(SDL_GPUDevice*   device,
-                          const glm::vec3& center,
-                          float            size,
-                          const glm::vec3& color)
-{
-    const float half = size * 0.5f;
-
-    std::vector<vertex_pos_color> vertices;
-    vertices.reserve(8);
-    for (const auto& offset : k_cube_offsets)
-    {
-        vertices.push_back({ .position = center + offset * half, .color = color });
-    }
-
-    std::vector<Uint16> indices;
-    indices.reserve(24);
-    for (const auto& [i, j] : k_cube_edges)
-    {
-        indices.push_back(static_cast<Uint16>(i));
-        indices.push_back(static_cast<Uint16>(j));
-    }
-
-    gpu_mesh mesh{};
-    mesh.vertex_count = static_cast<Uint32>(vertices.size());
-    mesh.index_count  = static_cast<Uint32>(indices.size());
-
-    const SDL_GPUBufferCreateInfo vb_info{
-        .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-        .size  = static_cast<Uint32>(vertices.size() * sizeof(vertex_pos_color)),
-        .props = 0,
-    };
-    mesh.vertex_buffer = SDL_CreateGPUBuffer(device, &vb_info);
-
-    const SDL_GPUBufferCreateInfo ib_info{
-        .usage = SDL_GPU_BUFFERUSAGE_INDEX,
-        .size  = static_cast<Uint32>(indices.size() * sizeof(Uint16)),
-        .props = 0,
-    };
-    mesh.index_buffer = SDL_CreateGPUBuffer(device, &ib_info);
-
-    const SDL_GPUTransferBufferCreateInfo tb_info{
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size  = vb_info.size + ib_info.size,
-        .props = 0,
-    };
-    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(device, &tb_info);
-
-    void* ptr = SDL_MapGPUTransferBuffer(device, transfer, false);
-    std::memcpy(ptr, vertices.data(), vb_info.size);
-    std::memcpy(static_cast<char*>(ptr) + vb_info.size, indices.data(), ib_info.size);
-    SDL_UnmapGPUTransferBuffer(device, transfer);
-
-    SDL_GPUCommandBuffer* cmd  = SDL_AcquireGPUCommandBuffer(device);
-    SDL_GPUCopyPass*      copy = SDL_BeginGPUCopyPass(cmd);
-
-    SDL_GPUTransferBufferLocation src_vb{ .transfer_buffer = transfer, .offset = 0 };
-    SDL_GPUBufferRegion dst_vb{ .buffer = mesh.vertex_buffer, .offset = 0, .size = vb_info.size };
-    SDL_UploadToGPUBuffer(copy, &src_vb, &dst_vb, false);
-
-    SDL_GPUTransferBufferLocation src_ib{ .transfer_buffer = transfer, .offset = vb_info.size };
-    SDL_GPUBufferRegion dst_ib{ .buffer = mesh.index_buffer, .offset = 0, .size = ib_info.size };
-    SDL_UploadToGPUBuffer(copy, &src_ib, &dst_ib, false);
-
-    SDL_EndGPUCopyPass(copy);
-    SDL_SubmitGPUCommandBuffer(cmd);
-    SDL_ReleaseGPUTransferBuffer(device, transfer);
-
-    return mesh;
-}
-
-void release_mesh(SDL_GPUDevice* device, gpu_mesh& mesh)
-{
-    if (mesh.vertex_buffer)
-    {
-        SDL_ReleaseGPUBuffer(device, mesh.vertex_buffer);
-        mesh.vertex_buffer = nullptr;
-    }
-    if (mesh.index_buffer)
-    {
-        SDL_ReleaseGPUBuffer(device, mesh.index_buffer);
-        mesh.index_buffer = nullptr;
-    }
-}
 } // namespace
 
-Renderer::~Renderer()
-{
-    shutdown();
-}
+Renderer::~Renderer() { shutdown(); }
 
 bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
 {
     device_  = device;
     shaders_ = shaders;
 
-    const ShaderProgramDesc wireframe_desc{
+    const ShaderProgramDesc desc{
         .name     = "wireframe",
         .vertex   = { .path = "wireframe.vert.hlsl", .stage = ShaderStage::Vertex },
         .fragment = { .path = "wireframe.frag.hlsl", .stage = ShaderStage::Fragment },
     };
 
-    auto result = shaders_->load_program(wireframe_desc);
-    if (!result)
+    if (auto r = shaders_->load_program(desc); !r)
     {
-        spdlog::error("Failed to load wireframe shader: {}", result.error());
+        spdlog::error("Failed to load shader: {}", r.error());
         return false;
     }
 
-    shaders_->set_reload_callback(
-        [this](const std::string& name)
-        {
-            if (name == "wireframe")
-            {
-                pipeline_dirty_ = true;
-            }
-        });
+    shaders_->set_reload_callback([this](const std::string& n) {
+        if (n == "wireframe") pipeline_dirty_ = true;
+    });
 
     return create_pipeline();
 }
 
 void Renderer::shutdown()
 {
-    // Release all meshes
-    for (auto& [handle, mesh] : meshes_)
+    for (auto& [h, m] : meshes_)
     {
-        release_mesh(device_, mesh);
+        if (m.vertex_buffer) SDL_ReleaseGPUBuffer(device_, m.vertex_buffer);
+        if (m.index_buffer)  SDL_ReleaseGPUBuffer(device_, m.index_buffer);
     }
     meshes_.clear();
 
-    if (device_ && pipeline_)
+    for (auto& [h, model] : models_)
     {
-        SDL_ReleaseGPUGraphicsPipeline(device_, pipeline_);
-        pipeline_ = nullptr;
+        for (auto& m : model.meshes)
+        {
+            if (m.vertex_buffer) SDL_ReleaseGPUBuffer(device_, m.vertex_buffer);
+            if (m.index_buffer)  SDL_ReleaseGPUBuffer(device_, m.index_buffer);
+        }
     }
+    models_.clear();
+
+    if (pipeline_) { SDL_ReleaseGPUGraphicsPipeline(device_, pipeline_); pipeline_ = nullptr; }
 }
 
 bool Renderer::create_pipeline()
 {
-    auto* program = shaders_->get_program("wireframe");
-    if (!program || !program->valid())
-    {
-        spdlog::error("Invalid shader program for pipeline");
-        return false;
-    }
+    auto* prog = shaders_->get_program("wireframe");
+    if (!prog || !prog->valid()) return false;
 
-    const SDL_GPUVertexAttribute vertex_attrs[2] = {
-        { .location = 0, .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = 0 },
-        { .location = 1, .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = sizeof(glm::vec3) },
-    };
+    SDL_GPUVertexAttribute attrs[2] = {};
+    attrs[0].location    = 0;
+    attrs[0].buffer_slot = 0;
+    attrs[0].format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    attrs[0].offset      = 0;
+    attrs[1].location    = 1;
+    attrs[1].buffer_slot = 0;
+    attrs[1].format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    attrs[1].offset      = sizeof(glm::vec3);
 
-    const SDL_GPUVertexBufferDescription vb_desc{
-        .slot = 0, .pitch = sizeof(vertex_pos_color),
-        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0,
-    };
+    SDL_GPUVertexBufferDescription vb{};
+    vb.slot       = 0;
+    vb.pitch      = sizeof(vertex_pos_color);
+    vb.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
 
-    const SDL_GPUVertexInputState vertex_input{
-        .vertex_buffer_descriptions = &vb_desc,
-        .num_vertex_buffers         = 1,
-        .vertex_attributes          = vertex_attrs,
-        .num_vertex_attributes      = 2,
-    };
+    SDL_GPUVertexInputState vi{};
+    vi.vertex_buffer_descriptions = &vb;
+    vi.num_vertex_buffers         = 1;
+    vi.vertex_attributes          = attrs;
+    vi.num_vertex_attributes      = 2;
 
-    const SDL_GPUColorTargetDescription color_desc{
-        .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM, .blend_state = {},
-    };
+    SDL_GPUColorTargetDescription ct{};
+    ct.format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
 
-    const SDL_GPUGraphicsPipelineTargetInfo target_info{
-        .color_target_descriptions = &color_desc,
-        .num_color_targets         = 1,
-        .depth_stencil_format      = SDL_GPU_TEXTUREFORMAT_INVALID,
-        .has_depth_stencil_target  = false,
-        .padding1 = {}, .padding2 = {}, .padding3 = {},
-    };
+    SDL_GPUGraphicsPipelineTargetInfo ti{};
+    ti.color_target_descriptions = &ct;
+    ti.num_color_targets         = 1;
+    ti.depth_stencil_format      = SDL_GPU_TEXTUREFORMAT_INVALID;
 
-    const SDL_GPURasterizerState raster{
-        .fill_mode = SDL_GPU_FILLMODE_FILL,
-        .cull_mode = SDL_GPU_CULLMODE_NONE,
-        .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-        .depth_bias_constant_factor = 0.0f, .depth_bias_clamp = 0.0f,
-        .depth_bias_slope_factor = 0.0f,
-        .enable_depth_bias = false, .enable_depth_clip = false,
-        .padding1 = {}, .padding2 = {},
-    };
+    SDL_GPURasterizerState rs{};
+    rs.fill_mode  = SDL_GPU_FILLMODE_FILL;
+    rs.cull_mode  = SDL_GPU_CULLMODE_NONE;
+    rs.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
-    const SDL_GPUMultisampleState ms{
-        .sample_count = SDL_GPU_SAMPLECOUNT_1, .sample_mask = 0,
-        .enable_mask = false, .enable_alpha_to_coverage = false,
-        .padding2 = {}, .padding3 = {},
-    };
+    SDL_GPUMultisampleState ms{};
+    ms.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-    const SDL_GPUGraphicsPipelineCreateInfo info{
-        .vertex_shader = program->vertex_shader(),
-        .fragment_shader = program->fragment_shader(),
-        .vertex_input_state = vertex_input,
-        .primitive_type = SDL_GPU_PRIMITIVETYPE_LINELIST,
-        .rasterizer_state = raster,
-        .multisample_state = ms,
-        .depth_stencil_state = {},
-        .target_info = target_info,
-        .props = 0,
-    };
+    SDL_GPUGraphicsPipelineCreateInfo info{};
+    info.vertex_shader      = prog->vertex_shader();
+    info.fragment_shader    = prog->fragment_shader();
+    info.vertex_input_state = vi;
+    info.primitive_type     = SDL_GPU_PRIMITIVETYPE_LINELIST;
+    info.rasterizer_state   = rs;
+    info.multisample_state  = ms;
+    info.target_info        = ti;
 
-    if (pipeline_)
-    {
-        SDL_ReleaseGPUGraphicsPipeline(device_, pipeline_);
-    }
-
+    if (pipeline_) SDL_ReleaseGPUGraphicsPipeline(device_, pipeline_);
     pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &info);
-    if (!pipeline_)
-    {
-        spdlog::error("Failed to create pipeline: {}", SDL_GetError());
-        return false;
-    }
-
     pipeline_dirty_ = false;
-    spdlog::info("Pipeline created successfully");
-    return true;
+    if (pipeline_) spdlog::info("Pipeline created");
+    return pipeline_ != nullptr;
 }
 
-void Renderer::reload_pipeline()
-{
-    if (pipeline_dirty_)
-    {
-        create_pipeline();
-    }
-}
+void Renderer::reload_pipeline() { if (pipeline_dirty_) create_pipeline(); }
 
 void Renderer::begin_frame(SDL_GPUCommandBuffer* cmd, SDL_GPURenderPass* pass)
 {
-    current_cmd_  = cmd;
-    current_pass_ = pass;
+    current_cmd_ = cmd; current_pass_ = pass;
     reload_pipeline();
 }
 
-void Renderer::end_frame()
+void Renderer::end_frame() { current_cmd_ = nullptr; current_pass_ = nullptr; }
+
+void Renderer::set_view_projection(const glm::mat4& vp) { view_proj_ = vp; }
+
+void Renderer::bind_pipeline() { if (pipeline_ && current_pass_) SDL_BindGPUGraphicsPipeline(current_pass_, pipeline_); }
+
+gpu_mesh Renderer::upload_mesh(std::span<const vertex_pos_color> verts, std::span<const uint16_t> idx)
 {
-    current_cmd_  = nullptr;
-    current_pass_ = nullptr;
-}
-
-void Renderer::set_view_projection(const glm::mat4& vp)
-{
-    uniforms_.view_proj = vp;
-}
-
-void Renderer::bind_pipeline()
-{
-    if (pipeline_ && current_pass_)
-    {
-        SDL_BindGPUGraphicsPipeline(current_pass_, pipeline_);
-    }
-}
-
-mesh_handle Renderer::create_wireframe_cube(const glm::vec3& center,
-                                            float            size,
-                                            const glm::vec3& color)
-{
-    gpu_mesh mesh = create_cube_mesh(device_, center, size, color);
-    mesh_handle handle = next_handle_++;
-    meshes_[handle] = mesh;
-    return handle;
-}
-
-mesh_handle Renderer::create_wireframe_sphere(const glm::vec3& center,
-                                              float            radius,
-                                              const glm::vec3& color,
-                                              int              segments)
-{
-    std::vector<vertex_pos_color> vertices;
-    std::vector<Uint16> indices;
-
-    // Create circles in 3 planes
-    auto add_circle = [&](int axis1, int axis2)
-    {
-        Uint16 base = static_cast<Uint16>(vertices.size());
-        for (int i = 0; i <= segments; ++i)
-        {
-            float angle = 2.0f * 3.14159265f * static_cast<float>(i) / static_cast<float>(segments);
-            glm::vec3 pos = center;
-            pos[axis1] += radius * std::cos(angle);
-            pos[axis2] += radius * std::sin(angle);
-            vertices.push_back({ .position = pos, .color = color });
-
-            if (i > 0)
-            {
-                indices.push_back(base + static_cast<Uint16>(i - 1));
-                indices.push_back(base + static_cast<Uint16>(i));
-            }
-        }
-    };
-
-    add_circle(0, 1); // XY plane
-    add_circle(0, 2); // XZ plane
-    add_circle(1, 2); // YZ plane
-
-    return create_mesh(
-        std::span<const vertex>(reinterpret_cast<const vertex*>(vertices.data()), vertices.size()),
-        std::span<const uint16_t>(indices.data(), indices.size()),
-        primitive_type::lines);
-}
-
-mesh_handle Renderer::create_wireframe_grid(float            size,
-                                            int              divisions,
-                                            const glm::vec3& color)
-{
-    std::vector<vertex_pos_color> vertices;
-    std::vector<Uint16> indices;
-
-    float half = size * 0.5f;
-    float step = size / static_cast<float>(divisions);
-
-    for (int i = 0; i <= divisions; ++i)
-    {
-        float t = -half + step * static_cast<float>(i);
-        Uint16 base = static_cast<Uint16>(vertices.size());
-
-        // Line along X
-        vertices.push_back({ .position = glm::vec3(t, 0, -half), .color = color });
-        vertices.push_back({ .position = glm::vec3(t, 0, half), .color = color });
-        indices.push_back(base);
-        indices.push_back(base + 1);
-
-        // Line along Z
-        vertices.push_back({ .position = glm::vec3(-half, 0, t), .color = color });
-        vertices.push_back({ .position = glm::vec3(half, 0, t), .color = color });
-        indices.push_back(base + 2);
-        indices.push_back(base + 3);
-    }
-
-    return create_mesh(
-        std::span<const vertex>(reinterpret_cast<const vertex*>(vertices.data()), vertices.size()),
-        std::span<const uint16_t>(indices.data(), indices.size()),
-        primitive_type::lines);
-}
-
-mesh_handle Renderer::create_mesh(std::span<const vertex>   vertices,
-                                  std::span<const uint16_t> indices,
-                                  [[maybe_unused]] primitive_type type)
-{
-    if (vertices.empty() || indices.empty())
-        return invalid_mesh;
-
     gpu_mesh mesh{};
-    mesh.vertex_count = static_cast<Uint32>(vertices.size());
-    mesh.index_count  = static_cast<Uint32>(indices.size());
+    mesh.vertex_count = static_cast<Uint32>(verts.size());
+    mesh.index_count  = static_cast<Uint32>(idx.size());
 
-    const auto vb_size = static_cast<Uint32>(vertices.size() * sizeof(vertex));
-    const auto ib_size = static_cast<Uint32>(indices.size() * sizeof(uint16_t));
+    auto vb_size = static_cast<Uint32>(verts.size_bytes());
+    auto ib_size = static_cast<Uint32>(idx.size_bytes());
 
-    const SDL_GPUBufferCreateInfo vb_info{
-        .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = vb_size, .props = 0,
-    };
+    SDL_GPUBufferCreateInfo vb_info{};
+    vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+    vb_info.size  = vb_size;
     mesh.vertex_buffer = SDL_CreateGPUBuffer(device_, &vb_info);
 
-    const SDL_GPUBufferCreateInfo ib_info{
-        .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = ib_size, .props = 0,
-    };
+    SDL_GPUBufferCreateInfo ib_info{};
+    ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+    ib_info.size  = ib_size;
     mesh.index_buffer = SDL_CreateGPUBuffer(device_, &ib_info);
 
-    const SDL_GPUTransferBufferCreateInfo tb_info{
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = vb_size + ib_size,
-        .props = 0,
-    };
-    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(device_, &tb_info);
+    SDL_GPUTransferBufferCreateInfo tb_info{};
+    tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    tb_info.size  = vb_size + ib_size;
+    auto* tb = SDL_CreateGPUTransferBuffer(device_, &tb_info);
 
-    void* ptr = SDL_MapGPUTransferBuffer(device_, transfer, false);
-    std::memcpy(ptr, vertices.data(), vb_size);
-    std::memcpy(static_cast<char*>(ptr) + vb_size, indices.data(), ib_size);
-    SDL_UnmapGPUTransferBuffer(device_, transfer);
+    auto* ptr = SDL_MapGPUTransferBuffer(device_, tb, false);
+    std::memcpy(ptr, verts.data(), vb_size);
+    std::memcpy(static_cast<char*>(ptr) + vb_size, idx.data(), ib_size);
+    SDL_UnmapGPUTransferBuffer(device_, tb);
 
-    SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device_);
-    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+    auto* cmd = SDL_AcquireGPUCommandBuffer(device_);
+    auto* cp  = SDL_BeginGPUCopyPass(cmd);
 
-    SDL_GPUTransferBufferLocation src_vb{ .transfer_buffer = transfer, .offset = 0 };
-    SDL_GPUBufferRegion dst_vb{ .buffer = mesh.vertex_buffer, .offset = 0, .size = vb_size };
-    SDL_UploadToGPUBuffer(copy, &src_vb, &dst_vb, false);
+    SDL_GPUTransferBufferLocation src_loc{};
+    src_loc.transfer_buffer = tb;
+    src_loc.offset = 0;
 
-    SDL_GPUTransferBufferLocation src_ib{ .transfer_buffer = transfer, .offset = vb_size };
-    SDL_GPUBufferRegion dst_ib{ .buffer = mesh.index_buffer, .offset = 0, .size = ib_size };
-    SDL_UploadToGPUBuffer(copy, &src_ib, &dst_ib, false);
+    SDL_GPUBufferRegion vb_region{};
+    vb_region.buffer = mesh.vertex_buffer;
+    vb_region.offset = 0;
+    vb_region.size   = vb_size;
 
-    SDL_EndGPUCopyPass(copy);
+    SDL_UploadToGPUBuffer(cp, &src_loc, &vb_region, false);
+
+    SDL_GPUTransferBufferLocation src_loc2{};
+    src_loc2.transfer_buffer = tb;
+    src_loc2.offset = vb_size;
+
+    SDL_GPUBufferRegion ib_region{};
+    ib_region.buffer = mesh.index_buffer;
+    ib_region.offset = 0;
+    ib_region.size   = ib_size;
+
+    SDL_UploadToGPUBuffer(cp, &src_loc2, &ib_region, false);
+
+    SDL_EndGPUCopyPass(cp);
     SDL_SubmitGPUCommandBuffer(cmd);
-    SDL_ReleaseGPUTransferBuffer(device_, transfer);
+    SDL_ReleaseGPUTransferBuffer(device_, tb);
 
-    mesh_handle handle = next_handle_++;
-    meshes_[handle] = mesh;
-    return handle;
+    return mesh;
 }
 
-void Renderer::destroy_mesh(mesh_handle handle)
+mesh_handle Renderer::create_wireframe_cube(const glm::vec3& center, float size, const glm::vec3& color)
 {
-    auto it = meshes_.find(handle);
-    if (it != meshes_.end())
-    {
-        release_mesh(device_, it->second);
+    float half = size * 0.5f;
+    std::vector<vertex_pos_color> verts;
+    std::vector<uint16_t> idx;
+    for (auto& o : k_cube_offsets) verts.push_back({ center + o * half, color });
+    for (auto& [i, j] : k_cube_edges) { idx.push_back(static_cast<uint16_t>(i)); idx.push_back(static_cast<uint16_t>(j)); }
+    auto h = next_mesh_handle_++;
+    meshes_[h] = upload_mesh(verts, idx);
+    return h;
+}
+
+mesh_handle Renderer::create_wireframe_sphere(const glm::vec3& center, float radius, const glm::vec3& color, int seg)
+{
+    std::vector<vertex_pos_color> verts;
+    std::vector<uint16_t> idx;
+    auto circle = [&](int a1, int a2) {
+        uint16_t base = static_cast<uint16_t>(verts.size());
+        for (int i = 0; i <= seg; ++i) {
+            float ang = 6.28318f * static_cast<float>(i) / static_cast<float>(seg);
+            glm::vec3 p = center; p[a1] += radius * std::cos(ang); p[a2] += radius * std::sin(ang);
+            verts.push_back({ p, color });
+            if (i > 0) { idx.push_back(static_cast<uint16_t>(base + i - 1)); idx.push_back(static_cast<uint16_t>(base + i)); }
+        }
+    };
+    circle(0, 1); circle(0, 2); circle(1, 2);
+    auto h = next_mesh_handle_++;
+    meshes_[h] = upload_mesh(verts, idx);
+    return h;
+}
+
+mesh_handle Renderer::create_wireframe_grid(float size, int div, const glm::vec3& color)
+{
+    std::vector<vertex_pos_color> verts;
+    std::vector<uint16_t> idx;
+    float half = size * 0.5f, step = size / static_cast<float>(div);
+    for (int i = 0; i <= div; ++i) {
+        float t = -half + step * static_cast<float>(i);
+        uint16_t b = static_cast<uint16_t>(verts.size());
+        verts.push_back({ {t, 0, -half}, color }); verts.push_back({ {t, 0, half}, color });
+        verts.push_back({ {-half, 0, t}, color }); verts.push_back({ {half, 0, t}, color });
+        idx.push_back(b); idx.push_back(static_cast<uint16_t>(b+1)); idx.push_back(static_cast<uint16_t>(b+2)); idx.push_back(static_cast<uint16_t>(b+3));
+    }
+    auto h = next_mesh_handle_++;
+    meshes_[h] = upload_mesh(verts, idx);
+    return h;
+}
+
+mesh_handle Renderer::create_mesh(std::span<const vertex> verts, std::span<const uint16_t> idx, [[maybe_unused]] primitive_type)
+{
+    if (verts.empty() || idx.empty()) return invalid_mesh;
+    std::vector<vertex_pos_color> v(verts.size());
+    for (size_t i = 0; i < verts.size(); ++i) v[i] = { verts[i].position, verts[i].color };
+    auto h = next_mesh_handle_++;
+    meshes_[h] = upload_mesh(v, idx);
+    return h;
+}
+
+void Renderer::destroy_mesh(mesh_handle h)
+{
+    if (auto it = meshes_.find(h); it != meshes_.end()) {
+        if (it->second.vertex_buffer) SDL_ReleaseGPUBuffer(device_, it->second.vertex_buffer);
+        if (it->second.index_buffer)  SDL_ReleaseGPUBuffer(device_, it->second.index_buffer);
         meshes_.erase(it);
     }
 }
 
-void Renderer::draw_mesh_internal(const gpu_mesh& mesh)
+void Renderer::draw_mesh_internal(const gpu_mesh& m)
 {
-    if (!pipeline_ || !current_pass_ || !current_cmd_)
-        return;
+    if (!pipeline_ || !current_pass_ || !current_cmd_) return;
+    SDL_PushGPUVertexUniformData(current_cmd_, 0, &uniforms_, sizeof(uniforms_));
 
-    SDL_PushGPUVertexUniformData(current_cmd_, 0, &uniforms_, sizeof(uniform_mvp));
-
-    const SDL_GPUBufferBinding vb_binding{ .buffer = mesh.vertex_buffer, .offset = 0 };
+    SDL_GPUBufferBinding vb_binding{};
+    vb_binding.buffer = m.vertex_buffer;
+    vb_binding.offset = 0;
     SDL_BindGPUVertexBuffers(current_pass_, 0, &vb_binding, 1);
 
-    const SDL_GPUBufferBinding ib_binding{ .buffer = mesh.index_buffer, .offset = 0 };
+    SDL_GPUBufferBinding ib_binding{};
+    ib_binding.buffer = m.index_buffer;
+    ib_binding.offset = 0;
     SDL_BindGPUIndexBuffer(current_pass_, &ib_binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-    SDL_DrawGPUIndexedPrimitives(current_pass_, mesh.index_count, 1, 0, 0, 0);
+    SDL_DrawGPUIndexedPrimitives(current_pass_, m.index_count, 1, 0, 0, 0);
 }
 
-void Renderer::draw(mesh_handle handle)
+void Renderer::draw(mesh_handle h)
 {
-    auto it = meshes_.find(handle);
-    if (it != meshes_.end())
-    {
+    if (auto it = meshes_.find(h); it != meshes_.end()) {
+        uniforms_.mvp = view_proj_;
         draw_mesh_internal(it->second);
     }
 }
 
-} // namespace as3
+model_handle Renderer::load_model(const std::filesystem::path& path, const glm::vec3& color)
+{
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
 
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.c_str())) {
+        spdlog::error("Failed to load OBJ '{}': {}", path.string(), err);
+        return invalid_model;
+    }
+    if (!warn.empty()) spdlog::warn("OBJ '{}': {}", path.string(), warn);
+
+    gpu_model model;
+    model.color = color;
+
+    for (const auto& shape : shapes)
+    {
+        std::vector<vertex_pos_color> verts;
+        std::vector<uint16_t> idx;
+
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); ++f)
+        {
+            auto fv = shape.mesh.num_face_vertices[f];
+            if (fv != 3) { index_offset += static_cast<size_t>(fv); continue; } // skip non-triangles
+
+            std::array<uint16_t, 3> face_idx;
+            for (int v = 0; v < 3; ++v)
+            {
+                auto i = shape.mesh.indices[index_offset + static_cast<size_t>(v)];
+                glm::vec3 pos(
+                    attrib.vertices[static_cast<size_t>(3 * i.vertex_index + 0)],
+                    attrib.vertices[static_cast<size_t>(3 * i.vertex_index + 1)],
+                    attrib.vertices[static_cast<size_t>(3 * i.vertex_index + 2)]
+                );
+                face_idx[static_cast<size_t>(v)] = static_cast<uint16_t>(verts.size());
+                verts.push_back({ pos, color });
+            }
+
+            // Wireframe: emit edges of triangle
+            idx.push_back(face_idx[0]); idx.push_back(face_idx[1]);
+            idx.push_back(face_idx[1]); idx.push_back(face_idx[2]);
+            idx.push_back(face_idx[2]); idx.push_back(face_idx[0]);
+
+            index_offset += 3;
+        }
+
+        if (!verts.empty() && !idx.empty()) {
+            model.meshes.push_back(upload_mesh(verts, idx));
+        }
+    }
+
+    if (model.meshes.empty()) {
+        spdlog::error("No valid meshes in '{}'", path.string());
+        return invalid_model;
+    }
+
+    auto h = next_model_handle_++;
+    models_[h] = std::move(model);
+    spdlog::info("Loaded model '{}' ({} meshes)", path.string(), models_[h].meshes.size());
+    return h;
+}
+
+void Renderer::unload_model(model_handle h)
+{
+    if (auto it = models_.find(h); it != models_.end()) {
+        for (auto& m : it->second.meshes) {
+            if (m.vertex_buffer) SDL_ReleaseGPUBuffer(device_, m.vertex_buffer);
+            if (m.index_buffer)  SDL_ReleaseGPUBuffer(device_, m.index_buffer);
+        }
+        models_.erase(it);
+    }
+}
+
+void Renderer::draw_model(model_handle h, const transform& xform)
+{
+    auto it = models_.find(h);
+    if (it == models_.end()) return;
+
+    glm::mat4 model_mat = glm::mat4(1.0f);
+    model_mat = glm::translate(model_mat, xform.position);
+    model_mat = glm::rotate(model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
+    model_mat = glm::rotate(model_mat, glm::radians(xform.rotation.y), glm::vec3(0, 1, 0));
+    model_mat = glm::rotate(model_mat, glm::radians(xform.rotation.z), glm::vec3(0, 0, 1));
+    model_mat = glm::scale(model_mat, xform.scale);
+
+    uniforms_.mvp = view_proj_ * model_mat;
+
+    for (auto& m : it->second.meshes) {
+        draw_mesh_internal(m);
+    }
+}
+
+} // namespace as3

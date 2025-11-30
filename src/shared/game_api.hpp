@@ -5,12 +5,10 @@
 
 #include <entt/entt.hpp>
 
-#include <cstdint>
-
 namespace as3
 {
 
-// Input state passed to game each frame
+// Input state
 struct input_state final
 {
     const bool* keyboard       = nullptr;
@@ -19,7 +17,7 @@ struct input_state final
     bool        mouse_captured = false;
 };
 
-// Window/display info
+// Display info
 struct display_info final
 {
     int   width  = 0;
@@ -27,19 +25,19 @@ struct display_info final
     float aspect = 1.0f;
 };
 
-// Context passed from engine to game
+// Engine context passed to game
 struct engine_context final
 {
     entt::registry*  registry    = nullptr;
     IRenderer*       renderer    = nullptr;
     IShaderManager*  shaders     = nullptr;
-    void*            imgui_ctx   = nullptr;  // Shared ImGui context (ImGuiContext*)
+    void*            imgui_ctx   = nullptr;
     display_info     display;
     input_state      input;
     float            delta_time  = 0.0f;
 };
 
-// Game interface - game DLL must export these
+// Game DLL exports
 extern "C"
 {
     using game_init_fn     = bool (*)(engine_context* ctx);
@@ -49,7 +47,6 @@ extern "C"
     using game_ui_fn       = void (*)(engine_context* ctx);
 }
 
-// Macros to export game functions from DLL
 #ifdef _WIN32
     #define GAME_API extern "C" __declspec(dllexport)
 #else

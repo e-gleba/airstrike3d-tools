@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../shared/renderer_interface.hpp"
+#include "renderer_interface.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
@@ -15,11 +15,7 @@
 namespace as3
 {
 
-enum class ShaderStage
-{
-    Vertex,
-    Fragment,
-};
+enum class ShaderStage { Vertex, Fragment };
 
 struct ShaderSource
 {
@@ -38,9 +34,9 @@ struct ShaderProgramDesc
 class ShaderProgram final
 {
 public:
-    ShaderProgram()                                = default;
-    ~ShaderProgram()                               = default;
-    ShaderProgram(const ShaderProgram&)            = delete;
+    ShaderProgram() = default;
+    ~ShaderProgram() = default;
+    ShaderProgram(const ShaderProgram&) = delete;
     ShaderProgram& operator=(const ShaderProgram&) = delete;
     ShaderProgram(ShaderProgram&&) noexcept;
     ShaderProgram& operator=(ShaderProgram&&) noexcept;
@@ -51,60 +47,49 @@ public:
 
 private:
     friend class ShaderManager;
-
-    SDL_GPUShader*  vertex_shader_   = nullptr;
-    SDL_GPUShader*  fragment_shader_ = nullptr;
-    SDL_GPUDevice*  device_          = nullptr;
-    ShaderSource    vertex_source_;
-    ShaderSource    fragment_source_;
-    std::string     name_;
-    SDL_Time        vertex_mod_time_   = 0;
-    SDL_Time        fragment_mod_time_ = 0;
-
+    SDL_GPUShader* vertex_shader_ = nullptr;
+    SDL_GPUShader* fragment_shader_ = nullptr;
+    SDL_GPUDevice* device_ = nullptr;
+    ShaderSource   vertex_source_;
+    ShaderSource   fragment_source_;
+    std::string    name_;
+    SDL_Time       vertex_mod_time_ = 0;
+    SDL_Time       fragment_mod_time_ = 0;
     void release() noexcept;
 };
 
 class ShaderManager final : public IShaderManager
 {
 public:
-    using ReloadCallback = std::function<void(const std::string& program_name)>;
+    using ReloadCallback = std::function<void(const std::string&)>;
 
     explicit ShaderManager(SDL_GPUDevice* device) noexcept;
     ~ShaderManager() override;
-
-    ShaderManager(const ShaderManager&)            = delete;
+    ShaderManager(const ShaderManager&) = delete;
     ShaderManager& operator=(const ShaderManager&) = delete;
-    ShaderManager(ShaderManager&&)                 = delete;
-    ShaderManager& operator=(ShaderManager&&)      = delete;
 
-    [[nodiscard]] std::expected<ShaderProgram*, std::string> load_program(
-        const ShaderProgramDesc& desc);
-
+    [[nodiscard]] std::expected<ShaderProgram*, std::string> load_program(const ShaderProgramDesc& desc);
     [[nodiscard]] ShaderProgram* get_program(std::string_view name) noexcept;
 
     void set_shader_directory(const std::filesystem::path& dir) noexcept;
     void check_for_updates();
-    void set_reload_callback(ReloadCallback callback) noexcept;
+    void set_reload_callback(ReloadCallback cb) noexcept;
 
-    // IShaderManager interface
-    void enable_hot_reload(bool enable) noexcept override { hot_reload_enabled_ = enable; }
+    void enable_hot_reload(bool e) noexcept override { hot_reload_enabled_ = e; }
     [[nodiscard]] bool hot_reload_enabled() const noexcept override { return hot_reload_enabled_; }
-
     void release_all() noexcept;
 
 private:
-    [[nodiscard]] std::expected<SDL_GPUShader*, std::string> compile_shader(
-        const ShaderSource& source);
-    [[nodiscard]] std::expected<std::string, std::string> read_file(
-        const std::filesystem::path& path) const;
-    [[nodiscard]] SDL_Time get_mod_time(const std::filesystem::path& path) const noexcept;
-    bool reload_program(ShaderProgram& program);
+    [[nodiscard]] std::expected<SDL_GPUShader*, std::string> compile_shader(const ShaderSource& src);
+    [[nodiscard]] std::expected<std::string, std::string> read_file(const std::filesystem::path& p) const;
+    [[nodiscard]] SDL_Time get_mod_time(const std::filesystem::path& p) const noexcept;
+    bool reload_program(ShaderProgram& prog);
 
-    SDL_GPUDevice*                             device_ = nullptr;
-    std::filesystem::path                      shader_dir_;
+    SDL_GPUDevice* device_ = nullptr;
+    std::filesystem::path shader_dir_;
     std::unordered_map<std::string, ShaderProgram> programs_;
-    ReloadCallback                             reload_callback_;
-    bool                                       hot_reload_enabled_ = true;
+    ReloadCallback reload_callback_;
+    bool hot_reload_enabled_ = true;
 };
 
 } // namespace as3

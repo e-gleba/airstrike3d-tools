@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../shared/camera.hpp"
+#include "camera.hpp" // shared camera component
 
 #include <entt/entt.hpp>
+#include <glm/glm.hpp>
 
 namespace as3
 {
@@ -17,14 +18,8 @@ struct CameraMatrices
 class CameraSystem
 {
 public:
-    static constexpr float k_max_pitch = 89.0f;
-    static constexpr float k_min_pitch = -89.0f;
-
-    [[nodiscard]] CameraMatrices get_matrices(const entt::registry& registry,
-                                              float                 aspect) const;
-
-    [[nodiscard]] entt::entity get_active_camera(
-        const entt::registry& registry) const;
+    [[nodiscard]] CameraMatrices get_matrices(const entt::registry& registry, float aspect) const;
+    [[nodiscard]] entt::entity get_active_camera(const entt::registry& registry) const;
 };
 
 } // namespace as3
