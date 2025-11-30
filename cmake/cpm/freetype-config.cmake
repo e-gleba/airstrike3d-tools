@@ -1,34 +1,27 @@
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-
 cpmaddpackage(
-    NAME
-    freetype
-    GITHUB_REPOSITORY
-    aseprite/freetype2
-    GIT_TAG
-    VER-2-10-0
-    VERSION
-    2.10.0
+    NAME freetype
+    GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+    GIT_TAG VER-2-14-1
+    SYSTEM ON
+    GIT_SHALLOW ON
     OPTIONS
-    "FT_DISABLE_BZIP2 ON"
-    "FT_DISABLE_PNG ON"
-    "FT_DISABLE_HARFBUZZ ON"
-    "FT_DISABLE_BROTLI ON"
-    "FT_WITH_ZLIB OFF"
-    "FT_ENABLE_ERROR_STRINGS OFF"
-    EXCLUDE_FROM_ALL
-    YES)
+        # Architecture
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_BUILD_TYPE RelWithDebInfo"
+        
+        # Hermetic Build: Force Internal/Stub Implementations
+        # "Disable use of system zlib and use internal zlib library instead."
+        "FT_DISABLE_ZLIB ON"       
+        "FT_DISABLE_BZIP2 ON"
+        "FT_DISABLE_PNG ON"
+        "FT_DISABLE_HARFBUZZ ON"   # Critical to prevent circular dependency
+        "FT_DISABLE_BROTLI ON"
+        
+        # Bloat Removal
+        "FT_ENABLE_ERROR_STRINGS OFF" # Disable verbose error strings
+        "SKIP_INSTALL_ALL ON"         # Don't install targets/headers
+)
 
-set_target_properties(
-    freetype
-    PROPERTIES CMAKE_RC_FLAGS
-               "$<$<C_COMPILER_ID:MSVC>:${CMAKE_RC_FLAGS} /c65001>"
-               EXCLUDE_FROM_ALL TRUE)
-
-target_compile_options(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:/c65001>")
-target_compile_definitions(freetype PRIVATE "$<$<C_COMPILER_ID:MSVC>:_UNICODE>")
-
-add_library(Freetype::Freetype ALIAS freetype)
-set(FREETYPE_FOUND TRUE)
-set(FREETYPE_INCLUDE_DIRS "")
-set(FREETYPE_LIBRARIES Freetype::Freetype)
+if(TARGET freetype AND NOT TARGET Freetype::Freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()
