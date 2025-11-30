@@ -5,17 +5,11 @@
 #include "render.hpp"
 #include "shader.hpp"
 
+#include <imgui.h>
 #include <spdlog/spdlog.h>
-
-#include <vector>
 
 namespace as3
 {
-
-namespace
-{
-std::vector<gpu_mesh> test_meshes;
-} // namespace
 
 engine::engine()  = default;
 engine::~engine() = default;
@@ -62,8 +56,6 @@ bool engine::init(const engine_config& config)
                                   SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
                                   SDL_GPU_PRESENTMODE_VSYNC);
 
-    swapchain_format_ = SDL_GetGPUSwapchainTextureFormat(device_, window_);
-
     // Initialize shader manager
     shader_manager_       = std::make_unique<ShaderManager>(device_);
     const char* base_path = SDL_GetBasePath();
@@ -92,7 +84,20 @@ bool engine::init(const engine_config& config)
         return false;
     }
 
-    setup_default_scene();
+    // Setup context
+    context_.registry  = &registry_;
+    context_.renderer  = renderer_.get();
+    context_.shaders   = shader_manager_.get();
+    context_.imgui_ctx = ImGui::GetCurrentContext();
+
+    // Load game if specified
+    if (config.game_lib)
+    {
+        if (!load_game(config.game_lib))
+        {
+            spdlog::warn("Failed to load game library, running without game");
+        }
+    }
 
     set_mouse_captured(true);
     last_time_ = SDL_GetTicks();
@@ -102,11 +107,7 @@ bool engine::init(const engine_config& config)
 
 void engine::shutdown()
 {
-    for (auto& mesh : test_meshes)
-    {
-        destroy_mesh(device_, mesh);
-    }
-    test_meshes.clear();
+    unload_game();
 
     renderer_.reset();
     imgui_layer_.reset();
@@ -130,20 +131,77 @@ void engine::shutdown()
     SDL_Quit();
 }
 
-void engine::setup_default_scene()
+bool engine::load_game(const std::filesystem::path& path)
 {
-    auto camera = registry_.create();
-    registry_.emplace<CameraComponent>(camera);
+    unload_game();
 
-    // Create test cubes
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(0.0f, 1.0f, 0.0f), 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(-4.0f, 0.5f, -3.0f), 1.0f, glm::vec3(1.0f, 0.0f, 0.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(4.0f, 1.5f, 2.0f), 3.0f, glm::vec3(0.0f, 0.0f, 1.0f)));
-    test_meshes.push_back(create_wireframe_cube(
-        device_, glm::vec3(0.0f, 0.5f, -6.0f), 1.0f, glm::vec3(1.0f, 1.0f, 0.0f)));
+    game_lib_path_   = path;
+    game_lib_handle_ = SDL_LoadObject(path.c_str());
+    if (!game_lib_handle_)
+    {
+        spdlog::error("Failed to load game library '{}': {}",
+                      path.string(),
+                      SDL_GetError());
+        return false;
+    }
+
+    game_init_ = reinterpret_cast<game_init_fn>(
+        SDL_LoadFunction(game_lib_handle_, "game_init"));
+    game_shutdown_ = reinterpret_cast<game_shutdown_fn>(
+        SDL_LoadFunction(game_lib_handle_, "game_shutdown"));
+    game_update_ = reinterpret_cast<game_update_fn>(
+        SDL_LoadFunction(game_lib_handle_, "game_update"));
+    game_render_ = reinterpret_cast<game_render_fn>(
+        SDL_LoadFunction(game_lib_handle_, "game_render"));
+    game_ui_ = reinterpret_cast<game_ui_fn>(
+        SDL_LoadFunction(game_lib_handle_, "game_ui"));
+
+    if (!game_init_ || !game_shutdown_ || !game_update_ || !game_render_)
+    {
+        spdlog::error("Game library missing required exports");
+        unload_game();
+        return false;
+    }
+
+    update_context();
+    if (!game_init_(&context_))
+    {
+        spdlog::error("Game init failed");
+        unload_game();
+        return false;
+    }
+
+    spdlog::info("Loaded game: {}", path.string());
+    return true;
+}
+
+void engine::unload_game()
+{
+    if (game_shutdown_)
+    {
+        game_shutdown_();
+    }
+
+    if (game_lib_handle_)
+    {
+        SDL_UnloadObject(game_lib_handle_);
+        game_lib_handle_ = nullptr;
+    }
+
+    game_init_     = nullptr;
+    game_shutdown_ = nullptr;
+    game_update_   = nullptr;
+    game_render_   = nullptr;
+    game_ui_       = nullptr;
+}
+
+bool engine::reload_game()
+{
+    if (game_lib_path_.empty())
+    {
+        return false;
+    }
+    return load_game(game_lib_path_);
 }
 
 void engine::set_mouse_captured(bool captured)
@@ -159,16 +217,26 @@ void engine::set_mouse_captured(bool captured)
     }
 }
 
-void engine::set_ui_callback(ui_callback callback)
+void engine::update_context()
 {
-    if (imgui_layer_)
-    {
-        imgui_layer_->set_draw_callback(std::move(callback));
-    }
+    int w{}, h{};
+    SDL_GetWindowSizeInPixels(window_, &w, &h);
+
+    context_.display.width  = w;
+    context_.display.height = h;
+    context_.display.aspect = w > 0 && h > 0
+                                  ? static_cast<float>(w) / static_cast<float>(h)
+                                  : 1.0f;
+    context_.delta_time     = delta_time_;
+    context_.input          = input_;
 }
 
 void engine::process_events()
 {
+    input_.mouse_xrel    = 0.0f;
+    input_.mouse_yrel    = 0.0f;
+    input_.mouse_captured = mouse_captured_;
+
     SDL_Event event{};
     while (SDL_PollEvent(&event))
     {
@@ -181,19 +249,25 @@ void engine::process_events()
         {
             running_ = false;
         }
-        else if (event.type == SDL_EVENT_KEY_DOWN &&
-                 event.key.key == SDLK_ESCAPE)
+        else if (event.type == SDL_EVENT_KEY_DOWN)
         {
-            set_mouse_captured(!mouse_captured_);
+            if (event.key.key == SDLK_ESCAPE)
+            {
+                set_mouse_captured(!mouse_captured_);
+            }
+            else if (event.key.key == SDLK_F5)
+            {
+                reload_game();
+            }
         }
         else if (mouse_captured_ && event.type == SDL_EVENT_MOUSE_MOTION)
         {
-            camera_system_->handle_mouse_motion(
-                registry_,
-                static_cast<float>(event.motion.xrel),
-                static_cast<float>(event.motion.yrel));
+            input_.mouse_xrel += static_cast<float>(event.motion.xrel);
+            input_.mouse_yrel += static_cast<float>(event.motion.yrel);
         }
     }
+
+    input_.keyboard = SDL_GetKeyboardState(nullptr);
 }
 
 void engine::update()
@@ -202,8 +276,7 @@ void engine::update()
     delta_time_ = static_cast<float>(current_time - last_time_) / 1000.0f;
     last_time_  = current_time;
 
-    camera_system_->update(registry_, delta_time_, mouse_captured_);
-
+    // Shader hot-reload check
     static float shader_timer = 0.0f;
     shader_timer += delta_time_;
     if (shader_timer >= 0.5f)
@@ -211,6 +284,13 @@ void engine::update()
         shader_timer = 0.0f;
         shader_manager_->check_for_updates();
         renderer_->reload_pipeline();
+    }
+
+    update_context();
+
+    if (game_update_)
+    {
+        game_update_(&context_);
     }
 }
 
@@ -231,13 +311,6 @@ void engine::render()
 
     if (swapchain)
     {
-        int screen_w{}, screen_h{};
-        SDL_GetWindowSizeInPixels(window_, &screen_w, &screen_h);
-        const float aspect =
-            static_cast<float>(screen_w) / static_cast<float>(screen_h);
-
-        const auto matrices = camera_system_->get_matrices(registry_, aspect);
-
         // Scene render pass
         SDL_GPUColorTargetInfo color_target{
             .texture               = swapchain,
@@ -262,13 +335,12 @@ void engine::render()
             SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
         if (pass)
         {
-            renderer_->begin_frame(cmd);
-            renderer_->set_view_projection(matrices.view_projection);
+            renderer_->begin_frame(cmd, pass);
+            renderer_->bind_pipeline();
 
-            renderer_->bind_pipeline(pass);
-            for (const auto& mesh : test_meshes)
+            if (game_render_)
             {
-                renderer_->draw_mesh(pass, cmd, mesh);
+                game_render_(&context_);
             }
 
             renderer_->end_frame();
@@ -277,6 +349,10 @@ void engine::render()
 
         // ImGui pass
         imgui_layer_->begin_frame();
+        if (game_ui_)
+        {
+            game_ui_(&context_);
+        }
         imgui_layer_->end_frame(cmd, swapchain);
     }
 
