@@ -28,3 +28,17 @@ target_link_libraries(
         BulletCollision # Collision detection
         LinearMath # Math library
 )
+
+# Create symlink to shaders directory next to executable for hot-reload support
+set(SHADERS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
+set(SHADERS_LINK_DIR "$<TARGET_FILE_DIR:game>/shaders")
+
+add_custom_command(
+    TARGET game
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "${SHADERS_SOURCE_DIR}"
+            "${SHADERS_LINK_DIR}"
+    COMMENT "Creating symlink to shaders directory"
+    VERBATIM
+)

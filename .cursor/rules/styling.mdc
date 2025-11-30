@@ -27,7 +27,7 @@ cmake-build*/        # ignore cmake build dirs
 
 ---
 
-## naming: everything snake_case
+## naming: everything snake_case, even classes
 
 ```
 namespace project_mod {};     // snake_case
