@@ -71,10 +71,27 @@ bool engine::init(const engine_config& config)
 
 void engine::shutdown()
 {
-    unload_game();
+    // Call game shutdown first
+    if (game_shutdown_)
+    {
+        game_shutdown_();
+        spdlog::default_logger()->flush();
+    }
     
-    // Clear registry after game is unloaded to clean up any entities created by game
+    // Clear registry BEFORE unloading DLL (destructors may need DLL code)
     registry_.clear();
+    
+    // Now safe to unload DLL
+    if (game_lib_handle_)
+    {
+        SDL_UnloadObject(game_lib_handle_);
+        game_lib_handle_ = nullptr;
+    }
+    game_init_ = nullptr;
+    game_shutdown_ = nullptr;
+    game_update_ = nullptr;
+    game_render_ = nullptr;
+    game_ui_ = nullptr;
 
     imgui_layer_.reset();
     renderer_->shutdown();
@@ -130,8 +147,11 @@ void engine::unload_game()
     if (game_shutdown_)
     {
         game_shutdown_();
-        spdlog::default_logger()->flush(); // Ensure logs from game are flushed before unload
+        spdlog::default_logger()->flush();
     }
+    
+    // Clear registry before unloading DLL
+    registry_.clear();
 
     if (game_lib_handle_)
     {
