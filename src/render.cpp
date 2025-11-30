@@ -16,9 +16,9 @@
 
 struct camera final
 {
-    glm::vec3 position    = { 0.0f, 2.0f, 8.0f };
-    glm::vec3 front       = { 0.0f, 0.0f, -1.0f };
-    glm::vec3 up          = { 0.0f, 1.0f, 0.0f };
+    glm::vec3 position    = glm::vec3(0.0f, 2.0f, 8.0f);
+    glm::vec3 front       = glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 up          = glm::vec3(0.0f, 1.0f, 0.0f);
     float     yaw         = -90.0f;
     float     pitch       = 0.0f;
     float     speed       = 5.0f;
@@ -32,7 +32,7 @@ struct renderable_cube final
     glm::vec3 color;
     float     distance_to_cam;
 
-    void update_distance(const glm::vec3& cam_pos) noexcept
+    constexpr void update_distance(const glm::vec3& cam_pos) noexcept
     {
         distance_to_cam = glm::distance(cam_pos, position);
     }
@@ -66,14 +66,14 @@ SDL_GPUBuffer*           index_buffer    = nullptr;
 SDL_GPUTransferBuffer*   transfer_buffer = nullptr;
 
 constexpr std::array<glm::vec3, 8> k_cube_offsets = { {
-    { -1.0f, -1.0f, -1.0f },
-    { 1.0f, -1.0f, -1.0f },
-    { 1.0f, 1.0f, -1.0f },
-    { -1.0f, 1.0f, -1.0f },
-    { -1.0f, -1.0f, 1.0f },
-    { 1.0f, -1.0f, 1.0f },
-    { 1.0f, 1.0f, 1.0f },
-    { -1.0f, 1.0f, 1.0f },
+    glm::vec3(-1.0f, -1.0f, -1.0f),
+    glm::vec3(1.0f, -1.0f, -1.0f),
+    glm::vec3(1.0f, 1.0f, -1.0f),
+    glm::vec3(-1.0f, 1.0f, -1.0f),
+    glm::vec3(-1.0f, -1.0f, 1.0f),
+    glm::vec3(1.0f, -1.0f, 1.0f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, 1.0f),
 } };
 
 constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
@@ -91,14 +91,14 @@ constexpr std::array<std::pair<size_t, size_t>, 12> k_cube_edges = { {
     { 3, 7 },
 } };
 
-[[nodiscard]] static constexpr float clamp_pitch(float pitch) noexcept
+[[nodiscard]] static constexpr float clamp_pitch(const float pitch) noexcept
 {
     return std::clamp(pitch, k_min_pitch, k_max_pitch);
 }
 
 static void update_camera_direction(camera& c) noexcept
 {
-    glm::vec3 direction{};
+    glm::vec3 direction;
     direction.x =
         std::cos(glm::radians(c.yaw)) * std::cos(glm::radians(c.pitch));
     direction.y = std::sin(glm::radians(c.pitch));
@@ -107,10 +107,10 @@ static void update_camera_direction(camera& c) noexcept
     c.front = glm::normalize(direction);
 }
 
-static void handle_mouse_motion(camera& c,
-                                float   xrel,
-                                float   yrel,
-                                float   sensitivity) noexcept
+static void handle_mouse_motion(camera&     c,
+                                const float xrel,
+                                const float yrel,
+                                const float sensitivity) noexcept
 {
     c.yaw += xrel * sensitivity;
     c.pitch = clamp_pitch(c.pitch + (-yrel) * sensitivity);
@@ -119,7 +119,7 @@ static void handle_mouse_motion(camera& c,
 
 static void update_camera_position(camera&     c,
                                    const bool* keys,
-                                   float       velocity) noexcept
+                                   const float velocity) noexcept
 {
     if (keys[SDL_SCANCODE_W])
         c.position += c.front * velocity;
@@ -144,13 +144,14 @@ static void update_camera_position(camera&     c,
     SDL_ShaderCross_ShaderStage stage,
     const char*                 entry = "main") noexcept
 {
-    SDL_ShaderCross_HLSL_Info info{};
-    info.source       = source;
-    info.entrypoint   = entry;
-    info.shader_stage = stage;
-    info.include_dir  = nullptr;
-    info.defines      = nullptr;
-    info.props        = 0;
+    const SDL_ShaderCross_HLSL_Info info{
+        .source       = source,
+        .entrypoint   = entry,
+        .include_dir  = nullptr,
+        .defines      = nullptr,
+        .shader_stage = stage,
+        .props        = 0,
+    };
 
     size_t spirv_size{};
     void*  spirv = SDL_ShaderCross_CompileSPIRVFromHLSL(&info, &spirv_size);
@@ -162,12 +163,13 @@ static void update_camera_position(camera&     c,
         return nullptr;
     }
 
-    SDL_ShaderCross_SPIRV_Info spirv_info{};
-    spirv_info.bytecode      = static_cast<Uint8*>(spirv);
-    spirv_info.bytecode_size = spirv_size;
-    spirv_info.entrypoint    = entry;
-    spirv_info.shader_stage  = stage;
-    spirv_info.props         = 0;
+    const SDL_ShaderCross_SPIRV_Info spirv_info{
+        .bytecode      = static_cast<Uint8*>(spirv),
+        .bytecode_size = spirv_size,
+        .entrypoint    = entry,
+        .shader_stage  = stage,
+        .props         = 0,
+    };
 
     SDL_ShaderCross_GraphicsShaderMetadata* metadata =
         SDL_ShaderCross_ReflectGraphicsSPIRV(
@@ -198,7 +200,7 @@ static void update_camera_position(camera&     c,
 }
 
 [[nodiscard]] static SDL_GPUGraphicsPipeline* create_pipeline(
-    SDL_GPUDevice* device, SDL_GPUTextureFormat format) noexcept
+    SDL_GPUDevice* device, const SDL_GPUTextureFormat format) noexcept
 {
     constexpr const char* vertex_shader = R"(
 struct VertexInput
@@ -253,43 +255,83 @@ float4 main(PixelInput input) : SV_Target0
         return nullptr;
     }
 
-    SDL_GPUVertexAttribute vertex_attrs[2]{};
-    vertex_attrs[0].location    = 0;
-    vertex_attrs[0].format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-    vertex_attrs[0].offset      = 0;
-    vertex_attrs[0].buffer_slot = 0;
-    vertex_attrs[1].location    = 1;
-    vertex_attrs[1].format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-    vertex_attrs[1].offset      = sizeof(glm::vec3);
-    vertex_attrs[1].buffer_slot = 0;
+    const SDL_GPUVertexAttribute vertex_attrs[2] = {
+        {
+            .location    = 0,
+            .buffer_slot = 0,
+            .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+            .offset      = 0,
+        },
+        {
+            .location    = 1,
+            .buffer_slot = 0,
+            .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+            .offset      = sizeof(glm::vec3),
+        }
+    };
 
-    SDL_GPUVertexBufferDescription vertex_buffer_desc{};
-    vertex_buffer_desc.slot       = 0;
-    vertex_buffer_desc.pitch      = sizeof(vertex_data);
-    vertex_buffer_desc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+    const SDL_GPUVertexBufferDescription vertex_buffer_desc{
+        .slot               = 0,
+        .pitch              = sizeof(vertex_data),
+        .input_rate         = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+        .instance_step_rate = 0,
+    };
 
-    SDL_GPUVertexInputState vertex_input{};
-    vertex_input.num_vertex_buffers         = 1;
-    vertex_input.vertex_buffer_descriptions = &vertex_buffer_desc;
-    vertex_input.num_vertex_attributes      = 2;
-    vertex_input.vertex_attributes          = vertex_attrs;
+    const SDL_GPUVertexInputState vertex_input{
+        .vertex_buffer_descriptions = &vertex_buffer_desc,
+        .num_vertex_buffers         = 1,
+        .vertex_attributes          = vertex_attrs,
+        .num_vertex_attributes      = 2,
+    };
 
-    SDL_GPUColorTargetDescription color_target{};
-    color_target.format = format;
+    const SDL_GPUColorTargetDescription color_target{
+        .format      = format,
+        .blend_state = {},
+    };
 
-    SDL_GPUGraphicsPipelineTargetInfo target_info{};
-    target_info.num_color_targets         = 1;
-    target_info.color_target_descriptions = &color_target;
-    target_info.has_depth_stencil_target  = false;
+    const SDL_GPUGraphicsPipelineTargetInfo target_info{
+        .color_target_descriptions = &color_target,
+        .num_color_targets         = 1,
+        .depth_stencil_format      = SDL_GPU_TEXTUREFORMAT_INVALID,
+        .has_depth_stencil_target  = false,
+        .padding1                  = {},
+        .padding2                  = {},
+        .padding3                  = {},
+    };
 
-    SDL_GPUGraphicsPipelineCreateInfo pipeline_info{};
-    pipeline_info.target_info                = target_info;
-    pipeline_info.vertex_shader              = vert;
-    pipeline_info.fragment_shader            = frag;
-    pipeline_info.vertex_input_state         = vertex_input;
-    pipeline_info.primitive_type             = SDL_GPU_PRIMITIVETYPE_LINELIST;
-    pipeline_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-    pipeline_info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    const SDL_GPURasterizerState rasterizer_state{
+        .fill_mode                  = SDL_GPU_FILLMODE_FILL,
+        .cull_mode                  = SDL_GPU_CULLMODE_NONE,
+        .front_face                 = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+        .depth_bias_constant_factor = 0.0f,
+        .depth_bias_clamp           = 0.0f,
+        .depth_bias_slope_factor    = 0.0f,
+        .enable_depth_bias          = false,
+        .enable_depth_clip          = false,
+        .padding1                   = {},
+        .padding2                   = {},
+    };
+
+    const SDL_GPUMultisampleState multisample_state = {
+        .sample_count             = SDL_GPU_SAMPLECOUNT_1,
+        .sample_mask              = 0,
+        .enable_mask              = false,
+        .enable_alpha_to_coverage = {},
+        .padding2                 = {},
+        .padding3                 = {},
+    };
+
+    const SDL_GPUGraphicsPipelineCreateInfo pipeline_info = {
+        .vertex_shader       = vert,
+        .fragment_shader     = frag,
+        .vertex_input_state  = vertex_input,
+        .primitive_type      = SDL_GPU_PRIMITIVETYPE_LINELIST,
+        .rasterizer_state    = rasterizer_state,
+        .multisample_state   = multisample_state,
+        .depth_stencil_state = {},
+        .target_info         = target_info,
+        .props               = 0,
+    };
 
     SDL_GPUGraphicsPipeline* p =
         SDL_CreateGPUGraphicsPipeline(device, &pipeline_info);
@@ -310,7 +352,7 @@ float4 main(PixelInput input) : SV_Target0
 static void build_cube_geometry(std::vector<vertex_data>& vertices,
                                 std::vector<Uint16>&      indices,
                                 const glm::vec3&          center,
-                                float                     size,
+                                const float               size,
                                 const glm::vec3&          color) noexcept
 {
     const float  half = size * 0.5f;
@@ -318,7 +360,8 @@ static void build_cube_geometry(std::vector<vertex_data>& vertices,
 
     for (const auto& offset : k_cube_offsets)
     {
-        vertices.push_back({ center + offset * half, color });
+        vertices.push_back(
+            { .position = center + offset * half, .color = color });
     }
 
     for (const auto& [i, j] : k_cube_edges)
@@ -331,46 +374,114 @@ static void build_cube_geometry(std::vector<vertex_data>& vertices,
 
 void as3::init_renderer(SDL_GPUDevice* device, SDL_Window* window)
 {
-    SDL_ShaderCross_Init();
+    if (!SDL_ShaderCross_Init())
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to init shadercross: %s",
+                     SDL_GetError());
+        return;
+    }
 
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
+    if (!ImGui::CreateContext())
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "failed to create imgui context");
+        return;
+    }
+
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
 
-    ImGui_ImplSDL3_InitForOther(window);
+    if (!ImGui_ImplSDL3_InitForOther(window))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "failed to init imgui sdl3");
+        return;
+    }
 
-    ImGui_ImplSDLGPU3_InitInfo init_info{};
-    init_info.Device = device;
-    init_info.ColorTargetFormat =
+    const SDL_GPUTextureFormat swapchain_format =
         SDL_GetGPUSwapchainTextureFormat(device, window);
-    init_info.MSAASamples          = SDL_GPU_SAMPLECOUNT_1;
-    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
+    if (swapchain_format == SDL_GPU_TEXTUREFORMAT_INVALID)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to get swapchain format: %s",
+                     SDL_GetError());
+        return;
+    }
 
-    ImGui_ImplSDLGPU3_Init(&init_info);
+    ImGui_ImplSDLGPU3_InitInfo init_info = {
+        .Device               = device,
+        .ColorTargetFormat    = swapchain_format,
+        .MSAASamples          = SDL_GPU_SAMPLECOUNT_1,
+        .SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR
+    };
+
+    if (!ImGui_ImplSDLGPU3_Init(&init_info))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "failed to init imgui sdlgpu3");
+        return;
+    }
 
     pipeline = create_pipeline(device, init_info.ColorTargetFormat);
+    if (!pipeline)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "failed to create pipeline");
+        return;
+    }
 
     constexpr size_t max_vertices = 4 * 8;
     constexpr size_t max_indices  = 4 * 24;
 
-    SDL_GPUBufferCreateInfo vb_info{};
-    vb_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-    vb_info.size  = max_vertices * sizeof(vertex_data);
+    const SDL_GPUBufferCreateInfo vb_info = {
+        .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+        .size  = max_vertices * sizeof(vertex_data),
+        .props = 0
+    };
+
     vertex_buffer = SDL_CreateGPUBuffer(device, &vb_info);
+    if (!vertex_buffer)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to create vertex buffer: %s",
+                     SDL_GetError());
+        return;
+    }
 
-    SDL_GPUBufferCreateInfo ib_info{};
-    ib_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-    ib_info.size  = max_indices * sizeof(Uint16);
-    index_buffer  = SDL_CreateGPUBuffer(device, &ib_info);
+    const SDL_GPUBufferCreateInfo ib_info = { .usage =
+                                                  SDL_GPU_BUFFERUSAGE_INDEX,
+                                              .size =
+                                                  max_indices * sizeof(Uint16),
+                                              .props = 0 };
+    index_buffer = SDL_CreateGPUBuffer(device, &ib_info);
+    if (!index_buffer)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to create index buffer: %s",
+                     SDL_GetError());
+        return;
+    }
 
-    SDL_GPUTransferBufferCreateInfo tb_info{};
-    tb_info.usage   = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    tb_info.size    = vb_info.size + ib_info.size;
+    const SDL_GPUTransferBufferCreateInfo tb_info = {
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size  = vb_info.size + ib_info.size,
+        .props = 0
+    };
+
     transfer_buffer = SDL_CreateGPUTransferBuffer(device, &tb_info);
+    if (!transfer_buffer)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to create transfer buffer: %s",
+                     SDL_GetError());
+        return;
+    }
 
-    SDL_SetWindowRelativeMouseMode(window, true);
+    if (!SDL_SetWindowRelativeMouseMode(window, true))
+    {
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU,
+                    "failed to set relative mouse mode: %s",
+                    SDL_GetError());
+    }
     mouse_captured = true;
 }
 
@@ -390,14 +501,21 @@ void as3::handle_event(const SDL_Event* event) noexcept
     }
 
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE)
-        [[unlikely]]
     {
-        mouse_captured     = !mouse_captured;
-        SDL_Window* window = SDL_GetWindowFromID(event->key.windowID);
-        SDL_SetWindowRelativeMouseMode(window, mouse_captured);
+        mouse_captured           = !mouse_captured;
+        const SDL_Window* window = SDL_GetWindowFromID(event->key.windowID);
+        if (window)
+        {
+            if (!SDL_SetWindowRelativeMouseMode(window, mouse_captured))
+            {
+                SDL_LogWarn(SDL_LOG_CATEGORY_GPU,
+                            "failed to toggle mouse mode: %s",
+                            SDL_GetError());
+            }
+        }
     }
 
-    if (mouse_captured && event->type == SDL_EVENT_MOUSE_MOTION) [[likely]]
+    if (mouse_captured && event->type == SDL_EVENT_MOUSE_MOTION)
     {
         handle_mouse_motion(cam,
                             static_cast<float>(event->motion.xrel),
@@ -420,8 +538,15 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
         update_camera_position(cam, keys, velocity);
     }
 
-    int screen_w{}, screen_h{};
-    SDL_GetWindowSizeInPixels(window, &screen_w, &screen_h);
+    int screen_w{};
+    int screen_h{};
+    if (!SDL_GetWindowSizeInPixels(window, &screen_w, &screen_h))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to get window size: %s",
+                     SDL_GetError());
+        return;
+    }
 
     const float aspect =
         static_cast<float>(screen_w) / static_cast<float>(screen_h);
@@ -429,25 +554,35 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
         glm::radians(k_fov_degrees), aspect, k_near_plane, k_far_plane);
     const glm::mat4 view =
         glm::lookAt(cam.position, cam.position + cam.front, cam.up);
-    const uniform_data uniforms{ projection * view };
+    const uniform_data uniforms = { .view_proj = projection * view };
 
     std::array<renderable_cube, 4> cubes = { {
-        { { 0.0f, 1.0f, 0.0f }, 2.0f, { 0.0f, 1.0f, 0.0f }, 0.0f },
-        { { -4.0f, 0.5f, -3.0f }, 1.0f, { 1.0f, 0.0f, 0.0f }, 0.0f },
-        { { 4.0f, 1.5f, 2.0f }, 3.0f, { 0.0f, 0.0f, 1.0f }, 0.0f },
-        { { 0.0f, 0.5f, -6.0f }, 1.0f, { 1.0f, 1.0f, 0.0f }, 0.0f },
+        { .position        = glm::vec3(0.0f, 1.0f, 0.0f),
+          .size            = 2.0f,
+          .color           = glm::vec3(0.0f, 1.0f, 0.0f),
+          .distance_to_cam = 0.0f },
+        { .position        = glm::vec3(-4.0f, 0.5f, -3.0f),
+          .size            = 1.0f,
+          .color           = glm::vec3(1.0f, 0.0f, 0.0f),
+          .distance_to_cam = 0.0f },
+        { .position        = glm::vec3(4.0f, 1.5f, 2.0f),
+          .size            = 3.0f,
+          .color           = glm::vec3(0.0f, 0.0f, 1.0f),
+          .distance_to_cam = 0.0f },
+        { .position        = glm::vec3(0.0f, 0.5f, -6.0f),
+          .size            = 1.0f,
+          .color           = glm::vec3(1.0f, 1.0f, 0.0f),
+          .distance_to_cam = 0.0f },
     } };
 
     std::ranges::for_each(cubes,
                           [&](renderable_cube& cube) noexcept
                           { cube.update_distance(cam.position); });
-    std::ranges::sort(
-        cubes,
-        [](const renderable_cube& a, const renderable_cube& b) noexcept
-        { return a.distance_to_cam > b.distance_to_cam; });
 
-    std::vector<vertex_data> vertices;
-    std::vector<Uint16>      indices;
+    std::ranges::sort(cubes, std::greater{}, &renderable_cube::distance_to_cam);
+
+    std::vector<vertex_data> vertices{};
+    std::vector<Uint16>      indices{};
     vertices.reserve(cubes.size() * 8);
     indices.reserve(cubes.size() * 24);
 
@@ -468,6 +603,14 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
 
     void* transfer_ptr =
         SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
+    if (!transfer_ptr)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to map transfer buffer: %s",
+                     SDL_GetError());
+        return;
+    }
+
     const auto vb_size =
         static_cast<Uint32>(vertices.size() * sizeof(vertex_data));
     const auto ib_size = static_cast<Uint32>(indices.size() * sizeof(Uint16));
@@ -478,26 +621,34 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
     SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
 
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+    if (!copy)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                     "failed to begin copy pass: %s",
+                     SDL_GetError());
+        return;
+    }
 
-    SDL_GPUTransferBufferLocation src_vb{};
-    src_vb.transfer_buffer = transfer_buffer;
-    src_vb.offset          = 0;
+    const SDL_GPUTransferBufferLocation src_vb = {
+        .transfer_buffer = transfer_buffer,
+        .offset          = 0,
+    };
 
-    SDL_GPUBufferRegion dst_vb{};
-    dst_vb.buffer = vertex_buffer;
-    dst_vb.offset = 0;
-    dst_vb.size   = vb_size;
+    const SDL_GPUBufferRegion dst_vb = {
+        .buffer = vertex_buffer,
+        .offset = 0,
+        .size   = vb_size,
+    };
 
     SDL_UploadToGPUBuffer(copy, &src_vb, &dst_vb, false);
 
-    SDL_GPUTransferBufferLocation src_ib{};
-    src_ib.transfer_buffer = transfer_buffer;
-    src_ib.offset          = vb_size;
+    const SDL_GPUTransferBufferLocation src_ib = { .transfer_buffer =
+                                                       transfer_buffer,
+                                                   .offset = vb_size };
 
-    SDL_GPUBufferRegion dst_ib{};
-    dst_ib.buffer = index_buffer;
-    dst_ib.offset = 0;
-    dst_ib.size   = ib_size;
+    const SDL_GPUBufferRegion dst_ib = { .buffer = index_buffer,
+                                         .offset = 0,
+                                         .size   = ib_size };
 
     SDL_UploadToGPUBuffer(copy, &src_ib, &dst_ib, false);
     SDL_EndGPUCopyPass(copy);
@@ -514,27 +665,48 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
 
     if (swapchain)
     {
-        SDL_GPUColorTargetInfo color_target{};
-        color_target.texture     = swapchain;
-        color_target.clear_color = {
-            20.0f / 255.0f, 22.0f / 255.0f, 30.0f / 255.0f, 1.0f
+
+        SDL_GPUColorTargetInfo color_target = {
+            .texture               = swapchain,
+            .mip_level             = 0,
+            .layer_or_depth_plane  = 0,
+            .clear_color           = { .r = 20.0f / 255.0f,
+                                       .g = 22.0f / 255.0f,
+                                       .b = 30.0f / 255.0f,
+                                       .a = 1.0f },
+            .load_op               = SDL_GPU_LOADOP_CLEAR,
+            .store_op              = SDL_GPU_STOREOP_STORE,
+            .resolve_texture       = nullptr,
+            .resolve_mip_level     = 0,
+            .resolve_layer         = 0,
+            .cycle                 = false,
+            .cycle_resolve_texture = false,
+            .padding1              = {},
+            .padding2              = {},
         };
-        color_target.load_op  = SDL_GPU_LOADOP_CLEAR;
-        color_target.store_op = SDL_GPU_STOREOP_STORE;
 
         SDL_GPURenderPass* pass =
             SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
+        if (!pass)
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU,
+                         "failed to begin render pass: %s",
+                         SDL_GetError());
+            return;
+        }
 
         SDL_BindGPUGraphicsPipeline(pass, pipeline);
 
-        SDL_GPUBufferBinding vb_binding{};
-        vb_binding.buffer = vertex_buffer;
-        vb_binding.offset = 0;
+        const SDL_GPUBufferBinding vb_binding = {
+            .buffer = vertex_buffer,
+            .offset = 0,
+        };
         SDL_BindGPUVertexBuffers(pass, 0, &vb_binding, 1);
 
-        SDL_GPUBufferBinding ib_binding{};
-        ib_binding.buffer = index_buffer;
-        ib_binding.offset = 0;
+        const SDL_GPUBufferBinding ib_binding{
+            .buffer = index_buffer,
+            .offset = 0,
+        };
         SDL_BindGPUIndexBuffer(
             pass, &ib_binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
@@ -559,12 +731,12 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
 
         if (mouse_captured)
         {
-            ImGui::TextColored({ 0.0f, 1.0f, 0.0f, 1.0f },
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f),
                                "mouse: captured (ESC to release)");
         }
         else
         {
-            ImGui::TextColored({ 1.0f, 0.0f, 0.0f, 1.0f },
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                                "mouse: free (ESC to capture)");
         }
         ImGui::End();
@@ -576,8 +748,11 @@ void as3::render(SDL_GPUDevice* device, SDL_Window* window)
         color_target.load_op = SDL_GPU_LOADOP_LOAD;
         SDL_GPURenderPass* imgui_pass =
             SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
-        ImGui_ImplSDLGPU3_RenderDrawData(draw_data, cmd, imgui_pass);
-        SDL_EndGPURenderPass(imgui_pass);
+        if (imgui_pass)
+        {
+            ImGui_ImplSDLGPU3_RenderDrawData(draw_data, cmd, imgui_pass);
+            SDL_EndGPURenderPass(imgui_pass);
+        }
     }
 
     SDL_SubmitGPUCommandBuffer(cmd);

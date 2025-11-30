@@ -62,7 +62,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     SDL_SetGPUSwapchainParameters(device,
                                   window,
                                   SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                                  SDL_GPU_PRESENTMODE_IMMEDIATE);
+                                  SDL_GPU_PRESENTMODE_VSYNC);
 
     as3::init_renderer(device, window);
 
