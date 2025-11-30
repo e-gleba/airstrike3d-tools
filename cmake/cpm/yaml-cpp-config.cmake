@@ -12,9 +12,15 @@ cpmaddpackage(
         GIT_SHALLOW
         ON
         OPTIONS
+        # Architecture
+        "YAML_BUILD_SHARED_LIBS OFF"       # Core option for static build
+        "BUILD_SHARED_LIBS OFF"
+        "YAML_ENABLE_PIC ON"               # Good for linking into other libs
+        
+        # Bloat Removal
         "YAML_CPP_BUILD_TESTS OFF"
-        "YAML_CPP_BUILD_TOOLS OFF"
-        "YAML_CPP_BUILD_CONTRIB OFF"
-        "YAML_CPP_BUILD_SHARED_LIBS OFF"
-        "YAML_CPP_INSTALL OFF"
-    )
+        "YAML_CPP_BUILD_TOOLS OFF"         # Kills the CLI tools
+        "YAML_CPP_BUILD_CONTRIB OFF"       # Kills experimental/contrib stuff
+        "YAML_CPP_INSTALL OFF"             # No system install
+        "YAML_CPP_FORMAT_SOURCE OFF"       # Don't run clang-format during build
+)
