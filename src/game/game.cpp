@@ -205,11 +205,32 @@ GAME_API void game_ui(as3::engine_context* ctx)
 
     ImGui::Begin("Airstrike 3D");
     
-    ImGui::Text("FPS: %.0f (%.2f ms)", 1.0f / ctx->delta_time, ctx->delta_time * 1000.0f);
+    const float fps = 1.0f / ctx->delta_time;
+    ImGui::Text("FPS: %.0f (%.2f ms)", fps, ctx->delta_time * 1000.0f);
+    
+    // Render stats
+    const auto stats = ctx->renderer->get_stats();
+    ImGui::Separator();
+    ImGui::TextColored({ 0.6f, 0.8f, 1.0f, 1.0f }, "Render Stats:");
+    ImGui::Text("Draw calls: %u", stats.draw_calls);
+    ImGui::Text("Triangles:  %u", stats.triangles);
+    ImGui::Text("Vertices:   %u", stats.vertices);
+    ImGui::Text("Models:     %u | Textures: %u", stats.models_loaded, stats.textures_loaded);
+    
     ImGui::Separator();
     ImGui::Checkbox("Wireframe Mode", &g_wireframe);
-    ImGui::Separator();
     
+    // Camera info
+    if (g_camera_entity != entt::null && g_ctx->registry->valid(g_camera_entity))
+    {
+        const auto& cam = g_ctx->registry->get<as3::CameraComponent>(g_camera_entity);
+        ImGui::Separator();
+        ImGui::TextColored({ 1.0f, 0.9f, 0.5f, 1.0f }, "Camera:");
+        ImGui::Text("Pos: %.1f, %.1f, %.1f", cam.position.x, cam.position.y, cam.position.z);
+        ImGui::Text("Pitch: %.1f  Yaw: %.1f", cam.pitch, cam.yaw);
+    }
+    
+    ImGui::Separator();
     ImGui::TextColored({ 0.4f, 1.0f, 0.4f, 1.0f }, "Controls:");
     ImGui::BulletText("WASD/QE - fly camera");
     ImGui::BulletText("Mouse - look (click to capt)");

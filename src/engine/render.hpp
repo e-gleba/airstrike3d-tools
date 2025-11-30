@@ -111,6 +111,7 @@ public:
     
     texture_handle load_texture(const std::filesystem::path& path) override;
     void unload_texture(texture_handle tex) override;
+    [[nodiscard]] render_stats get_stats() const override;
 
     void bind_pipeline();  // Called at start of frame, prepares default pipeline
     void reload_pipelines();
@@ -160,6 +161,9 @@ private:
     uint64_t next_mesh_handle_    = 1;
     uint64_t next_model_handle_   = 1;
     uint64_t next_texture_handle_ = 1;
+    
+    // Per-frame stats
+    mutable render_stats frame_stats_{};
 };
 
 } // namespace as3

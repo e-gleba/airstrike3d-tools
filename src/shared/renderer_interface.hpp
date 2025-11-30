@@ -53,9 +53,20 @@ struct bounds final
 {
     glm::vec3 min = glm::vec3(0.0f);
     glm::vec3 max = glm::vec3(0.0f);
-    [[nodiscard]] glm::vec3 center() const { return (min + max) * 0.5f; }
-    [[nodiscard]] glm::vec3 size() const { return max - min; }
-    [[nodiscard]] float height() const { return max.y - min.y; }
+    [[nodiscard]] constexpr glm::vec3 center() const { return (min + max) * 0.5f; }
+    [[nodiscard]] constexpr glm::vec3 size() const { return max - min; }
+    [[nodiscard]] constexpr float height() const { return max.y - min.y; }
+};
+
+// Render statistics for debugging
+struct render_stats final
+{
+    uint32_t draw_calls      = 0;
+    uint32_t triangles       = 0;
+    uint32_t vertices        = 0;
+    uint32_t models_loaded   = 0;
+    uint32_t textures_loaded = 0;
+    uint32_t meshes_loaded   = 0;
 };
 
 // Abstract renderer interface
@@ -91,6 +102,9 @@ public:
     // Texture loading
     virtual texture_handle load_texture(const std::filesystem::path& path) = 0;
     virtual void unload_texture(texture_handle tex) = 0;
+    
+    // Statistics
+    [[nodiscard]] virtual render_stats get_stats() const = 0;
 };
 
 // Abstract shader manager interface
