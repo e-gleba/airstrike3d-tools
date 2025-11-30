@@ -159,6 +159,7 @@ bool Renderer::create_wireframe_pipeline()
     ti.color_target_descriptions = &ct;
     ti.num_color_targets = 1;
     ti.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    ti.has_depth_stencil_target = true;
 
     SDL_GPURasterizerState rs{};
     rs.fill_mode = SDL_GPU_FILLMODE_FILL;
@@ -226,6 +227,7 @@ bool Renderer::create_textured_pipeline()
     ti.color_target_descriptions = &ct;
     ti.num_color_targets = 1;
     ti.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    ti.has_depth_stencil_target = true;
 
     SDL_GPURasterizerState rs{};
     rs.fill_mode = SDL_GPU_FILLMODE_FILL;
