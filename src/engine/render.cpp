@@ -222,10 +222,10 @@ bool Renderer::create_wireframe_pipeline()
     ct.blend_state.enable_blend = false;
 
     SDL_GPUGraphicsPipelineTargetInfo ti{};
-    ti.color_target_descriptions  = &ct;
-    ti.num_color_targets          = 1;
-    ti.depth_stencil_format       = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    ti.has_depth_stencil_target   = true;
+    ti.color_target_descriptions = &ct;
+    ti.num_color_targets         = 1;
+    ti.depth_stencil_format      = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    ti.has_depth_stencil_target  = true;
 
     SDL_GPURasterizerState rs{};
     rs.fill_mode  = SDL_GPU_FILLMODE_FILL;
@@ -292,10 +292,10 @@ bool Renderer::create_textured_pipeline()
     ct.blend_state.enable_blend = false;
 
     SDL_GPUGraphicsPipelineTargetInfo ti{};
-    ti.color_target_descriptions  = &ct;
-    ti.num_color_targets          = 1;
-    ti.depth_stencil_format       = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    ti.has_depth_stencil_target   = true;
+    ti.color_target_descriptions = &ct;
+    ti.num_color_targets         = 1;
+    ti.depth_stencil_format      = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    ti.has_depth_stencil_target  = true;
 
     SDL_GPURasterizerState rs{};
     rs.fill_mode  = SDL_GPU_FILLMODE_FILL;
@@ -858,10 +858,11 @@ void Renderer::draw_model(model_handle h, const transform& xform)
 
     glm::mat4 model_mat = glm::mat4(1.0f);
     model_mat           = glm::translate(model_mat, xform.position);
-    model_mat           = glm::rotate(
-        model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
+    // Rotation order: Y-X-Z (yaw, pitch, roll) for proper vehicle movement
     model_mat = glm::rotate(
         model_mat, glm::radians(xform.rotation.y), glm::vec3(0, 1, 0));
+    model_mat = glm::rotate(
+        model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
     model_mat = glm::rotate(
         model_mat, glm::radians(xform.rotation.z), glm::vec3(0, 0, 1));
     model_mat = glm::scale(model_mat, xform.scale);

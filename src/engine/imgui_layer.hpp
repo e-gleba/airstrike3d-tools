@@ -13,7 +13,7 @@ class ImGuiLayer
 public:
     using DrawCallback = std::function<void()>;
 
-    ImGuiLayer()                             = default;
+    ImGuiLayer() = default;
     ~ImGuiLayer();
     ImGuiLayer(const ImGuiLayer&)            = delete;
     ImGuiLayer& operator=(const ImGuiLayer&) = delete;

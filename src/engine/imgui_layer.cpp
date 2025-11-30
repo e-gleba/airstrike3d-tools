@@ -111,7 +111,8 @@ void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
         .padding2              = {},
     };
 
-    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
+    SDL_GPURenderPass* pass =
+        SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
     if (pass)
     {
         ImGui_ImplSDLGPU3_RenderDrawData(draw_data, cmd, pass);

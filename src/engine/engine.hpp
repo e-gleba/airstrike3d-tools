@@ -27,43 +27,65 @@ struct engine_config final
     std::filesystem::path game_lib = {};
 };
 
-struct SDLWindowDeleter       { void operator()(SDL_Window* w) const noexcept; };
-struct SDLGPUDeviceDeleter    { void operator()(SDL_GPUDevice* d) const noexcept; };
-struct SDLSharedObjectDeleter { void operator()(SDL_SharedObject* o) const noexcept; };
+struct SDLWindowDeleter
+{
+    void operator()(SDL_Window* w) const noexcept;
+};
+struct SDLGPUDeviceDeleter
+{
+    void operator()(SDL_GPUDevice* d) const noexcept;
+};
+struct SDLSharedObjectDeleter
+{
+    void operator()(SDL_SharedObject* o) const noexcept;
+};
 
-using SDLWindowPtr       = std::unique_ptr<SDL_Window, SDLWindowDeleter>;
-using SDLGPUDevicePtr    = std::unique_ptr<SDL_GPUDevice, SDLGPUDeviceDeleter>;
-using SDLSharedObjectPtr = std::unique_ptr<SDL_SharedObject, SDLSharedObjectDeleter>;
+using SDLWindowPtr    = std::unique_ptr<SDL_Window, SDLWindowDeleter>;
+using SDLGPUDevicePtr = std::unique_ptr<SDL_GPUDevice, SDLGPUDeviceDeleter>;
+using SDLSharedObjectPtr =
+    std::unique_ptr<SDL_SharedObject, SDLSharedObjectDeleter>;
 
 class engine final
 {
 public:
     engine();
     ~engine();
-    
-    engine(const engine&) = delete;
+
+    engine(const engine&)            = delete;
     engine& operator=(const engine&) = delete;
-    engine(engine&&) = delete;
-    engine& operator=(engine&&) = delete;
+    engine(engine&&)                 = delete;
+    engine& operator=(engine&&)      = delete;
 
     [[nodiscard]] bool init(const engine_config& config);
-    void shutdown() noexcept;
-    void run();
-    void stop() noexcept { running_ = false; }
+    void               shutdown() noexcept;
+    void               run();
+    void               stop() noexcept { running_ = false; }
 
     [[nodiscard]] bool load_game(const std::filesystem::path& path);
-    void unload_game() noexcept;
+    void               unload_game() noexcept;
     [[nodiscard]] bool reload_game();
 
     [[nodiscard]] entt::registry& registry() noexcept { return registry_; }
-    [[nodiscard]] SDL_GPUDevice*  device() const noexcept { return device_.get(); }
-    [[nodiscard]] SDL_Window*     window() const noexcept { return window_.get(); }
-    [[nodiscard]] ShaderManager*  shaders() const noexcept { return shader_manager_.get(); }
-    [[nodiscard]] Renderer*       renderer() const noexcept { return renderer_.get(); }
-    [[nodiscard]] bool            is_running() const noexcept { return running_; }
+    [[nodiscard]] SDL_GPUDevice*  device() const noexcept
+    {
+        return device_.get();
+    }
+    [[nodiscard]] SDL_Window* window() const noexcept { return window_.get(); }
+    [[nodiscard]] ShaderManager* shaders() const noexcept
+    {
+        return shader_manager_.get();
+    }
+    [[nodiscard]] Renderer* renderer() const noexcept
+    {
+        return renderer_.get();
+    }
+    [[nodiscard]] bool is_running() const noexcept { return running_; }
 
-    void set_mouse_captured(bool captured) noexcept;
-    [[nodiscard]] bool mouse_captured() const noexcept { return mouse_captured_; }
+    void               set_mouse_captured(bool captured) noexcept;
+    [[nodiscard]] bool mouse_captured() const noexcept
+    {
+        return mouse_captured_;
+    }
 
 private:
     void process_events();

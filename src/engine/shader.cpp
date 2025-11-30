@@ -144,21 +144,23 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
     const std::string include_dir_str = include_dir.string();
 
     const SDL_ShaderCross_HLSL_Info hlsl_info{
-        .source       = content_result->c_str(),
-        .entrypoint   = source.entry_point.c_str(),
-        .include_dir  = include_dir_str.empty() ? nullptr : include_dir_str.c_str(),
+        .source     = content_result->c_str(),
+        .entrypoint = source.entry_point.c_str(),
+        .include_dir =
+            include_dir_str.empty() ? nullptr : include_dir_str.c_str(),
         .defines      = nullptr,
         .shader_stage = stage,
         .props        = 0,
     };
 
     size_t spirv_size{};
-    void*  spirv =
-        SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
+    void* spirv = SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
     if (!spirv)
     {
-        return std::unexpected(std::format(
-            "Failed to compile SPIRV from '{}': {}", source.path.string(), SDL_GetError()));
+        return std::unexpected(
+            std::format("Failed to compile SPIRV from '{}': {}",
+                        source.path.string(),
+                        SDL_GetError()));
     }
 
     const SDL_ShaderCross_SPIRV_Info spirv_info{
@@ -175,8 +177,10 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
     if (!metadata)
     {
         SDL_free(spirv);
-        return std::unexpected(std::format(
-            "Failed to reflect SPIRV from '{}': {}", source.path.string(), SDL_GetError()));
+        return std::unexpected(
+            std::format("Failed to reflect SPIRV from '{}': {}",
+                        source.path.string(),
+                        SDL_GetError()));
     }
 
     SDL_GPUShader* shader = SDL_ShaderCross_CompileGraphicsShaderFromSPIRV(
@@ -187,10 +191,10 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
 
     if (!shader)
     {
-        return std::unexpected(std::format(
-            "Failed to create GPU shader from '{}': {}",
-            source.path.string(),
-            SDL_GetError()));
+        return std::unexpected(
+            std::format("Failed to create GPU shader from '{}': {}",
+                        source.path.string(),
+                        SDL_GetError()));
     }
 
     spdlog::debug("Compiled shader: {}", source.path.string());

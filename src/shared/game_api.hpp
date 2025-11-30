@@ -29,14 +29,14 @@ struct display_info final
 // Engine context passed to game
 struct engine_context final
 {
-    entt::registry*  registry    = nullptr;
-    IRenderer*       renderer    = nullptr;
-    IShaderManager*  shaders     = nullptr;
-    IAudio*          audio       = nullptr;
-    void*            imgui_ctx   = nullptr;
-    display_info     display;
-    input_state      input;
-    float            delta_time  = 0.0f;
+    entt::registry* registry  = nullptr;
+    IRenderer*      renderer  = nullptr;
+    IShaderManager* shaders   = nullptr;
+    IAudio*         audio     = nullptr;
+    void*           imgui_ctx = nullptr;
+    display_info    display;
+    input_state     input;
+    float           delta_time = 0.0f;
 };
 
 // Game DLL exports
@@ -50,9 +50,9 @@ extern "C"
 }
 
 #ifdef _WIN32
-    #define GAME_API extern "C" __declspec(dllexport)
+#define GAME_API extern "C" __declspec(dllexport)
 #else
-    #define GAME_API extern "C" __attribute__((visibility("default")))
+#define GAME_API extern "C" __attribute__((visibility("default")))
 #endif
 
 } // namespace as3
