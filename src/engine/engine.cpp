@@ -307,6 +307,21 @@ void engine::set_target_fps(float fps) noexcept
                  target_fps_ > 0 ? target_fps_ : -1.0f);
 }
 
+void engine::set_master_volume(float volume) noexcept
+{
+    master_volume_ = std::clamp(volume, 0.0f, 1.0f);
+    if (audio_)
+    {
+        audio_->set_music_volume(master_volume_ * music_volume_mult_);
+        audio_->set_sound_volume(master_volume_ * sfx_volume_mult_);
+    }
+}
+
+float engine::get_master_volume() const noexcept
+{
+    return master_volume_;
+}
+
 bool engine::load_game(const std::filesystem::path& path)
 {
     spdlog::info("=> loading game: {}", path.string());

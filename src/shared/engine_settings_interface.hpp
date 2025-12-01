@@ -3,6 +3,7 @@
 /// @file engine_settings_interface.hpp
 /// @brief Interface for runtime engine settings accessible from game code
 
+#include "audio_interface.hpp"
 #include "window_settings.hpp"
 
 #include <cstdint>
@@ -40,8 +41,16 @@ public:
     virtual void               set_mouse_captured(bool captured) noexcept = 0;
     [[nodiscard]] virtual bool is_mouse_captured() const noexcept         = 0;
 
+    // Audio control (master volumes)
+    virtual void                set_master_volume(float volume) noexcept = 0;
+    [[nodiscard]] virtual float get_master_volume() const noexcept       = 0;
+    [[nodiscard]] virtual bool  is_audio_available() const noexcept      = 0;
+
     // Request quit
     virtual void request_quit() noexcept = 0;
+
+    // Stop the engine loop
+    virtual void stop() noexcept = 0;
 };
 
 } // namespace as3

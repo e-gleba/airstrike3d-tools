@@ -179,21 +179,102 @@ void update_object_movement(as3::compound_object& obj, float dt)
     }
 }
 
-// Render compound object with all parts
+// Compute hierarchical transform for a part (handles parent chain)
+[[nodiscard]] glm::mat4 compute_part_matrix(const as3::compound_object& obj,
+                                            std::size_t part_idx)
+{
+    const auto& part = obj.parts[part_idx];
+
+    // Part's local transform: offset + rotation + scale
+    glm::mat4 local = glm::mat4(1.0f);
+    local           = glm::translate(local, part.offset);
+    local =
+        glm::rotate(local, glm::radians(part.rotation.y), glm::vec3(0, 1, 0));
+    local =
+        glm::rotate(local, glm::radians(part.rotation.x), glm::vec3(1, 0, 0));
+    local =
+        glm::rotate(local, glm::radians(part.rotation.z), glm::vec3(0, 0, 1));
+    local = glm::scale(local, part.scale);
+
+    // If has parent, apply parent's rotation to this part's transform
+    if (part.parent_index >= 0 &&
+        part.parent_index < static_cast<int>(obj.parts.size()))
+    {
+        const auto& parent_part =
+            obj.parts[static_cast<std::size_t>(part.parent_index)];
+
+        // Parent's transform (offset + rotation, no scale - scale is per-part)
+        glm::mat4 parent_xform = glm::mat4(1.0f);
+        parent_xform = glm::translate(parent_xform, parent_part.offset);
+        parent_xform = glm::rotate(parent_xform,
+                                   glm::radians(parent_part.rotation.y),
+                                   glm::vec3(0, 1, 0));
+        parent_xform = glm::rotate(parent_xform,
+                                   glm::radians(parent_part.rotation.x),
+                                   glm::vec3(1, 0, 0));
+        parent_xform = glm::rotate(parent_xform,
+                                   glm::radians(parent_part.rotation.z),
+                                   glm::vec3(0, 0, 1));
+
+        // Recurse up the hierarchy if grandparent exists
+        if (parent_part.parent_index >= 0)
+        {
+            glm::mat4 grandparent = compute_part_matrix(
+                obj, static_cast<std::size_t>(parent_part.parent_index));
+            parent_xform = grandparent * parent_xform;
+        }
+
+        local = parent_xform * local;
+    }
+
+    return local;
+}
+
+// Render compound object with hierarchical parts
 void render_object(as3::IRenderer* renderer, as3::compound_object& obj)
 {
-    for (auto& part : obj.parts)
+    // Object's world transform
+    glm::mat4 world = glm::mat4(1.0f);
+    world           = glm::translate(world, obj.position);
+    world =
+        glm::rotate(world, glm::radians(obj.rotation.y), glm::vec3(0, 1, 0));
+    world =
+        glm::rotate(world, glm::radians(obj.rotation.x), glm::vec3(1, 0, 0));
+    world =
+        glm::rotate(world, glm::radians(obj.rotation.z), glm::vec3(0, 0, 1));
+    world = glm::scale(world, obj.scale);
+
+    for (std::size_t i = 0; i < obj.parts.size(); ++i)
     {
+        const auto& part = obj.parts[i];
         if (part.model == as3::invalid_model)
             continue;
 
-        // Build transform: object transform + part hierarchy
-        as3::transform xform;
-        xform.position = obj.position + part.offset;
-        xform.rotation = obj.rotation + part.rotation;
-        xform.scale    = obj.scale * part.scale;
+        // Compute full hierarchical matrix
+        glm::mat4 part_local = compute_part_matrix(obj, i);
+        glm::mat4 full       = world * part_local;
 
-        // TODO: proper hierarchy transform (parent chain)
+        // Extract transform for rendering
+        as3::transform xform;
+        xform.position = glm::vec3(full[3]);
+
+        // Extract scale (approximate for uniform scale)
+        xform.scale = glm::vec3(glm::length(glm::vec3(full[0])),
+                                glm::length(glm::vec3(full[1])),
+                                glm::length(glm::vec3(full[2])));
+
+        // Extract rotation (convert matrix to euler - simplified)
+        glm::mat3 rot_mat = glm::mat3(full);
+        rot_mat[0] /= xform.scale.x;
+        rot_mat[1] /= xform.scale.y;
+        rot_mat[2] /= xform.scale.z;
+
+        // Simple euler extraction
+        xform.rotation.x = glm::degrees(std::asin(-rot_mat[2][1]));
+        xform.rotation.y =
+            glm::degrees(std::atan2(rot_mat[2][0], rot_mat[2][2]));
+        xform.rotation.z =
+            glm::degrees(std::atan2(rot_mat[0][1], rot_mat[1][1]));
 
         renderer->draw_model(part.model, xform);
     }
@@ -356,43 +437,6 @@ GAME_API void game_render(as3::engine_context* ctx)
     for (auto& obj : g_objects)
     {
         render_object(ctx->renderer, obj);
-
-        // Draw bounding box for selected objects
-        if (obj.selected)
-        {
-            // Calculate combined bounds of all parts
-            as3::bounds combined{};
-            combined.min = glm::vec3(std::numeric_limits<float>::max());
-            combined.max = glm::vec3(std::numeric_limits<float>::lowest());
-
-            for (const auto& part : obj.parts)
-            {
-                if (part.model != as3::invalid_model)
-                {
-                    const auto part_bounds =
-                        ctx->renderer->get_bounds(part.model);
-                    // Transform part bounds by part offset
-                    combined.min =
-                        glm::min(combined.min, part_bounds.min + part.offset);
-                    combined.max =
-                        glm::max(combined.max, part_bounds.max + part.offset);
-                }
-            }
-
-            // Expand bounds slightly for visibility
-            constexpr float k_bounds_padding = 0.2f;
-            combined.min -= glm::vec3(k_bounds_padding);
-            combined.max += glm::vec3(k_bounds_padding);
-
-            // Draw the bounding box
-            as3::transform box_xform;
-            box_xform.position = obj.position;
-            box_xform.rotation = obj.rotation;
-            box_xform.scale    = obj.scale;
-
-            ctx->renderer->draw_bounds(
-                combined, box_xform, { 0.0f, 1.0f, 0.0f });
-        }
     }
 }
 

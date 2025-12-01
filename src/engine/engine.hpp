@@ -83,7 +83,7 @@ public:
     void run();
 
     /// Signal the engine to stop
-    void stop() noexcept { running_ = false; }
+    void stop() noexcept override { running_ = false; }
 
     /// Hot-load a game library
     [[nodiscard]] bool load_game(const std::filesystem::path& path);
@@ -132,6 +132,15 @@ public:
     {
         return mouse_captured_;
     }
+
+    // Audio control
+    void                set_master_volume(float volume) noexcept override;
+    [[nodiscard]] float get_master_volume() const noexcept override;
+    [[nodiscard]] bool  is_audio_available() const noexcept override
+    {
+        return audio_ != nullptr;
+    }
+
     void request_quit() noexcept override { running_ = false; }
 
 private:
@@ -180,6 +189,11 @@ private:
     vsync_mode  pending_vsync_  = vsync_mode::enabled;
     bool        vsync_dirty_    = false;
     input_state input_{};
+
+    // Audio
+    float master_volume_     = 1.0f;
+    float music_volume_mult_ = 0.7f;
+    float sfx_volume_mult_   = 1.0f;
 
     // Constants
     static constexpr float k_max_delta_time = 0.25f;
