@@ -23,11 +23,11 @@ function define(obj)
     rotor_main.name = "rotor_main"
     rotor_main.model_path = "assets/models/helics/vints/vint_c.obj"
     rotor_main.offset = vec3.new(0.60, 2.30, 0.20)
-    rotor_main.scale = vec3.new(3.00, 3.00, 3.00)
-    rotor_main.rotation_axis = vec3.new(0, 1, 0)  -- Y axis
-    rotor_main.rotation_speed = 720.0  -- Fast spin
+    rotor_main.scale = vec3.new(0.300, 0.300, 0.300)
+    rotor_main.rotation_axis = vec3.new(0, 1, 0) -- Y axis
+    rotor_main.rotation_speed = 720.0 -- Fast spin
     rotor_main.can_rotate = true
-    rotor_main.continuous = true  -- Always spinning
+    rotor_main.continuous = true -- Always spinning
     rotor_main.parent_index = 0
     obj:add_part(rotor_main)
 
@@ -36,9 +36,9 @@ function define(obj)
     rotor_counter.name = "rotor_counter"
     rotor_counter.model_path = "assets/models/helics/vints/vint_c.obj"
     rotor_counter.offset = vec3.new(0.60, 1.85, 0.20)
-    rotor_counter.scale = vec3.new(3.00, 3.00, 3.00)
+    rotor_counter.scale = vec3.new(0.300, 0.300, 0.300)
     rotor_counter.rotation_axis = vec3.new(0, 1, 0)
-    rotor_counter.rotation_speed = -720.0  -- Opposite direction
+    rotor_counter.rotation_speed = -720.0 -- Opposite direction
     rotor_counter.can_rotate = true
     rotor_counter.continuous = true
     rotor_counter.parent_index = 0
@@ -48,7 +48,7 @@ end
 function init(obj, state)
     state.hover_offset = 0.0
     state.hover_time = 0.0
-    state.base_height = 5.0  -- Flight altitude
+    state.base_height = 5.0 -- Flight altitude
     print("Kamov initialized: " .. obj.name)
 end
 
@@ -81,4 +81,3 @@ function on_move(obj, target, state)
     -- Helicopters move directly to target
     print("Kamov flying to: " .. target.x .. ", " .. target.z)
 end
-

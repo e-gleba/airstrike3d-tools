@@ -13,7 +13,7 @@ function define(obj)
     base.name = "base"
     base.model_path = "assets/models/tanks/t72/t72_base.obj"
     base.offset = vec3.new(0.00, 0.00, 0.00)
-    base.scale = vec3.new(1.00, 1.00, 1.00)
+    base.scale = vec3.new(0.100, 0.100, 0.100)
     base.can_rotate = false
     base.parent_index = -1
     obj:add_part(base)
@@ -23,14 +23,14 @@ function define(obj)
     turret.name = "turret"
     turret.model_path = "assets/models/tanks/t72/t72_turret.obj"
     turret.offset = vec3.new(0.00, 2.00, 0.00)
-    turret.scale = vec3.new(1.00, 1.00, 1.00)
-    turret.rotation_axis = vec3.new(0, 1, 0)  -- Y axis
-    turret.rotation_speed = 30.0  -- Degrees per second
+    turret.scale = vec3.new(0.100, 0.100, 0.100)
+    turret.rotation_axis = vec3.new(0, 1, 0) -- Y axis
+    turret.rotation_speed = 30.0 -- Degrees per second
     turret.min_angle = -180.0
     turret.max_angle = 180.0
     turret.can_rotate = true
     turret.continuous = false
-    turret.parent_index = 0  -- Parent is base
+    turret.parent_index = 0 -- Parent is base
     obj:add_part(turret)
 
     -- Main gun (rotates on X axis for elevation)
@@ -38,14 +38,14 @@ function define(obj)
     gun.name = "gun"
     gun.model_path = "assets/models/tanks/t72/t72_gun.obj"
     gun.offset = vec3.new(0.00, 2.45, 0.00)
-    gun.scale = vec3.new(1.00, 1.00, 1.00)
-    gun.rotation_axis = vec3.new(1, 0, 0)  -- X axis for elevation
+    gun.scale = vec3.new(0.100, 0.100, 0.100)
+    gun.rotation_axis = vec3.new(1, 0, 0) -- X axis for elevation
     gun.rotation_speed = 15.0
-    gun.min_angle = -5.0   -- Depression
-    gun.max_angle = 20.0   -- Elevation
+    gun.min_angle = -5.0 -- Depression
+    gun.max_angle = 20.0 -- Elevation
     gun.can_rotate = true
     gun.continuous = false
-    gun.parent_index = 1  -- Parent is turret
+    gun.parent_index = 1 -- Parent is turret
     obj:add_part(gun)
 end
 
@@ -65,11 +65,11 @@ function update(obj, dt, state)
         local dx = obj.target_pos.x - obj.position.x
         local dz = obj.target_pos.z - obj.position.z
         local target_angle = math.deg(math.atan(dx, dz))
-        
+
         -- Adjust for object rotation
         target_angle = target_angle - obj.rotation.y
         target_angle = normalize_angle(target_angle)
-        
+
         turret.target_angle = target_angle
     end
 
@@ -91,4 +91,3 @@ end
 function on_move(obj, target, state)
     print("T-72 moving to: " .. target.x .. ", " .. target.z)
 end
-
