@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace
@@ -243,6 +244,14 @@ GAME_API bool game_init(as3::engine_context* ctx)
         g_objects.push_back(std::move(heli));
     }
 
+    // Duck (glTF sample)
+    as3::compound_object duck;
+    duck.position = { 0.0f, 0.0f, 15.0f };
+    if (g_scripts.load_object(duck, "assets/scripts/objects/duck.lua"))
+    {
+        g_objects.push_back(std::move(duck));
+    }
+
     ctx->renderer->set_render_mode(as3::render_mode::textured);
 
     spdlog::info("Game initialized with {} objects", g_objects.size());
@@ -347,6 +356,43 @@ GAME_API void game_render(as3::engine_context* ctx)
     for (auto& obj : g_objects)
     {
         render_object(ctx->renderer, obj);
+
+        // Draw bounding box for selected objects
+        if (obj.selected)
+        {
+            // Calculate combined bounds of all parts
+            as3::bounds combined{};
+            combined.min = glm::vec3(std::numeric_limits<float>::max());
+            combined.max = glm::vec3(std::numeric_limits<float>::lowest());
+
+            for (const auto& part : obj.parts)
+            {
+                if (part.model != as3::invalid_model)
+                {
+                    const auto part_bounds =
+                        ctx->renderer->get_bounds(part.model);
+                    // Transform part bounds by part offset
+                    combined.min =
+                        glm::min(combined.min, part_bounds.min + part.offset);
+                    combined.max =
+                        glm::max(combined.max, part_bounds.max + part.offset);
+                }
+            }
+
+            // Expand bounds slightly for visibility
+            constexpr float k_bounds_padding = 0.2f;
+            combined.min -= glm::vec3(k_bounds_padding);
+            combined.max += glm::vec3(k_bounds_padding);
+
+            // Draw the bounding box
+            as3::transform box_xform;
+            box_xform.position = obj.position;
+            box_xform.rotation = obj.rotation;
+            box_xform.scale    = obj.scale;
+
+            ctx->renderer->draw_bounds(
+                combined, box_xform, { 0.0f, 1.0f, 0.0f });
+        }
     }
 }
 

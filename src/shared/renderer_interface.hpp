@@ -104,7 +104,7 @@ public:
     virtual void destroy_mesh(mesh_handle mesh)      = 0;
     virtual void draw(mesh_handle mesh)              = 0;
 
-    // Model loading (OBJ with optional texture)
+    // Model loading (OBJ, GLTF with optional texture)
     virtual model_handle load_model(
         const std::filesystem::path& path,
         const glm::vec3&             color = glm::vec3(1.0f))                       = 0;
@@ -113,6 +113,13 @@ public:
 
     // Model bounds for attaching child objects (e.g., rotors on helicopters)
     [[nodiscard]] virtual bounds get_bounds(model_handle model) const = 0;
+
+    // Debug drawing
+    virtual void draw_bounds(const bounds&    b,
+                             const transform& xform,
+                             const glm::vec3& color = glm::vec3(0.0f,
+                                                                1.0f,
+                                                                0.0f)) = 0;
 
     // Texture loading
     virtual texture_handle load_texture(const std::filesystem::path& path) = 0;

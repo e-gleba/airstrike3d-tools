@@ -3,6 +3,7 @@
 /// @file render.hpp
 /// @brief GPU renderer with mesh and model management
 
+#include "loaders/model_loader_registry.hpp"
 #include "renderer_interface.hpp"
 
 #include <SDL3/SDL.h>
@@ -145,6 +146,11 @@ public:
     void draw_model(model_handle model, const transform& xform) override;
     [[nodiscard]] bounds get_bounds(model_handle model) const override;
 
+    // Debug drawing
+    void draw_bounds(const bounds&    b,
+                     const transform& xform,
+                     const glm::vec3& color) override;
+
     // Texture management
     texture_handle load_texture(const std::filesystem::path& path) override;
     void           unload_texture(texture_handle tex) override;
@@ -182,11 +188,9 @@ private:
     [[nodiscard]] std::filesystem::path find_texture_for_model(
         const std::filesystem::path& model_path);
 
-    // Format-specific model loaders
-    [[nodiscard]] model_handle load_model_obj(const std::filesystem::path& path,
-                                              const glm::vec3& color);
-    [[nodiscard]] model_handle load_model_gltf(
-        const std::filesystem::path& path, const glm::vec3& color);
+    /// Convert loaded model data to GPU model
+    [[nodiscard]] gpu_model upload_loaded_model(const loaded_model& data,
+                                                const glm::vec3&    color);
 
     // GPU device (non-owning)
     SDL_GPUDevice* device_  = nullptr;
@@ -223,6 +227,9 @@ private:
     std::uint64_t next_mesh_handle_    = 1;
     std::uint64_t next_model_handle_   = 1;
     std::uint64_t next_texture_handle_ = 1;
+
+    // Temporary meshes for debug drawing (cleaned up each frame)
+    std::vector<gpu_mesh> temp_meshes_;
 
     // Per-frame statistics
     mutable render_stats frame_stats_{};

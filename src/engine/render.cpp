@@ -2,17 +2,12 @@
 #include "shader.hpp"
 #include "texture.hpp"
 
-#include <tiny_gltf.h>
-#include <tiny_obj_loader.h>
-
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <limits>
 #include <ranges>
 
 namespace as3
@@ -121,6 +116,16 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
 
 void Renderer::shutdown()
 {
+    // Release temporary debug meshes
+    for (auto& mesh : temp_meshes_)
+    {
+        if (mesh.vertex_buffer)
+            SDL_ReleaseGPUBuffer(device_, mesh.vertex_buffer);
+        if (mesh.index_buffer)
+            SDL_ReleaseGPUBuffer(device_, mesh.index_buffer);
+    }
+    temp_meshes_.clear();
+
     // Release all meshes
     for (auto& [handle, mesh] : meshes_)
     {
@@ -378,6 +383,16 @@ void Renderer::begin_frame(SDL_GPUCommandBuffer* cmd, SDL_GPURenderPass* pass)
 {
     current_cmd_  = cmd;
     current_pass_ = pass;
+
+    // Clean up temporary debug meshes from previous frame
+    for (auto& mesh : temp_meshes_)
+    {
+        if (mesh.vertex_buffer)
+            SDL_ReleaseGPUBuffer(device_, mesh.vertex_buffer);
+        if (mesh.index_buffer)
+            SDL_ReleaseGPUBuffer(device_, mesh.index_buffer);
+    }
+    temp_meshes_.clear();
 
     // Reset per-frame stats
     frame_stats_ = render_stats{
@@ -758,354 +773,86 @@ void Renderer::unload_texture(texture_handle h)
     }
 }
 
+gpu_model Renderer::upload_loaded_model(const loaded_model& data,
+                                        const glm::vec3&    color)
+{
+    gpu_model model{};
+    model.color            = color;
+    model.has_uvs          = data.has_uvs;
+    model.model_bounds.min = data.bounds.min;
+    model.model_bounds.max = data.bounds.max;
+
+    // Upload each mesh to GPU
+    for (const auto& src_mesh : data.meshes)
+    {
+        // Convert model_vertex to vertex_textured
+        std::vector<vertex_textured> verts;
+        verts.reserve(src_mesh.vertices.size());
+        for (const auto& v : src_mesh.vertices)
+        {
+            verts.push_back(vertex_textured{
+                .position = v.position,
+                .normal   = v.normal,
+                .texcoord = v.texcoord,
+            });
+        }
+
+        if (!verts.empty() && !src_mesh.indices.empty())
+            model.meshes.push_back(
+                upload_textured_mesh(verts, src_mesh.indices));
+    }
+
+    return model;
+}
+
 model_handle Renderer::load_model(const std::filesystem::path& path,
                                   const glm::vec3&             color)
 {
-    // Dispatch based on file extension
-    auto ext = path.extension().string();
-    std::ranges::transform(ext, ext.begin(), ::tolower);
-
-    if (ext == ".gltf" || ext == ".glb")
-        return load_model_gltf(path, color);
-
-    // Default to OBJ loader
-    return load_model_obj(path, color);
-}
-
-model_handle Renderer::load_model_obj(const std::filesystem::path& path,
-                                      const glm::vec3&             color)
-{
-    tinyobj::attrib_t                attrib;
-    std::vector<tinyobj::shape_t>    shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string                      warn, err;
-
-    if (!tinyobj::LoadObj(
-            &attrib, &shapes, &materials, &warn, &err, path.c_str()))
+    // Use modular loader registry
+    auto result = get_model_loader_registry().load(path);
+    if (!result)
     {
-        spdlog::error("== obj {}: {}", path.string(), err);
+        spdlog::error("== model {}: {}", path.string(), result.error());
         return invalid_model;
     }
 
-    gpu_model model{};
-    model.color   = color;
-    model.has_uvs = !attrib.texcoords.empty();
+    auto& data = result.value();
 
-    // Calculate bounds
-    model.model_bounds.min = glm::vec3(std::numeric_limits<float>::max());
-    model.model_bounds.max = glm::vec3(std::numeric_limits<float>::lowest());
-
-    for (std::size_t i = 0; i < attrib.vertices.size(); i += 3)
+    // Load texture - first from model data, then try to find by name
+    texture_handle tex = invalid_texture;
+    if (!data.texture_path.empty())
     {
-        const glm::vec3 v(
-            attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2]);
-        model.model_bounds.min = glm::min(model.model_bounds.min, v);
-        model.model_bounds.max = glm::max(model.model_bounds.max, v);
+        tex = load_texture(data.texture_path);
     }
-
-    // Load texture if available
-    if (auto tex_path = find_texture_for_model(path); !tex_path.empty())
-        model.texture = load_texture(tex_path);
-
-    // Process shapes
-    for (const auto& shape : shapes)
-    {
-        std::vector<vertex_textured> verts;
-        std::vector<uint16_t>        indices;
-
-        std::size_t index_offset = 0;
-        for (std::size_t f = 0; f < shape.mesh.num_face_vertices.size(); ++f)
-        {
-            const auto fv = shape.mesh.num_face_vertices[f];
-            if (fv != 3)
-            {
-                index_offset += static_cast<std::size_t>(fv);
-                continue;
-            }
-
-            for (int v = 0; v < 3; ++v)
-            {
-                const auto& idx =
-                    shape.mesh
-                        .indices[index_offset + static_cast<std::size_t>(v)];
-
-                // Validate vertex index
-                if (idx.vertex_index < 0 ||
-                    static_cast<std::size_t>(idx.vertex_index * 3 + 2) >=
-                        attrib.vertices.size())
-                    continue;
-
-                vertex_textured vert{};
-                const auto      vi = static_cast<std::size_t>(idx.vertex_index);
-                vert.position      = glm::vec3(attrib.vertices[3 * vi + 0],
-                                          attrib.vertices[3 * vi + 1],
-                                          attrib.vertices[3 * vi + 2]);
-
-                // Normal
-                if (idx.normal_index >= 0 &&
-                    static_cast<std::size_t>(idx.normal_index * 3 + 2) <
-                        attrib.normals.size())
-                {
-                    const auto ni = static_cast<std::size_t>(idx.normal_index);
-                    vert.normal   = glm::vec3(attrib.normals[3 * ni + 0],
-                                            attrib.normals[3 * ni + 1],
-                                            attrib.normals[3 * ni + 2]);
-                }
-                else
-                {
-                    vert.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-                }
-
-                // Texture coordinates
-                if (idx.texcoord_index >= 0 &&
-                    static_cast<std::size_t>(idx.texcoord_index * 2 + 1) <
-                        attrib.texcoords.size())
-                {
-                    const auto ti =
-                        static_cast<std::size_t>(idx.texcoord_index);
-                    vert.texcoord = glm::vec2(attrib.texcoords[2 * ti + 0],
-                                              attrib.texcoords[2 * ti + 1]);
-                }
-
-                indices.push_back(static_cast<uint16_t>(verts.size()));
-                verts.push_back(vert);
-            }
-            index_offset += 3;
-        }
-
-        if (!verts.empty() && !indices.empty())
-            model.meshes.push_back(upload_textured_mesh(verts, indices));
-    }
-
-    if (model.meshes.empty())
-    {
-        spdlog::error("== obj {}: no meshes", path.string());
-        return invalid_model;
-    }
-
-    const auto h = next_model_handle_++;
-    models_[h]   = std::move(model);
-    spdlog::info("=> model (obj): {} ({} meshes)",
-                 path.filename().string(),
-                 models_[h].meshes.size());
-    return h;
-}
-
-model_handle Renderer::load_model_gltf(const std::filesystem::path& path,
-                                       const glm::vec3&             color)
-{
-    tinygltf::Model    gltf_model;
-    tinygltf::TinyGLTF loader;
-    std::string        err, warn;
-
-    const auto ext = path.extension().string();
-    bool       ret = false;
-
-    if (ext == ".glb" || ext == ".GLB")
-        ret =
-            loader.LoadBinaryFromFile(&gltf_model, &err, &warn, path.string());
-    else
-        ret = loader.LoadASCIIFromFile(&gltf_model, &err, &warn, path.string());
-
-    if (!warn.empty())
-        spdlog::warn("gltf {}: {}", path.string(), warn);
-
-    if (!ret)
-    {
-        spdlog::error("== gltf {}: {}", path.string(), err);
-        return invalid_model;
-    }
-
-    gpu_model model{};
-    model.color   = color;
-    model.has_uvs = true;
-
-    // Initialize bounds
-    model.model_bounds.min = glm::vec3(std::numeric_limits<float>::max());
-    model.model_bounds.max = glm::vec3(std::numeric_limits<float>::lowest());
-
-    // Load first texture from GLTF if available
-    if (!gltf_model.images.empty())
-    {
-        const auto& img = gltf_model.images[0];
-        if (!img.uri.empty())
-        {
-            auto tex_path = path.parent_path() / img.uri;
-            if (std::filesystem::exists(tex_path))
-                model.texture = load_texture(tex_path);
-        }
-        // TODO: Handle embedded textures (img.image buffer)
-    }
-
-    // Fallback to find texture by model name
-    if (model.texture == invalid_texture)
+    if (tex == invalid_texture)
     {
         if (auto tex_path = find_texture_for_model(path); !tex_path.empty())
-            model.texture = load_texture(tex_path);
+            tex = load_texture(tex_path);
     }
 
-    // Process all meshes in the GLTF
-    for (const auto& mesh : gltf_model.meshes)
-    {
-        for (const auto& primitive : mesh.primitives)
-        {
-            if (primitive.mode != TINYGLTF_MODE_TRIANGLES)
-                continue;
-
-            std::vector<vertex_textured> verts;
-            std::vector<uint16_t>        indices;
-
-            // Get accessors
-            const float* positions    = nullptr;
-            const float* normals      = nullptr;
-            const float* texcoords    = nullptr;
-            std::size_t  vertex_count = 0;
-
-            // Position accessor (required)
-            if (auto it = primitive.attributes.find("POSITION");
-                it != primitive.attributes.end())
-            {
-                const auto& accessor =
-                    gltf_model.accessors[static_cast<std::size_t>(it->second)];
-                const auto& view =
-                    gltf_model.bufferViews[static_cast<std::size_t>(
-                        accessor.bufferView)];
-                const auto& buffer =
-                    gltf_model.buffers[static_cast<std::size_t>(view.buffer)];
-                positions = reinterpret_cast<const float*>(
-                    buffer.data.data() + view.byteOffset + accessor.byteOffset);
-                vertex_count = accessor.count;
-
-                // Update bounds
-                for (std::size_t i = 0; i < vertex_count; ++i)
-                {
-                    glm::vec3 pos(positions[i * 3],
-                                  positions[i * 3 + 1],
-                                  positions[i * 3 + 2]);
-                    model.model_bounds.min =
-                        glm::min(model.model_bounds.min, pos);
-                    model.model_bounds.max =
-                        glm::max(model.model_bounds.max, pos);
-                }
-            }
-
-            // Normal accessor
-            if (auto it = primitive.attributes.find("NORMAL");
-                it != primitive.attributes.end())
-            {
-                const auto& accessor =
-                    gltf_model.accessors[static_cast<std::size_t>(it->second)];
-                const auto& view =
-                    gltf_model.bufferViews[static_cast<std::size_t>(
-                        accessor.bufferView)];
-                const auto& buffer =
-                    gltf_model.buffers[static_cast<std::size_t>(view.buffer)];
-                normals = reinterpret_cast<const float*>(
-                    buffer.data.data() + view.byteOffset + accessor.byteOffset);
-            }
-
-            // Texcoord accessor
-            if (auto it = primitive.attributes.find("TEXCOORD_0");
-                it != primitive.attributes.end())
-            {
-                const auto& accessor =
-                    gltf_model.accessors[static_cast<std::size_t>(it->second)];
-                const auto& view =
-                    gltf_model.bufferViews[static_cast<std::size_t>(
-                        accessor.bufferView)];
-                const auto& buffer =
-                    gltf_model.buffers[static_cast<std::size_t>(view.buffer)];
-                texcoords = reinterpret_cast<const float*>(
-                    buffer.data.data() + view.byteOffset + accessor.byteOffset);
-            }
-
-            if (!positions || vertex_count == 0)
-                continue;
-
-            // Build vertices
-            verts.reserve(vertex_count);
-            for (std::size_t i = 0; i < vertex_count; ++i)
-            {
-                vertex_textured vert{};
-                vert.position = glm::vec3(positions[i * 3],
-                                          positions[i * 3 + 1],
-                                          positions[i * 3 + 2]);
-
-                if (normals)
-                    vert.normal = glm::vec3(
-                        normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
-                else
-                    vert.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-
-                if (texcoords)
-                    vert.texcoord =
-                        glm::vec2(texcoords[i * 2], texcoords[i * 2 + 1]);
-
-                verts.push_back(vert);
-            }
-
-            // Build indices
-            if (primitive.indices >= 0)
-            {
-                const auto& accessor =
-                    gltf_model
-                        .accessors[static_cast<std::size_t>(primitive.indices)];
-                const auto& view =
-                    gltf_model.bufferViews[static_cast<std::size_t>(
-                        accessor.bufferView)];
-                const auto& buffer =
-                    gltf_model.buffers[static_cast<std::size_t>(view.buffer)];
-                const auto* data =
-                    buffer.data.data() + view.byteOffset + accessor.byteOffset;
-
-                indices.reserve(accessor.count);
-                for (std::size_t i = 0; i < accessor.count; ++i)
-                {
-                    uint32_t idx = 0;
-                    switch (accessor.componentType)
-                    {
-                        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-                            idx = static_cast<const uint8_t*>(
-                                static_cast<const void*>(data))[i];
-                            break;
-                        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-                            idx = static_cast<const uint16_t*>(
-                                static_cast<const void*>(data))[i];
-                            break;
-                        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-                            idx = static_cast<const uint32_t*>(
-                                static_cast<const void*>(data))[i];
-                            break;
-                        default:
-                            break;
-                    }
-                    indices.push_back(static_cast<uint16_t>(idx));
-                }
-            }
-            else
-            {
-                // No indices, generate sequential
-                indices.reserve(vertex_count);
-                for (std::size_t i = 0; i < vertex_count; ++i)
-                    indices.push_back(static_cast<uint16_t>(i));
-            }
-
-            if (!verts.empty() && !indices.empty())
-                model.meshes.push_back(upload_textured_mesh(verts, indices));
-        }
-    }
+    // Upload to GPU
+    gpu_model model = upload_loaded_model(data, color);
+    model.texture   = tex;
 
     if (model.meshes.empty())
     {
-        spdlog::error("== gltf {}: no meshes", path.string());
+        spdlog::error("== model {}: no meshes uploaded", path.string());
         return invalid_model;
     }
 
     const auto h = next_model_handle_++;
     models_[h]   = std::move(model);
-    spdlog::info("=> model (gltf): {} ({} meshes)",
+
+    // Determine loader type for logging
+    auto ext = path.extension().string();
+    std::ranges::transform(ext, ext.begin(), ::tolower);
+    const char* type = (ext == ".gltf" || ext == ".glb") ? "gltf" : "obj";
+
+    spdlog::info("=> model ({}): {} ({} meshes, {} verts)",
+                 type,
                  path.filename().string(),
-                 models_[h].meshes.size());
+                 models_[h].meshes.size(),
+                 data.total_vertices());
     return h;
 }
 
@@ -1168,10 +915,15 @@ void Renderer::draw_model(model_handle h, const transform& xform)
     const auto& model = it->second;
 
     // Build model matrix: translate -> rotate (YXZ order) -> scale
+    // Note: Add 180 degree rotation to fix model front/back orientation
+    constexpr float k_model_rotation_fix = 180.0f;
+
     glm::mat4 model_mat = glm::mat4(1.0f);
     model_mat           = glm::translate(model_mat, xform.position);
-    model_mat           = glm::rotate(
-        model_mat, glm::radians(xform.rotation.y), glm::vec3(0, 1, 0));
+    model_mat =
+        glm::rotate(model_mat,
+                    glm::radians(xform.rotation.y + k_model_rotation_fix),
+                    glm::vec3(0, 1, 0));
     model_mat = glm::rotate(
         model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
     model_mat = glm::rotate(
@@ -1199,6 +951,65 @@ bounds Renderer::get_bounds(model_handle h) const
     if (auto it = models_.find(h); it != models_.end())
         return it->second.model_bounds;
     return {};
+}
+
+void Renderer::draw_bounds(const bounds&    b,
+                           const transform& xform,
+                           const glm::vec3& color)
+{
+    if (!current_pass_ || !current_cmd_)
+        return;
+
+    // Build corners of the AABB in local space
+    const glm::vec3 corners[8] = {
+        { b.min.x, b.min.y, b.min.z }, { b.max.x, b.min.y, b.min.z },
+        { b.max.x, b.max.y, b.min.z }, { b.min.x, b.max.y, b.min.z },
+        { b.min.x, b.min.y, b.max.z }, { b.max.x, b.min.y, b.max.z },
+        { b.max.x, b.max.y, b.max.z }, { b.min.x, b.max.y, b.max.z },
+    };
+
+    // Build model matrix
+    glm::mat4 model_mat = glm::mat4(1.0f);
+    model_mat           = glm::translate(model_mat, xform.position);
+    model_mat           = glm::rotate(
+        model_mat, glm::radians(xform.rotation.y), glm::vec3(0, 1, 0));
+    model_mat = glm::rotate(
+        model_mat, glm::radians(xform.rotation.x), glm::vec3(1, 0, 0));
+    model_mat = glm::rotate(
+        model_mat, glm::radians(xform.rotation.z), glm::vec3(0, 0, 1));
+    model_mat = glm::scale(model_mat, xform.scale);
+
+    // Transform corners to world space
+    std::vector<vertex_pos_color> verts;
+    verts.reserve(8);
+    for (const auto& c : corners)
+    {
+        const glm::vec4 world = model_mat * glm::vec4(c, 1.0f);
+        verts.push_back({ glm::vec3(world), color });
+    }
+
+    // Edges of the box
+    constexpr uint16_t edges[] = {
+        0, 1, 1, 2, 2, 3, 3, 0, // Bottom face
+        4, 5, 5, 6, 6, 7, 7, 4, // Top face
+        0, 4, 1, 5, 2, 6, 3, 7, // Vertical edges
+    };
+
+    // Create mesh and store for cleanup at start of next frame
+    auto mesh =
+        upload_wireframe_mesh(verts, std::span<const uint16_t>(edges, 24));
+
+    // Bind wireframe pipeline and draw
+    if (wireframe_pipeline_)
+        SDL_BindGPUGraphicsPipeline(current_pass_, wireframe_pipeline_);
+
+    const uniform_mvp uniforms{ view_proj_ };
+    SDL_PushGPUVertexUniformData(current_cmd_, 0, &uniforms, sizeof(uniforms));
+
+    draw_mesh_internal(mesh);
+
+    // Store in temporary list - will be cleaned up at start of next frame
+    temp_meshes_.push_back(mesh);
 }
 
 render_stats Renderer::get_stats() const noexcept
