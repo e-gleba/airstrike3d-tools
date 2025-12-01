@@ -36,7 +36,8 @@ target_link_libraries(
         imgui
         yaml-cpp
         sol2
-        recastnavigation
+        Recast
+        Detour
         ${LUA_LIBRARIES}
 )
 
