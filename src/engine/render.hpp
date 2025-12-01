@@ -182,6 +182,12 @@ private:
     [[nodiscard]] std::filesystem::path find_texture_for_model(
         const std::filesystem::path& model_path);
 
+    // Format-specific model loaders
+    [[nodiscard]] model_handle load_model_obj(const std::filesystem::path& path,
+                                              const glm::vec3& color);
+    [[nodiscard]] model_handle load_model_gltf(
+        const std::filesystem::path& path, const glm::vec3& color);
+
     // GPU device (non-owning)
     SDL_GPUDevice* device_  = nullptr;
     ShaderManager* shaders_ = nullptr;
