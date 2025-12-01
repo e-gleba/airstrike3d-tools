@@ -5,6 +5,8 @@ cpmaddpackage(
     1.92.5
     GITHUB_REPOSITORY
     ocornut/imgui
+    SYSTEM ON
+    GIT_SHALLOW ON
     DOWNLOAD_ONLY
     TRUE
 )

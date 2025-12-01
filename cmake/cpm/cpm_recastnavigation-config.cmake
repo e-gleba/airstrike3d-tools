@@ -1,0 +1,10 @@
+cpmaddpackage(
+  NAME recastnavigation
+  GITHUB_REPOSITORY recastnavigation/recastnavigation
+  GIT_TAG v1.6.0
+  GIT_SHALLOW ON
+  OPTIONS
+    "RECASTNAVIGATION_DEMO OFF"
+    "RECASTNAVIGATION_TESTS OFF"
+    "RECASTNAVIGATION_EXAMPLES OFF"
+)
