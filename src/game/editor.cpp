@@ -6,9 +6,49 @@
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 
 namespace as3
 {
+
+namespace
+{
+
+/// List audio files from a directory with given extensions
+[[nodiscard]] std::vector<std::string> list_audio_files(
+    const std::filesystem::path&       dir,
+    std::initializer_list<const char*> extensions)
+{
+    std::vector<std::string> files;
+    if (!std::filesystem::exists(dir))
+        return files;
+
+    for (const auto& entry : std::filesystem::directory_iterator(dir))
+    {
+        if (!entry.is_regular_file())
+            continue;
+
+        auto ext = entry.path().extension().string();
+        std::transform(ext.begin(),
+                       ext.end(),
+                       ext.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        for (auto valid : extensions)
+        {
+            if (ext == valid)
+            {
+                files.push_back(entry.path().filename().string());
+                break;
+            }
+        }
+    }
+
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+} // namespace
 
 static const char* unit_type_names[] = {
     "Static", "Ground Vehicle", "Helicopter", "Aircraft"
@@ -25,11 +65,11 @@ void Editor::init(engine_context* ctx)
 
     scene_list_ = Scene::list_scenes("assets/scenes");
 
-    if (ctx->audio)
-    {
-        music_files_ = ctx->audio->list_music_files();
-        sound_files_ = ctx->audio->list_sound_files();
-    }
+    // List available audio files from assets (game-side, not engine)
+    music_files_ =
+        list_audio_files("assets/music", { ".ogg", ".mp3", ".wav", ".flac" });
+    sound_files_ =
+        list_audio_files("assets/sounds", { ".wav", ".ogg", ".mp3" });
 
     spdlog::info("Editor initialized ({} scenes, {} music, {} sounds)",
                  scene_list_.size(),

@@ -1,14 +1,11 @@
 #pragma once
 
 /// @file audio.hpp
-/// @brief Audio manager for music and sound effects
+/// @brief Audio manager for music and sound effects using SDL3_mixer
 
 #include "../shared/audio_interface.hpp"
 
-#include <filesystem>
-#include <string>
 #include <unordered_map>
-#include <vector>
 
 // Forward declarations for SDL3_mixer
 struct MIX_Mixer;
@@ -19,7 +16,6 @@ namespace as3
 {
 
 /// Audio manager implementing IAudio interface
-/// Handles music streaming and sound effect playback using SDL3_mixer
 class AudioManager final : public IAudio
 {
 public:
@@ -38,10 +34,11 @@ public:
     /// Shutdown and release all resources
     void shutdown();
 
-    // Music operations
-    music_handle        load_music(const std::filesystem::path& path) override;
+    // IAudio implementation
+    [[nodiscard]] music_handle load_music(
+        const std::filesystem::path& path) override;
     void                unload_music(music_handle music) override;
-    void                play_music(music_handle music, int loops = -1) override;
+    void                play_music(music_handle music, bool loop) override;
     void                stop_music() override;
     void                pause_music() override;
     void                resume_music() override;
@@ -57,29 +54,25 @@ public:
         return current_music_;
     }
 
-    // Sound operations
-    sound_handle load_sound(const std::filesystem::path& path) override;
-    void         unload_sound(sound_handle sound) override;
-    void         play_sound(sound_handle sound, float volume = 1.0f) override;
-    void         set_sound_volume(float volume) override;
+    [[nodiscard]] sound_handle load_sound(
+        const std::filesystem::path& path) override;
+    void                unload_sound(sound_handle sound) override;
+    void                play_sound(sound_handle sound, float volume) override;
+    void                set_sound_volume(float volume) override;
     [[nodiscard]] float get_sound_volume() const noexcept override
     {
         return sound_volume_;
     }
 
-    // File listing
-    [[nodiscard]] std::vector<std::string> list_music_files() const override;
-    [[nodiscard]] std::vector<std::string> list_sound_files() const override;
-
 private:
     MIX_Mixer* mixer_       = nullptr;
     MIX_Track* music_track_ = nullptr;
 
-    std::unordered_map<music_handle, MIX_Audio*> music_map_;
-    std::unordered_map<sound_handle, MIX_Audio*> sounds_map_;
+    std::unordered_map<music_handle, MIX_Audio*> music_;
+    std::unordered_map<sound_handle, MIX_Audio*> sounds_;
 
-    std::uint64_t next_music_handle_ = 1;
-    std::uint64_t next_sound_handle_ = 1;
+    std::uint64_t next_music_ = 1;
+    std::uint64_t next_sound_ = 1;
 
     music_handle current_music_ = invalid_music;
     float        music_volume_  = 0.7f;

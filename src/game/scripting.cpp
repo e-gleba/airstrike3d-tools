@@ -1,3 +1,6 @@
+/// @file scripting.cpp
+/// @brief Lua scripting system implementation with audio support
+
 #include "scripting.hpp"
 
 #include <imgui.h>
@@ -20,9 +23,10 @@ ScriptManager::~ScriptManager()
     shutdown();
 }
 
-void ScriptManager::init(IRenderer* renderer)
+void ScriptManager::init(IRenderer* renderer, IAudio* audio)
 {
     renderer_ = renderer;
+    audio_    = audio;
     setup_lua_api();
     log_message(script_log_entry::level::info, "Lua scripting initialized");
 }
@@ -30,6 +34,7 @@ void ScriptManager::init(IRenderer* renderer)
 void ScriptManager::shutdown()
 {
     renderer_ = nullptr;
+    audio_    = nullptr;
 }
 
 void ScriptManager::setup_lua_api()
@@ -112,8 +117,6 @@ void ScriptManager::setup_lua_api()
         &compound_object::can_move,
         "current_speed",
         &compound_object::current_speed,
-        "parts",
-        &compound_object::parts,
         "add_part",
         [](compound_object& obj, const object_part& part)
         { obj.parts.push_back(part); },
@@ -124,22 +127,77 @@ void ScriptManager::setup_lua_api()
                 if (part.name == name)
                     return &part;
             return nullptr;
-        });
+        },
+        "set_sound",
+        [this](compound_object&   obj,
+               const std::string& event,
+               const std::string& path)
+        {
+            if (audio_)
+            {
+                auto h = audio_->load_sound(path);
+                if (h != invalid_sound)
+                    obj.sounds[event] = h;
+            }
+        },
+        "play_sound",
+        [this](compound_object& obj, const std::string& event)
+        { play_object_sound(obj, event); });
 
-    // Logging functions
+    // Audio API (if available)
+    if (audio_)
+    {
+        lua_["audio"] = lua_.create_table_with(
+            "load_sound",
+            [this](const std::string& path) -> sound_handle
+            { return audio_ ? audio_->load_sound(path) : invalid_sound; },
+            "play_sound",
+            [this](sound_handle h, float vol)
+            {
+                if (audio_)
+                    audio_->play_sound(h, vol);
+            },
+            "load_music",
+            [this](const std::string& path) -> music_handle
+            { return audio_ ? audio_->load_music(path) : invalid_music; },
+            "play_music",
+            [this](music_handle h, bool loop)
+            {
+                if (audio_)
+                    audio_->play_music(h, loop);
+            },
+            "stop_music",
+            [this]()
+            {
+                if (audio_)
+                    audio_->stop_music();
+            },
+            "set_music_volume",
+            [this](float vol)
+            {
+                if (audio_)
+                    audio_->set_music_volume(vol);
+            },
+            "set_sound_volume",
+            [this](float vol)
+            {
+                if (audio_)
+                    audio_->set_sound_volume(vol);
+            });
+    }
+
+    // Logging
     lua_["print"] = [this](const std::string& msg)
     { log_message(script_log_entry::level::info, msg, "script"); };
-
     lua_["warn"] = [this](const std::string& msg)
     { log_message(script_log_entry::level::warning, msg, "script"); };
-
     lua_["error"] = [this](const std::string& msg)
     { log_message(script_log_entry::level::error, msg, "script"); };
 
     // Math helpers
     lua_["lerp"]  = [](float a, float b, float t) { return a + (b - a) * t; };
-    lua_["clamp"] = [](float v, float min, float max)
-    { return v < min ? min : (v > max ? max : v); };
+    lua_["clamp"] = [](float v, float lo, float hi)
+    { return v < lo ? lo : (v > hi ? hi : v); };
     lua_["normalize_angle"] = [](float angle)
     {
         while (angle > 180.0f)
@@ -159,6 +217,18 @@ void ScriptManager::setup_lua_api()
     };
 }
 
+void ScriptManager::play_object_sound(compound_object&   obj,
+                                      const std::string& event)
+{
+    if (!audio_)
+        return;
+
+    if (auto it = obj.sounds.find(event); it != obj.sounds.end())
+    {
+        audio_->play_sound(it->second, 1.0f);
+    }
+}
+
 bool ScriptManager::load_object(compound_object&             obj,
                                 const std::filesystem::path& script)
 {
@@ -175,10 +245,8 @@ bool ScriptManager::load_object(compound_object&             obj,
 
     try
     {
-        // Create object state table
         lua_[obj.state_key] = lua_.create_table();
 
-        // Load and execute script
         auto result =
             lua_.safe_script_file(script.string(), sol::script_pass_on_error);
         if (!result.valid())
@@ -188,7 +256,6 @@ bool ScriptManager::load_object(compound_object&             obj,
             return false;
         }
 
-        // Call define() to get object definition
         sol::protected_function define_fn = lua_["define"];
         if (!define_fn.valid())
         {
@@ -206,7 +273,7 @@ bool ScriptManager::load_object(compound_object&             obj,
             return false;
         }
 
-        // Load models for all parts
+        // Load models
         for (auto& part : obj.parts)
         {
             if (!part.model_path.empty() && renderer_)
@@ -222,7 +289,7 @@ bool ScriptManager::load_object(compound_object&             obj,
             }
         }
 
-        // Call init() if exists
+        // Call init()
         sol::protected_function init_fn = lua_["init"];
         if (init_fn.valid())
         {
@@ -266,6 +333,14 @@ bool ScriptManager::reload_object(compound_object& obj)
         }
     }
 
+    // Unload old sounds
+    if (audio_)
+    {
+        for (auto& [event, h] : obj.sounds)
+            audio_->unload_sound(h);
+    }
+    obj.sounds.clear();
+
     obj.parts.clear();
     return load_object(obj, obj.script_path);
 }
@@ -277,7 +352,6 @@ void ScriptManager::update_object(compound_object& obj, float dt)
 
     try
     {
-        // Call update() if exists
         sol::protected_function update_fn = lua_["update"];
         if (update_fn.valid())
         {
@@ -297,14 +371,12 @@ void ScriptManager::update_object(compound_object& obj, float dt)
 
             if (part.continuous)
             {
-                // Continuous rotation (rotor)
                 part.current_angle += part.rotation_speed * dt;
                 while (part.current_angle > 360.0f)
                     part.current_angle -= 360.0f;
             }
             else
             {
-                // Move toward target angle
                 float diff = part.target_angle - part.current_angle;
                 while (diff > 180.0f)
                     diff -= 360.0f;
@@ -313,20 +385,14 @@ void ScriptManager::update_object(compound_object& obj, float dt)
 
                 float max_delta = part.rotation_speed * dt;
                 if (std::abs(diff) <= max_delta)
-                {
                     part.current_angle = part.target_angle;
-                }
                 else
-                {
                     part.current_angle += (diff > 0 ? max_delta : -max_delta);
-                }
 
-                // Clamp to limits
                 part.current_angle = std::clamp(
                     part.current_angle, part.min_angle, part.max_angle);
             }
 
-            // Apply rotation to part's rotation vector based on axis
             part.rotation = part.rotation_axis * part.current_angle;
         }
     }
@@ -338,6 +404,8 @@ void ScriptManager::update_object(compound_object& obj, float dt)
 
 void ScriptManager::on_select(compound_object& obj)
 {
+    play_object_sound(obj, "select");
+
     if (obj.script_path.empty())
         return;
 
@@ -390,6 +458,8 @@ void ScriptManager::on_move_command(compound_object& obj,
     obj.target_pos = target;
     obj.has_target = true;
 
+    play_object_sound(obj, "move");
+
     if (obj.script_path.empty())
         return;
 
@@ -421,11 +491,9 @@ void ScriptManager::log_message(script_log_entry::level lvl,
 
     log_.push_back({ lvl, msg, src });
 
-    // Keep log bounded
     while (log_.size() > k_max_log_entries)
         log_.pop_front();
 
-    // Also log to spdlog
     switch (lvl)
     {
         case script_log_entry::level::info:
@@ -441,10 +509,10 @@ void ScriptManager::log_message(script_log_entry::level lvl,
 }
 
 void ScriptManager::handle_lua_error(const sol::error&  e,
-                                     const std::string& context)
+                                     const std::string& ctx)
 {
     log_message(script_log_entry::level::error,
-                std::format("[{}] {}", context, e.what()));
+                std::format("[{}] {}", ctx, e.what()));
 }
 
 void ScriptManager::draw_log_window(bool* open)
@@ -454,17 +522,14 @@ void ScriptManager::draw_log_window(bool* open)
 
     ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_FirstUseEver);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_None;
     if (error_count_ > 0)
     {
-        // Flash red border if errors
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
     }
 
-    if (ImGui::Begin("Script Log", open, flags))
+    if (ImGui::Begin("Script Log", open))
     {
-        // Toolbar
         if (ImGui::Button("Clear"))
         {
             clear_log();
@@ -472,18 +537,13 @@ void ScriptManager::draw_log_window(bool* open)
         }
         ImGui::SameLine();
         if (error_count_ > 0)
-        {
             ImGui::TextColored(
                 ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Errors: %d", error_count_);
-        }
         else
-        {
             ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "No errors");
-        }
 
         ImGui::Separator();
 
-        // Log entries
         ImGui::BeginChild("LogScroll",
                           ImVec2(0, 0),
                           false,
@@ -521,7 +581,6 @@ void ScriptManager::draw_log_window(bool* open)
             ImGui::TextWrapped("%s", entry.message.c_str());
         }
 
-        // Auto-scroll
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
             ImGui::SetScrollHereY(1.0f);
 

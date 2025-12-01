@@ -206,8 +206,8 @@ GAME_API bool game_init(as3::engine_context* ctx)
     g_ctx  = ctx;
     g_time = 0.0f;
 
-    // Initialize scripting
-    g_scripts.init(ctx->renderer);
+    // Initialize scripting with audio
+    g_scripts.init(ctx->renderer, ctx->audio);
 
     // Setup camera
     if (g_camera_entity != entt::null &&

@@ -1,10 +1,12 @@
+/// @file audio.cpp
+/// @brief Audio manager implementation using SDL3_mixer
+
 #include "audio.hpp"
 
 #include <SDL3_mixer/SDL_mixer.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <ranges>
 
 namespace as3
 {
@@ -61,21 +63,15 @@ void AudioManager::shutdown()
 
     stop_music();
 
-    // Release all music resources
-    for (auto& [handle, audio] : music_map_)
-    {
+    for (auto& [h, audio] : music_)
         if (audio)
             MIX_DestroyAudio(audio);
-    }
-    music_map_.clear();
+    music_.clear();
 
-    // Release all sound resources
-    for (auto& [handle, audio] : sounds_map_)
-    {
+    for (auto& [h, audio] : sounds_)
         if (audio)
             MIX_DestroyAudio(audio);
-    }
-    sounds_map_.clear();
+    sounds_.clear();
 
     if (music_track_)
     {
@@ -99,34 +95,33 @@ music_handle AudioManager::load_music(const std::filesystem::path& path)
     if (!initialized_ || !mixer_ || path.empty())
         return invalid_music;
 
-    // false = stream instead of predecode for faster loading
-    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), false);
+    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), false); // Stream
     if (!audio)
     {
         spdlog::error("== music {}: {}", path.string(), SDL_GetError());
         return invalid_music;
     }
 
-    music_map_[next_music_handle_] = audio;
+    music_[next_music_] = audio;
     spdlog::info("=> music: {}", path.filename().string());
-    return next_music_handle_++;
+    return next_music_++;
 }
 
 void AudioManager::unload_music(music_handle h)
 {
-    if (auto it = music_map_.find(h); it != music_map_.end())
+    if (auto it = music_.find(h); it != music_.end())
     {
         if (current_music_ == h)
             stop_music();
         MIX_DestroyAudio(it->second);
-        music_map_.erase(it);
+        music_.erase(it);
     }
 }
 
-void AudioManager::play_music(music_handle h, int loops)
+void AudioManager::play_music(music_handle h, bool loop)
 {
-    auto it = music_map_.find(h);
-    if (it == music_map_.end() || !music_track_)
+    auto it = music_.find(h);
+    if (it == music_.end() || !music_track_)
         return;
 
     if (!MIX_SetTrackAudio(music_track_, it->second))
@@ -136,8 +131,7 @@ void AudioManager::play_music(music_handle h, int loops)
     }
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    if (loops != 0)
-        SDL_SetBooleanProperty(props, "loop", true);
+    SDL_SetBooleanProperty(props, "loop", loop);
 
     if (!MIX_PlayTrack(music_track_, props))
         spdlog::error("MIX_PlayTrack: {}", SDL_GetError());
@@ -195,32 +189,31 @@ sound_handle AudioManager::load_sound(const std::filesystem::path& path)
     if (!initialized_ || !mixer_ || path.empty())
         return invalid_sound;
 
-    // true = predecode for low-latency SFX
-    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), true);
+    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), true); // Predecode
     if (!audio)
     {
         spdlog::error("== sound {}: {}", path.string(), SDL_GetError());
         return invalid_sound;
     }
 
-    sounds_map_[next_sound_handle_] = audio;
+    sounds_[next_sound_] = audio;
     spdlog::info("=> sound: {}", path.filename().string());
-    return next_sound_handle_++;
+    return next_sound_++;
 }
 
 void AudioManager::unload_sound(sound_handle h)
 {
-    if (auto it = sounds_map_.find(h); it != sounds_map_.end())
+    if (auto it = sounds_.find(h); it != sounds_.end())
     {
         MIX_DestroyAudio(it->second);
-        sounds_map_.erase(it);
+        sounds_.erase(it);
     }
 }
 
 void AudioManager::play_sound(sound_handle h, [[maybe_unused]] float volume)
 {
-    auto it = sounds_map_.find(h);
-    if (it == sounds_map_.end() || !mixer_)
+    auto it = sounds_.find(h);
+    if (it == sounds_.end() || !mixer_)
         return;
     MIX_PlayAudio(mixer_, it->second);
 }
@@ -228,66 +221,6 @@ void AudioManager::play_sound(sound_handle h, [[maybe_unused]] float volume)
 void AudioManager::set_sound_volume(float volume)
 {
     sound_volume_ = std::clamp(volume, 0.0f, 1.0f);
-}
-
-namespace
-{
-
-/// Audio file extensions for music
-constexpr std::array k_music_extensions{ ".ogg", ".mp3", ".wav", ".flac" };
-
-/// Audio file extensions for sounds
-constexpr std::array k_sound_extensions{ ".wav", ".ogg", ".mp3" };
-
-/// Check if extension matches any in the array (case-insensitive)
-[[nodiscard]] bool matches_extension(std::string_view             ext,
-                                     std::span<const char* const> valid_exts)
-{
-    std::string lower_ext;
-    lower_ext.reserve(ext.size());
-    std::ranges::transform(ext,
-                           std::back_inserter(lower_ext),
-                           [](unsigned char c)
-                           { return static_cast<char>(std::tolower(c)); });
-
-    return std::ranges::any_of(valid_exts,
-                               [&lower_ext](const char* valid)
-                               { return lower_ext == valid; });
-}
-
-/// List audio files from directory with given extensions
-[[nodiscard]] std::vector<std::string> list_audio_files(
-    const std::filesystem::path& dir, std::span<const char* const> extensions)
-{
-    std::vector<std::string> files;
-
-    if (!std::filesystem::exists(dir))
-        return files;
-
-    for (const auto& entry : std::filesystem::directory_iterator(dir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-
-        const auto ext = entry.path().extension().string();
-        if (matches_extension(ext, extensions))
-            files.push_back(entry.path().filename().string());
-    }
-
-    std::ranges::sort(files);
-    return files;
-}
-
-} // namespace
-
-std::vector<std::string> AudioManager::list_music_files() const
-{
-    return list_audio_files("assets/music", k_music_extensions);
-}
-
-std::vector<std::string> AudioManager::list_sound_files() const
-{
-    return list_audio_files("assets/sounds", k_sound_extensions);
 }
 
 } // namespace as3
