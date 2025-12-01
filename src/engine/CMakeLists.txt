@@ -1,42 +1,50 @@
 add_executable(engine)
 
-file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file(
+    GLOB_RECURSE ENGINE_SRC
+    CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+)
 target_sources(engine PRIVATE ${ENGINE_SRC})
 
-target_include_directories(engine 
-    PUBLIC  ${SHARED_INCLUDE_DIR}
+target_include_directories(
+    engine
+    PUBLIC ${SHARED_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-set_target_properties(engine PROPERTIES 
-    CXX_STANDARD 26 
-    CXX_STANDARD_REQUIRED ON 
-    CXX_EXTENSIONS OFF
+set_target_properties(
+    engine
+    PROPERTIES CXX_STANDARD 26 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
 )
 
-target_link_libraries(engine PRIVATE
-    warnings
-    glm
-    EnTT::EnTT
-    spdlog
-    SDL3::SDL3-static
-    SDL3_mixer::SDL3_mixer-static
-    SDL3_shadercross::SDL3_shadercross
-    yaml-cpp
-    stb
-    imgui_sdl3
-    tinyobjloader
+target_link_libraries(
+    engine
+    PRIVATE
+        warnings
+        glm
+        EnTT::EnTT
+        spdlog
+        SDL3::SDL3-static
+        SDL3_mixer::SDL3_mixer-static
+        SDL3_shadercross::SDL3_shadercross
+        yaml-cpp
+        stb
+        imgui_sdl3
+        tinyobjloader
+        tinygltf
 )
 
 # Symlinks for runtime assets
 add_custom_command(
-    TARGET engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_SOURCE_DIR}/shaders"
-            "$<TARGET_FILE_DIR:engine>/shaders"
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:engine>/assets"
+    TARGET engine
+    POST_BUILD
+    COMMAND
+        ${CMAKE_COMMAND} -E create_symlink "${CMAKE_SOURCE_DIR}/shaders"
+        "$<TARGET_FILE_DIR:engine>/shaders"
+    COMMAND
+        ${CMAKE_COMMAND} -E create_symlink "${CMAKE_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:engine>/assets"
     COMMENT "Creating symlinks to shaders and assets"
     VERBATIM
 )
