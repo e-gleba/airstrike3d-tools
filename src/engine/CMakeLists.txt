@@ -33,6 +33,7 @@ target_link_libraries(
         imgui_sdl3
         tinyobjloader
         tinygltf
+        pybind11::embed
 )
 
 # Symlinks for runtime assets
