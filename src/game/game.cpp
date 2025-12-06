@@ -117,7 +117,7 @@ std::shared_ptr<ui_sink> g_sink;
 
 GAME_API euengine::preinit_result game_preinit(euengine::preinit_settings* s)
 {
-    s->window.title     = "euengine";
+    s->window.title     = "euengine showcase";
     s->window.width     = 1600;
     s->window.height    = 900;
     s->window.vsync     = euengine::vsync_mode::enabled;
