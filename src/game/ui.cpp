@@ -867,6 +867,19 @@ void draw_engine(euengine::engine_context* ctx)
 
         ImGui::Spacing();
         
+        // Render Distance
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("Render Distance");
+        ImGui::PopStyleColor();
+        
+        float render_dist = ctx->settings->get_render_distance();
+        if (ImGui::SliderFloat("##render_dist", &render_dist, 10.0f, 10000.0f, "%.0f units"))
+            ctx->settings->set_render_distance(render_dist);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Maximum rendering distance (far plane). Objects beyond this distance are not rendered.");
+
+        ImGui::Spacing();
+        
         // Post-Processing settings
         ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Post-Processing");
         ImGui::Separator();

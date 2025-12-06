@@ -183,6 +183,9 @@ public:
     void                set_vignette(float intensity) noexcept override;
     [[nodiscard]] float get_vignette() const noexcept override { return vignette_; }
     
+    void                set_render_distance(float distance) noexcept override;
+    [[nodiscard]] float get_render_distance() const noexcept override { return render_distance_; }
+    
     /// Check if post-processing is available
     [[nodiscard]] bool is_postprocess_available() const noexcept;
 
@@ -253,6 +256,7 @@ private:
     float          contrast_              = 1.0f;
     float          saturation_            = 1.0f;
     float          vignette_              = 0.0f;
+    float          render_distance_       = 200.0f;
 
     // Audio
     float master_volume_     = 1.0f;

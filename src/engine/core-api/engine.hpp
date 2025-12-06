@@ -83,6 +83,10 @@ public:
     /// Vignette intensity (0.0 to 1.0, default 0.0 = off)
     virtual void                set_vignette(float intensity) noexcept = 0;
     [[nodiscard]] virtual float get_vignette() const noexcept          = 0;
+    
+    /// Render distance / Far plane (10.0 to 10000.0, default 200.0)
+    virtual void                set_render_distance(float distance) noexcept = 0;
+    [[nodiscard]] virtual float get_render_distance() const noexcept        = 0;
 
     virtual void request_quit() noexcept = 0;
 

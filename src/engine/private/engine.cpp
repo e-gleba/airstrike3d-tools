@@ -468,6 +468,19 @@ void engine::set_vignette(float intensity) noexcept
     vignette_ = std::clamp(intensity, 0.0f, 1.0f);
 }
 
+void engine::set_render_distance(float distance) noexcept
+{
+    render_distance_ = std::clamp(distance, 10.0f, 10000.0f);
+    
+    // Update camera far plane
+    auto camera_view = registry_.view<camera_component>();
+    for (auto&& [entity, cam] : camera_view.each())
+    {
+        cam.far_plane = render_distance_;
+        break;
+    }
+}
+
 bool engine::is_postprocess_available() const noexcept
 {
     return renderer_ != nullptr;
