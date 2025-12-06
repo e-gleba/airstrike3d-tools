@@ -329,9 +329,10 @@ void draw_inspector()
     if (!g_show_inspector) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(16, 510), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 280), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(220, 150), ImVec2(450, io.DisplaySize.y - 60));
+    // Position below Scene window (Scene is at y=40, height=600, so start at 650)
+    ImGui::SetNextWindowPos(ImVec2(16, 650), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(280, 150), ImVec2(500, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Inspector", &g_show_inspector))
     {
@@ -709,19 +710,31 @@ void draw_stats(euengine::engine_context* ctx)
             }
         }
         
-        // Frame time graph
+        // Frame time graph with legend
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("Frame Time (ms)");
+        ImGui::PopStyleColor();
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.38f, 0.68f, 0.93f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
-        ImGui::PlotLines("Frame Time (ms)", reordered_times, size, 0, nullptr, 0.0f, 33.3f, ImVec2(-1, 60));
+        ImGui::PlotLines("##frame_time", reordered_times, size, 0, nullptr, 0.0f, 33.3f, ImVec2(-1, 60));
         ImGui::PopStyleColor(2);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.45f, 0.48f, 1.0f));
+        ImGui::Text("  0 ms                                16.67 ms (60 FPS)");
+        ImGui::PopStyleColor();
         
         ImGui::Spacing();
         
-        // FPS history graph
+        // FPS history graph with legend
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("FPS History");
+        ImGui::PopStyleColor();
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.40f, 0.80f, 0.50f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
-        ImGui::PlotLines("FPS History", reordered_fps, size, 0, nullptr, 0.0f, 120.0f, ImVec2(-1, 60));
+        ImGui::PlotLines("##fps_history", reordered_fps, size, 0, nullptr, 0.0f, 120.0f, ImVec2(-1, 60));
         ImGui::PopStyleColor(2);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.45f, 0.48f, 1.0f));
+        ImGui::Text("  0 FPS                               60 FPS");
+        ImGui::PopStyleColor();
     }
     ImGui::End();
     ImGui::PopStyleVar(2);

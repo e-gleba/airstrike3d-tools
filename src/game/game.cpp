@@ -100,5 +100,7 @@ GAME_API void game_render(euengine::engine_context* ctx)
 GAME_API void game_ui(euengine::engine_context* ctx)
 {
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
+    // Update time for console logging before drawing UI
+    ui::g_time = ctx->time.elapsed;
     ui::draw(ctx);
 }

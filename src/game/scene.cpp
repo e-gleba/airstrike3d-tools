@@ -84,8 +84,8 @@ void setup_scene()
     add_model("assets/models/ships/lodka/lodka.obj", { -18, 0, -2 }, 0.06f);
     add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 18, 0, -2 }, 0.05f);
 
-    // Center: featured duck - more prominent
-    add_model("assets/models/samples/duck.glb", { 0, 0.15f, 12 }, 0.12f);
+    // Center: featured duck - appropriately sized
+    add_model("assets/models/samples/duck.glb", { 0, 0.1f, 12 }, 0.06f);
 }
 
 void process_input()
