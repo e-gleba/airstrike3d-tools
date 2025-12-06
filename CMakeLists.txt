@@ -5,21 +5,22 @@ project(
     VERSION 1.0.5
     DESCRIPTION "Airstrike divo games reverse engineering toolkit"
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
-    LANGUAGES C CXX)
+    LANGUAGES C CXX
+)
 
 option(USE_BASS_PROXY_LIB ON)
 
 list(
-    APPEND
-    CMAKE_PREFIX_PATH
+    APPEND CMAKE_PREFIX_PATH
     ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality)
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality
+)
 
 list(
-    APPEND
-    CMAKE_FIND_ROOT_PATH
+    APPEND CMAKE_FIND_ROOT_PATH
     ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality)
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality
+)
 
 message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 

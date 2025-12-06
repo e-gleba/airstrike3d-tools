@@ -12,7 +12,7 @@
       "displayName": "Base Configuration",
       "description": "Base preset containing common project configurations and settings",
       "hidden": true,
-      "generator": "Ninja Multi-Config",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
