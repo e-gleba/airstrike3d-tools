@@ -44,9 +44,11 @@ struct sdl_shared_object_deleter final
 };
 
 // Smart pointer type aliases
-using sdl_window_ptr        = std::unique_ptr<SDL_Window, sdl_window_deleter>;
-using sdl_gpu_device_ptr    = std::unique_ptr<SDL_GPUDevice, sdl_gpu_device_deleter>;
-using sdl_shared_object_ptr = std::unique_ptr<SDL_SharedObject, sdl_shared_object_deleter>;
+using sdl_window_ptr = std::unique_ptr<SDL_Window, sdl_window_deleter>;
+using sdl_gpu_device_ptr =
+    std::unique_ptr<SDL_GPUDevice, sdl_gpu_device_deleter>;
+using sdl_shared_object_ptr =
+    std::unique_ptr<SDL_SharedObject, sdl_shared_object_deleter>;
 
 /// Main engine class - manages window, GPU, subsystems and game loop
 /// Also implements i_engine_settings for game access to runtime settings
@@ -93,10 +95,19 @@ public:
 
     // Direct accessors (for engine internal use)
     [[nodiscard]] entt::registry& registry() noexcept { return registry_; }
-    [[nodiscard]] SDL_GPUDevice*  device() const noexcept { return device_.get(); }
-    [[nodiscard]] SDL_Window*     window() const noexcept { return window_.get(); }
-    [[nodiscard]] ShaderManager*  shaders() const noexcept { return shader_manager_.get(); }
-    [[nodiscard]] Renderer*       renderer() const noexcept { return renderer_.get(); }
+    [[nodiscard]] SDL_GPUDevice*  device() const noexcept
+    {
+        return device_.get();
+    }
+    [[nodiscard]] SDL_Window* window() const noexcept { return window_.get(); }
+    [[nodiscard]] ShaderManager* shaders() const noexcept
+    {
+        return shader_manager_.get();
+    }
+    [[nodiscard]] Renderer* renderer() const noexcept
+    {
+        return renderer_.get();
+    }
 
     // i_engine_settings implementation
     void                     set_vsync(vsync_mode mode) noexcept override;
@@ -109,15 +120,24 @@ public:
     [[nodiscard]] std::int32_t     get_window_width() const noexcept override;
     [[nodiscard]] std::int32_t     get_window_height() const noexcept override;
     [[nodiscard]] std::string_view get_gpu_driver() const noexcept override;
-    [[nodiscard]] float            get_target_fps() const noexcept override { return target_fps_; }
-    void                           set_target_fps(float fps) noexcept override;
-    void                           set_mouse_captured(bool captured) noexcept override;
-    [[nodiscard]] bool             is_mouse_captured() const noexcept override { return mouse_captured_; }
+    [[nodiscard]] float            get_target_fps() const noexcept override
+    {
+        return target_fps_;
+    }
+    void               set_target_fps(float fps) noexcept override;
+    void               set_mouse_captured(bool captured) noexcept override;
+    [[nodiscard]] bool is_mouse_captured() const noexcept override
+    {
+        return mouse_captured_;
+    }
 
     // Audio control
     void                set_master_volume(float volume) noexcept override;
     [[nodiscard]] float get_master_volume() const noexcept override;
-    [[nodiscard]] bool  is_audio_available() const noexcept override { return audio_ != nullptr; }
+    [[nodiscard]] bool  is_audio_available() const noexcept override
+    {
+        return audio_ != nullptr;
+    }
 
     void request_quit() noexcept override { running_ = false; }
 

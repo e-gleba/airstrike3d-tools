@@ -305,7 +305,8 @@ void update_camera(euengine::engine_context* ctx)
 
 /// Pre-initialization callback - configure engine settings before SDL init
 /// This is called BEFORE the engine is initialized
-GAME_API euengine::preinit_result game_preinit(euengine::preinit_settings* settings)
+GAME_API euengine::preinit_result game_preinit(
+    euengine::preinit_settings* settings)
 {
     spdlog::info("=> game_preinit");
 

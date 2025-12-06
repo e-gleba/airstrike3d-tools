@@ -62,9 +62,9 @@ struct preinit_settings final
 /// Result from game preinit callback
 enum class preinit_result : std::uint8_t
 {
-    ok,       ///< Continue with initialization
-    skip,     ///< Skip game loading (engine runs without game)
-    quit,     ///< Abort application launch
+    ok,   ///< Continue with initialization
+    skip, ///< Skip game loading (engine runs without game)
+    quit, ///< Abort application launch
 };
 
 extern "C"

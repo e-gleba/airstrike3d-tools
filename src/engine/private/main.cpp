@@ -18,9 +18,10 @@ namespace
 struct app_state final
 {
     std::unique_ptr<euengine::engine> eng;
-    euengine::preinit_settings        settings = euengine::preinit_settings::defaults();
-    std::filesystem::path             game_lib_path;
-    bool                              game_loaded = false;
+    euengine::preinit_settings        settings =
+        euengine::preinit_settings::defaults();
+    std::filesystem::path game_lib_path;
+    bool                  game_loaded = false;
 };
 
 [[nodiscard]] std::filesystem::path get_game_library_path()
@@ -37,8 +38,7 @@ struct app_state final
 
 /// Try to load game library and call preinit if available
 [[nodiscard]] euengine::preinit_result try_game_preinit(
-    const std::filesystem::path&  path,
-    euengine::preinit_settings*   settings)
+    const std::filesystem::path& path, euengine::preinit_settings* settings)
 {
     if (!std::filesystem::exists(path))
     {
@@ -77,7 +77,9 @@ struct app_state final
 // SDL3 Main Callbacks
 // =============================================================================
 
-SDL_AppResult SDL_AppInit(void** appstate, [[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
+SDL_AppResult SDL_AppInit(void**                 appstate,
+                          [[maybe_unused]] int   argc,
+                          [[maybe_unused]] char* argv[])
 {
     spdlog::info("=> SDL_AppInit");
 
@@ -100,8 +102,9 @@ SDL_AppResult SDL_AppInit(void** appstate, [[maybe_unused]] int argc, [[maybe_un
     state->game_lib_path = get_game_library_path();
 
     // Try to call game preinit to allow configuration
-    auto preinit_result = try_game_preinit(state->game_lib_path, &state->settings);
-    
+    auto preinit_result =
+        try_game_preinit(state->game_lib_path, &state->settings);
+
     switch (preinit_result)
     {
         case euengine::preinit_result::quit:

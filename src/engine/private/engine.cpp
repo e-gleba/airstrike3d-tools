@@ -100,8 +100,9 @@ bool engine::init(const preinit_settings& settings)
     // Set minimum window size if specified
     if (settings.window.min_width > 0 && settings.window.min_height > 0)
     {
-        SDL_SetWindowMinimumSize(
-            window_.get(), settings.window.min_width, settings.window.min_height);
+        SDL_SetWindowMinimumSize(window_.get(),
+                                 settings.window.min_width,
+                                 settings.window.min_height);
     }
 
     // Create GPU device with multi-format support
@@ -146,8 +147,9 @@ bool engine::init(const preinit_settings& settings)
         spdlog::error("renderer init failed");
         return false;
     }
-    renderer_->ensure_depth_texture(static_cast<Uint32>(settings.window.width),
-                                    static_cast<Uint32>(settings.window.height));
+    renderer_->ensure_depth_texture(
+        static_cast<Uint32>(settings.window.width),
+        static_cast<Uint32>(settings.window.height));
 
     // Initialize ImGui layer
     imgui_layer_ = std::make_unique<ImGuiLayer>();
@@ -236,7 +238,7 @@ void engine::shutdown() noexcept
 
     device_.reset();
     window_.reset();
-    
+
     // Note: SDL_Quit is called by the callback system, not here
     sdl_initialized_ = false;
 }
@@ -697,9 +699,10 @@ void engine::iterate()
 {
     const Uint64 freq = SDL_GetPerformanceFrequency();
     const Uint64 now  = SDL_GetPerformanceCounter();
-    
-    delta_time_ = static_cast<float>(now - last_time_) / static_cast<float>(freq);
-    last_time_  = now;
+
+    delta_time_ =
+        static_cast<float>(now - last_time_) / static_cast<float>(freq);
+    last_time_ = now;
 
     // Clamp delta time to avoid spiral of death
     delta_time_ = std::min(delta_time_, k_max_delta_time);
