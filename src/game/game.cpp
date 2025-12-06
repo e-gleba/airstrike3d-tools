@@ -6,359 +6,294 @@
 #include <spdlog/spdlog.h>
 
 #include <cmath>
-#include <limits>
+#include <filesystem>
+#include <string>
 #include <vector>
 
 namespace
 {
 
+// SDL scancodes (stable values from SDL3)
+constexpr int KEY_W      = 26;
+constexpr int KEY_A      = 4;
+constexpr int KEY_S      = 22;
+constexpr int KEY_D      = 7;
+constexpr int KEY_Q      = 20;
+constexpr int KEY_E      = 8;
+constexpr int KEY_ESCAPE = 41;
+constexpr int KEY_F11    = 68;
+constexpr int KEY_LSHIFT = 225;
+
+// ============================================================================
+// State
+// ============================================================================
+
 as3::engine_context*          g_ctx = nullptr;
 std::vector<as3::mesh_handle> g_meshes;
-
-// Scripting
-std::vector<as3::compound_object> g_objects;
-std::size_t                       g_selected_object = SIZE_MAX;
+float                         g_time = 0.0f;
 
 // Camera
 entt::entity g_camera_entity = entt::null;
+bool         g_camera_free   = true;
 
-// State
-float g_time      = 0.0f;
-bool  g_wireframe = false;
+// Models
+struct loaded_model
+{
+    as3::model_handle handle = as3::invalid_model;
+    std::string       name;
+    std::string       path;
+    as3::transform    transform;
+    as3::bounds       bounds;
+};
+std::vector<loaded_model> g_models;
+int                       g_selected_model = -1;
+
+// Music
+struct music_track
+{
+    as3::music_handle handle = as3::invalid_music;
+    std::string       name;
+    std::string       path;
+};
+std::vector<music_track> g_music_tracks;
+int                      g_current_track = -1;
 
 // UI state
-bool g_show_settings   = false;
-bool g_show_script_log = false;
-bool g_show_inspector  = true;
+bool g_show_settings      = true;
+bool g_show_model_browser = true;
+bool g_show_music_browser = true;
+bool g_show_inspector     = true;
+bool g_wireframe          = false;
 
-// Mouse
-bool g_mouse_was_pressed_left  = false;
-bool g_mouse_was_pressed_right = false;
+// Model browser
+std::string              g_model_dir = "assets/models";
+std::vector<std::string> g_model_files;
+int                      g_browser_selected = -1;
 
-// Convert screen position to world position on ground plane
-glm::vec3 screen_to_ground(float                       screen_x,
-                           float                       screen_y,
-                           const as3::CameraComponent& cam,
-                           float                       screen_w,
-                           float                       screen_h)
+// ============================================================================
+// Model browser helpers
+// ============================================================================
+
+void scan_model_directory(const std::string& dir)
 {
-    glm::vec3 front;
-    front.x =
-        std::cos(glm::radians(cam.yaw)) * std::cos(glm::radians(cam.pitch));
-    front.y = std::sin(glm::radians(cam.pitch));
-    front.z =
-        std::sin(glm::radians(cam.yaw)) * std::cos(glm::radians(cam.pitch));
-    front = glm::normalize(front);
+    g_model_files.clear();
+    g_browser_selected = -1;
 
-    glm::vec3 up(0.0f, 1.0f, 0.0f);
-    glm::vec3 right  = glm::normalize(glm::cross(front, up));
-    glm::vec3 cam_up = glm::normalize(glm::cross(right, front));
-
-    glm::mat4 view = glm::lookAt(cam.position, cam.position + front, cam_up);
-    glm::mat4 proj = glm::perspective(
-        glm::radians(60.0f), screen_w / screen_h, 0.1f, 500.0f);
-
-    float ndc_x = (2.0f * screen_x / screen_w) - 1.0f;
-    float ndc_y = 1.0f - (2.0f * screen_y / screen_h);
-
-    glm::mat4 inv_proj = glm::inverse(proj);
-    glm::mat4 inv_view = glm::inverse(view);
-
-    glm::vec4 ray_clip(ndc_x, ndc_y, -1.0f, 1.0f);
-    glm::vec4 ray_eye = inv_proj * ray_clip;
-    ray_eye           = glm::vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
-
-    glm::vec3 ray_world = glm::normalize(glm::vec3(inv_view * ray_eye));
-
-    if (std::abs(ray_world.y) < 0.0001f)
-        return glm::vec3(0.0f);
-
-    float t = -cam.position.y / ray_world.y;
-    if (t < 0.0f)
-        return glm::vec3(0.0f);
-
-    return cam.position + ray_world * t;
-}
-
-// Try to select object at world position
-void try_select_at(const glm::vec3& pos)
-{
-    // Deselect current
-    if (g_selected_object < g_objects.size())
-    {
-        g_scripts.on_deselect(g_objects[g_selected_object]);
-        g_objects[g_selected_object].selected = false;
-    }
-    g_selected_object = SIZE_MAX;
-
-    // Find closest object within selection radius
-    float       best_dist = 999999.0f;
-    std::size_t best_idx  = SIZE_MAX;
-
-    for (std::size_t i = 0; i < g_objects.size(); ++i)
-    {
-        auto& obj  = g_objects[i];
-        float dx   = pos.x - obj.position.x;
-        float dz   = pos.z - obj.position.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-
-        if (dist < obj.selection_radius && dist < best_dist)
-        {
-            best_dist = dist;
-            best_idx  = i;
-        }
-    }
-
-    if (best_idx != SIZE_MAX)
-    {
-        g_selected_object            = best_idx;
-        g_objects[best_idx].selected = true;
-        g_scripts.on_select(g_objects[best_idx]);
-    }
-}
-
-// Command selected object to move
-void command_move(const glm::vec3& target)
-{
-    if (g_selected_object < g_objects.size())
-    {
-        auto& obj = g_objects[g_selected_object];
-        if (obj.can_move)
-        {
-            g_scripts.on_move_command(obj, target);
-        }
-    }
-}
-
-// Update object movement (simple ground movement)
-void update_object_movement(as3::compound_object& obj, float dt)
-{
-    if (!obj.has_target || !obj.can_move)
+    if (!std::filesystem::exists(dir))
         return;
 
-    float dx   = obj.target_pos.x - obj.position.x;
-    float dz   = obj.target_pos.z - obj.position.z;
-    float dist = std::sqrt(dx * dx + dz * dz);
-
-    if (dist < 0.5f)
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(dir))
     {
-        obj.has_target    = false;
-        obj.current_speed = 0.0f;
-        return;
-    }
-
-    // Calculate target angle
-    float target_angle = glm::degrees(std::atan2(dx, dz));
-    float angle_diff   = target_angle - obj.rotation.y;
-    while (angle_diff > 180.0f)
-        angle_diff -= 360.0f;
-    while (angle_diff < -180.0f)
-        angle_diff += 360.0f;
-
-    // Rotate toward target
-    float max_rot = obj.turn_speed * dt;
-    if (std::abs(angle_diff) > max_rot)
-    {
-        obj.rotation.y += (angle_diff > 0 ? max_rot : -max_rot);
-    }
-    else
-    {
-        obj.rotation.y = target_angle;
-    }
-
-    // Move forward if roughly facing target
-    if (std::abs(angle_diff) < 30.0f)
-    {
-        obj.current_speed =
-            std::min(obj.current_speed + obj.move_speed * dt, obj.move_speed);
-        float move_dist = obj.current_speed * dt;
-        obj.position.x += std::sin(glm::radians(obj.rotation.y)) * move_dist;
-        obj.position.z += std::cos(glm::radians(obj.rotation.y)) * move_dist;
-    }
-}
-
-// Compute hierarchical transform for a part (handles parent chain)
-[[nodiscard]] glm::mat4 compute_part_matrix(const as3::compound_object& obj,
-                                            std::size_t part_idx)
-{
-    const auto& part = obj.parts[part_idx];
-
-    // Part's local transform: offset + rotation + scale
-    glm::mat4 local = glm::mat4(1.0f);
-    local           = glm::translate(local, part.offset);
-    local =
-        glm::rotate(local, glm::radians(part.rotation.y), glm::vec3(0, 1, 0));
-    local =
-        glm::rotate(local, glm::radians(part.rotation.x), glm::vec3(1, 0, 0));
-    local =
-        glm::rotate(local, glm::radians(part.rotation.z), glm::vec3(0, 0, 1));
-    local = glm::scale(local, part.scale);
-
-    // If has parent, apply parent's rotation to this part's transform
-    if (part.parent_index >= 0 &&
-        part.parent_index < static_cast<int>(obj.parts.size()))
-    {
-        const auto& parent_part =
-            obj.parts[static_cast<std::size_t>(part.parent_index)];
-
-        // Parent's transform (offset + rotation, no scale - scale is per-part)
-        glm::mat4 parent_xform = glm::mat4(1.0f);
-        parent_xform = glm::translate(parent_xform, parent_part.offset);
-        parent_xform = glm::rotate(parent_xform,
-                                   glm::radians(parent_part.rotation.y),
-                                   glm::vec3(0, 1, 0));
-        parent_xform = glm::rotate(parent_xform,
-                                   glm::radians(parent_part.rotation.x),
-                                   glm::vec3(1, 0, 0));
-        parent_xform = glm::rotate(parent_xform,
-                                   glm::radians(parent_part.rotation.z),
-                                   glm::vec3(0, 0, 1));
-
-        // Recurse up the hierarchy if grandparent exists
-        if (parent_part.parent_index >= 0)
-        {
-            glm::mat4 grandparent = compute_part_matrix(
-                obj, static_cast<std::size_t>(parent_part.parent_index));
-            parent_xform = grandparent * parent_xform;
-        }
-
-        local = parent_xform * local;
-    }
-
-    return local;
-}
-
-// Render compound object with hierarchical parts
-void render_object(as3::IRenderer* renderer, as3::compound_object& obj)
-{
-    // Object's world transform
-    glm::mat4 world = glm::mat4(1.0f);
-    world           = glm::translate(world, obj.position);
-    world =
-        glm::rotate(world, glm::radians(obj.rotation.y), glm::vec3(0, 1, 0));
-    world =
-        glm::rotate(world, glm::radians(obj.rotation.x), glm::vec3(1, 0, 0));
-    world =
-        glm::rotate(world, glm::radians(obj.rotation.z), glm::vec3(0, 0, 1));
-    world = glm::scale(world, obj.scale);
-
-    for (std::size_t i = 0; i < obj.parts.size(); ++i)
-    {
-        const auto& part = obj.parts[i];
-        if (part.model == as3::invalid_model)
+        if (!entry.is_regular_file())
             continue;
 
-        // Compute full hierarchical matrix
-        glm::mat4 part_local = compute_part_matrix(obj, i);
-        glm::mat4 full       = world * part_local;
-
-        // Extract transform for rendering
-        as3::transform xform;
-        xform.position = glm::vec3(full[3]);
-
-        // Extract scale (approximate for uniform scale)
-        xform.scale = glm::vec3(glm::length(glm::vec3(full[0])),
-                                glm::length(glm::vec3(full[1])),
-                                glm::length(glm::vec3(full[2])));
-
-        // Extract rotation (convert matrix to euler - simplified)
-        glm::mat3 rot_mat = glm::mat3(full);
-        rot_mat[0] /= xform.scale.x;
-        rot_mat[1] /= xform.scale.y;
-        rot_mat[2] /= xform.scale.z;
-
-        // Simple euler extraction
-        xform.rotation.x = glm::degrees(std::asin(-rot_mat[2][1]));
-        xform.rotation.y =
-            glm::degrees(std::atan2(rot_mat[2][0], rot_mat[2][2]));
-        xform.rotation.z =
-            glm::degrees(std::atan2(rot_mat[0][1], rot_mat[1][1]));
-
-        renderer->draw_model(part.model, xform);
+        auto ext = entry.path().extension().string();
+        if (ext == ".obj" || ext == ".OBJ" || ext == ".glb" || ext == ".GLB" ||
+            ext == ".gltf" || ext == ".GLTF")
+        {
+            g_model_files.push_back(entry.path().string());
+        }
     }
+
+    std::sort(g_model_files.begin(), g_model_files.end());
+    spdlog::info("Found {} model files in {}", g_model_files.size(), dir);
+}
+
+void scan_music_directory()
+{
+    const std::string dir = "assets/music";
+    if (!std::filesystem::exists(dir))
+        return;
+
+    for (const auto& entry : std::filesystem::directory_iterator(dir))
+    {
+        if (!entry.is_regular_file())
+            continue;
+
+        auto ext = entry.path().extension().string();
+        if (ext == ".ogg" || ext == ".OGG" || ext == ".mp3" || ext == ".MP3" ||
+            ext == ".wav" || ext == ".WAV")
+        {
+            music_track track;
+            track.name = entry.path().filename().string();
+            track.path = entry.path().string();
+            g_music_tracks.push_back(track);
+        }
+    }
+
+    std::sort(g_music_tracks.begin(),
+              g_music_tracks.end(),
+              [](const auto& a, const auto& b) { return a.name < b.name; });
+    spdlog::info("Found {} music tracks", g_music_tracks.size());
+}
+
+void load_model_at(const std::string& path, const glm::vec3& pos)
+{
+    auto handle = g_ctx->renderer->load_model(path);
+    if (handle == as3::invalid_model)
+    {
+        spdlog::error("Failed to load model: {}", path);
+        return;
+    }
+
+    loaded_model model;
+    model.handle             = handle;
+    model.path               = path;
+    model.name               = std::filesystem::path(path).stem().string();
+    model.bounds             = g_ctx->renderer->get_bounds(handle);
+    model.transform.position = pos;
+    model.transform.scale    = glm::vec3(1.0f);
+
+    g_models.push_back(model);
+    g_selected_model = static_cast<int>(g_models.size()) - 1;
+
+    spdlog::info("Loaded model: {} at ({:.1f}, {:.1f}, {:.1f})",
+                 model.name,
+                 pos.x,
+                 pos.y,
+                 pos.z);
+}
+
+// ============================================================================
+// Camera control
+// ============================================================================
+
+void update_camera(as3::engine_context* ctx)
+{
+    if (g_camera_entity == entt::null ||
+        !ctx->registry->valid(g_camera_entity))
+        return;
+
+    auto& cam = ctx->registry->get<as3::CameraComponent>(g_camera_entity);
+
+    // Mouse look (when captured)
+    if (ctx->input.mouse_captured)
+    {
+        cam.yaw += ctx->input.mouse_xrel * cam.look_speed;
+        cam.pitch -= ctx->input.mouse_yrel * cam.look_speed;
+        cam.pitch = glm::clamp(cam.pitch, -89.0f, 89.0f);
+    }
+
+    // Keyboard movement
+    if (ctx->input.keyboard && g_camera_free)
+    {
+        float     speed = cam.move_speed * ctx->delta_time;
+        glm::vec3 front = cam.front();
+        glm::vec3 right = cam.right();
+        glm::vec3 up(0.0f, 1.0f, 0.0f);
+
+        // Shift for faster movement
+        if (ctx->input.keyboard[KEY_LSHIFT])
+            speed *= 3.0f;
+
+        if (ctx->input.keyboard[KEY_W])
+            cam.position += front * speed;
+        if (ctx->input.keyboard[KEY_S])
+            cam.position -= front * speed;
+        if (ctx->input.keyboard[KEY_A])
+            cam.position -= right * speed;
+        if (ctx->input.keyboard[KEY_D])
+            cam.position += right * speed;
+        if (ctx->input.keyboard[KEY_Q])
+            cam.position -= up * speed;
+        if (ctx->input.keyboard[KEY_E])
+            cam.position += up * speed;
+
+        // Toggle mouse capture
+        if (ctx->input.keyboard[KEY_ESCAPE])
+            ctx->settings->set_mouse_captured(false);
+
+        // Fullscreen toggle (simple debounce)
+        static bool f11_was_pressed = false;
+        if (ctx->input.keyboard[KEY_F11])
+        {
+            if (!f11_was_pressed)
+            {
+                ctx->settings->set_fullscreen(!ctx->settings->is_fullscreen());
+                f11_was_pressed = true;
+            }
+        }
+        else
+        {
+            f11_was_pressed = false;
+        }
+    }
+
+    // Update view-projection
+    glm::mat4 view = cam.view();
+    glm::mat4 proj = cam.projection(ctx->display.aspect);
+    ctx->renderer->set_view_projection(proj * view);
 }
 
 } // namespace
+
+// ============================================================================
+// Game API implementation
+// ============================================================================
 
 GAME_API bool game_init(as3::engine_context* ctx)
 {
     g_ctx  = ctx;
     g_time = 0.0f;
 
-    // Initialize scripting with audio
-    g_scripts.init(ctx->renderer, ctx->audio);
-
     // Setup camera
     if (g_camera_entity != entt::null &&
-        g_ctx->registry->valid(g_camera_entity))
-        g_ctx->registry->destroy(g_camera_entity);
+        ctx->registry->valid(g_camera_entity))
+        ctx->registry->destroy(g_camera_entity);
 
-    g_camera_entity = g_ctx->registry->create();
-    auto& cam = g_ctx->registry->emplace<as3::CameraComponent>(g_camera_entity);
-    cam.position   = { 0.0f, 25.0f, 40.0f };
-    cam.pitch      = -30.0f;
+    g_camera_entity = ctx->registry->create();
+    auto& cam = ctx->registry->emplace<as3::CameraComponent>(g_camera_entity);
+    cam.position   = { 0.0f, 15.0f, 25.0f };
+    cam.pitch      = -25.0f;
     cam.yaw        = -90.0f;
-    cam.move_speed = 20.0f;
+    cam.move_speed = 15.0f;
+    cam.look_speed = 0.15f;
 
-    // Ground grid
+    // Create ground grid
     g_meshes.push_back(ctx->renderer->create_wireframe_grid(
-        100.0f, 100, { 0.15f, 0.2f, 0.15f }));
+        100.0f, 50, { 0.2f, 0.25f, 0.2f }));
 
-    // Load demo objects
-    g_objects.clear();
+    // Scan directories
+    scan_model_directory(g_model_dir);
+    scan_music_directory();
 
-    // T-72 Tank
-    as3::compound_object tank;
-    tank.position = { -10.0f, 0.0f, 0.0f };
-    if (g_scripts.load_object(tank, "assets/scripts/objects/t72.lua"))
-    {
-        g_objects.push_back(std::move(tank));
-    }
-
-    // Kamov helicopter
-    as3::compound_object heli;
-    heli.position = { 10.0f, 5.0f, 0.0f };
-    if (g_scripts.load_object(heli, "assets/scripts/objects/kamov.lua"))
-    {
-        g_objects.push_back(std::move(heli));
-    }
-
-    // Duck (glTF sample)
-    as3::compound_object duck;
-    duck.position = { 0.0f, 0.0f, 15.0f };
-    if (g_scripts.load_object(duck, "assets/scripts/objects/duck.lua"))
-    {
-        g_objects.push_back(std::move(duck));
-    }
+    // Load some default models for demo
+    load_model_at("assets/models/tanks/t72/t72_base.obj", { -8.0f, 0.0f, 0.0f });
+    load_model_at("assets/models/helics/kamov/kamov.obj", { 0.0f, 3.0f, 0.0f });
+    load_model_at("assets/models/samples/duck.glb", { 8.0f, 0.0f, 0.0f });
 
     ctx->renderer->set_render_mode(as3::render_mode::textured);
 
-    spdlog::info("Game initialized with {} objects", g_objects.size());
+    spdlog::info("Demo initialized - WASD to move, mouse to look (click to "
+                 "capture), F11 fullscreen");
     return true;
 }
 
 GAME_API void game_shutdown()
 {
-    // Unload object models
-    for (auto& obj : g_objects)
+    // Unload models
+    for (auto& model : g_models)
     {
-        for (auto& part : obj.parts)
-        {
-            if (part.model != as3::invalid_model && g_ctx->renderer)
-            {
-                g_ctx->renderer->unload_model(part.model);
-            }
-        }
+        if (model.handle != as3::invalid_model && g_ctx->renderer)
+            g_ctx->renderer->unload_model(model.handle);
     }
-    g_objects.clear();
+    g_models.clear();
 
-    g_scripts.shutdown();
+    // Unload music
+    for (auto& track : g_music_tracks)
+    {
+        if (track.handle != as3::invalid_music && g_ctx->audio)
+            g_ctx->audio->unload_music(track.handle);
+    }
+    g_music_tracks.clear();
 
+    // Destroy meshes
     for (auto h : g_meshes)
-        if (h != as3::invalid_mesh)
+        if (h != as3::invalid_mesh && g_ctx->renderer)
             g_ctx->renderer->destroy_mesh(h);
     g_meshes.clear();
 
+    // Destroy camera
     if (g_camera_entity != entt::null &&
         g_ctx->registry->valid(g_camera_entity))
     {
@@ -366,7 +301,7 @@ GAME_API void game_shutdown()
         g_camera_entity = entt::null;
     }
 
-    spdlog::info("Game shutdown");
+    spdlog::info("Demo shutdown");
     g_ctx = nullptr;
 }
 
@@ -374,67 +309,56 @@ GAME_API void game_update(as3::engine_context* ctx)
 {
     g_time += ctx->delta_time;
 
+    // Update render mode
     ctx->renderer->set_render_mode(g_wireframe ? as3::render_mode::wireframe
                                                : as3::render_mode::textured);
 
-    // Handle mouse input
+    // Camera
+    update_camera(ctx);
+
+    // Capture mouse on click (when not over ImGui)
     if (ctx->imgui_ctx)
     {
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
         ImGuiIO& io = ImGui::GetIO();
 
-        if (!io.WantCaptureMouse && g_camera_entity != entt::null &&
-            g_ctx->registry->valid(g_camera_entity))
+        if (!io.WantCaptureMouse && io.MouseClicked[0])
         {
-            const auto& cam =
-                g_ctx->registry->get<as3::CameraComponent>(g_camera_entity);
-
-            bool left_pressed  = io.MouseDown[0];
-            bool right_pressed = io.MouseDown[1];
-
-            if (left_pressed && !g_mouse_was_pressed_left)
-            {
-                glm::vec3 world_pos = screen_to_ground(io.MousePos.x,
-                                                       io.MousePos.y,
-                                                       cam,
-                                                       io.DisplaySize.x,
-                                                       io.DisplaySize.y);
-                try_select_at(world_pos);
-            }
-
-            if (right_pressed && !g_mouse_was_pressed_right)
-            {
-                glm::vec3 world_pos = screen_to_ground(io.MousePos.x,
-                                                       io.MousePos.y,
-                                                       cam,
-                                                       io.DisplaySize.x,
-                                                       io.DisplaySize.y);
-                command_move(world_pos);
-            }
-
-            g_mouse_was_pressed_left  = left_pressed;
-            g_mouse_was_pressed_right = right_pressed;
+            ctx->settings->set_mouse_captured(true);
         }
     }
 
-    // Update all objects
-    for (auto& obj : g_objects)
+    // Animate some models for fun
+    for (auto& model : g_models)
     {
-        update_object_movement(obj, ctx->delta_time);
-        g_scripts.update_object(obj, ctx->delta_time);
+        // Gentle hover animation for helicopters
+        if (model.name.find("kamov") != std::string::npos ||
+            model.name.find("helic") != std::string::npos ||
+            model.name.find("mi_24") != std::string::npos)
+        {
+            model.transform.position.y =
+                3.0f + std::sin(g_time * 1.5f) * 0.3f;
+        }
     }
 }
 
 GAME_API void game_render(as3::engine_context* ctx)
 {
-    // Ground grid
+    // Draw grid
     for (auto h : g_meshes)
         ctx->renderer->draw(h);
 
-    // Render all objects
-    for (auto& obj : g_objects)
+    // Draw models
+    for (auto& model : g_models)
     {
-        render_object(ctx->renderer, obj);
+        ctx->renderer->draw_model(model.handle, model.transform);
+
+        // Draw bounds for selected model
+        if (&model - g_models.data() == g_selected_model)
+        {
+            ctx->renderer->draw_bounds(
+                model.bounds, model.transform, { 0.0f, 1.0f, 0.0f });
+        }
     }
 }
 
@@ -448,13 +372,7 @@ GAME_API void game_ui(as3::engine_context* ctx)
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Reload Scripts", "F5"))
-            {
-                for (auto& obj : g_objects)
-                    (void)g_scripts.reload_object(obj);
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit"))
+            if (ImGui::MenuItem("Quit", "Alt+F4"))
                 ctx->settings->request_quit();
             ImGui::EndMenu();
         }
@@ -462,14 +380,15 @@ GAME_API void game_ui(as3::engine_context* ctx)
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Inspector", nullptr, &g_show_inspector);
-            ImGui::MenuItem("Script Log", nullptr, &g_show_script_log);
+            ImGui::MenuItem("Model Browser", nullptr, &g_show_model_browser);
+            ImGui::MenuItem("Music Player", nullptr, &g_show_music_browser);
             ImGui::MenuItem("Engine Settings", nullptr, &g_show_settings);
             ImGui::Separator();
-            ImGui::MenuItem("Wireframe", nullptr, &g_wireframe);
+            ImGui::MenuItem("Wireframe", "Tab", &g_wireframe);
             ImGui::EndMenu();
         }
 
-        // Right side - FPS
+        // FPS on right side
         float fps = 1.0f / ctx->delta_time;
         char  fps_text[32];
         snprintf(fps_text, sizeof(fps_text), "%.0f FPS", fps);
@@ -480,161 +399,209 @@ GAME_API void game_ui(as3::engine_context* ctx)
         ImGui::EndMainMenuBar();
     }
 
-    // ===== INSPECTOR PANEL (Right side) =====
+    // ===== INSPECTOR =====
     if (g_show_inspector)
     {
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 25),
-                                ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(290, 500), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10, 30), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(280, 400), ImGuiCond_FirstUseEver);
 
         if (ImGui::Begin("Inspector", &g_show_inspector))
         {
             // Scene stats
-            ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Scene");
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Scene");
             ImGui::Separator();
-            ImGui::Text("Objects: %zu", g_objects.size());
 
             const auto stats = ctx->renderer->get_stats();
+            ImGui::Text("Models: %zu", g_models.size());
             ImGui::Text("Draw calls: %u", stats.draw_calls);
             ImGui::Text("Triangles: %u", stats.triangles);
 
             ImGui::Spacing();
 
-            // Objects list
-            ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Objects");
-            ImGui::Separator();
-
-            for (std::size_t i = 0; i < g_objects.size(); ++i)
+            // Camera info
+            if (g_camera_entity != entt::null &&
+                ctx->registry->valid(g_camera_entity))
             {
-                auto& obj      = g_objects[i];
-                bool  selected = (i == g_selected_object);
-
-                if (ImGui::Selectable(obj.name.c_str(), selected))
-                {
-                    if (g_selected_object < g_objects.size())
-                    {
-                        g_objects[g_selected_object].selected = false;
-                        g_scripts.on_deselect(g_objects[g_selected_object]);
-                    }
-                    g_selected_object = i;
-                    obj.selected      = true;
-                    g_scripts.on_select(obj);
-                }
+                auto& cam =
+                    ctx->registry->get<as3::CameraComponent>(g_camera_entity);
+                ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Camera");
+                ImGui::Separator();
+                ImGui::Text("Pos: %.1f, %.1f, %.1f",
+                            cam.position.x,
+                            cam.position.y,
+                            cam.position.z);
+                ImGui::DragFloat("Speed", &cam.move_speed, 0.5f, 1.0f, 100.0f);
+                ImGui::DragFloat("FOV", &cam.fov, 1.0f, 30.0f, 120.0f);
             }
 
             ImGui::Spacing();
 
-            // Selected object properties
-            if (g_selected_object < g_objects.size())
+            // Model list
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Loaded Models");
+            ImGui::Separator();
+
+            for (std::size_t i = 0; i < g_models.size(); ++i)
             {
-                auto& obj = g_objects[g_selected_object];
+                auto&      model    = g_models[i];
+                const bool selected =
+                    (static_cast<int>(i) == g_selected_model);
 
-                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f),
-                                   "Selected: %s",
-                                   obj.name.c_str());
-                ImGui::Separator();
+                if (ImGui::Selectable(model.name.c_str(), selected))
+                    g_selected_model = static_cast<int>(i);
+            }
 
-                // Transform
-                ImGui::DragFloat3("Position", &obj.position.x, 0.1f);
-                ImGui::DragFloat3("Rotation", &obj.rotation.x, 1.0f);
-                ImGui::DragFloat("Scale", &obj.scale.x, 0.01f, 0.1f, 10.0f);
-                obj.scale.y = obj.scale.z = obj.scale.x;
-
-                ImGui::Spacing();
-
-                // Movement
-                ImGui::Text("Speed: %.1f", obj.current_speed);
-                ImGui::Checkbox("Can Move", &obj.can_move);
-                ImGui::DragFloat(
-                    "Move Speed", &obj.move_speed, 0.5f, 0.0f, 100.0f);
-                ImGui::DragFloat(
-                    "Turn Speed", &obj.turn_speed, 1.0f, 0.0f, 360.0f);
+            // Selected model properties
+            if (g_selected_model >= 0 &&
+                static_cast<std::size_t>(g_selected_model) < g_models.size())
+            {
+                auto& model = g_models[static_cast<std::size_t>(g_selected_model)];
 
                 ImGui::Spacing();
-
-                // Parts
-                ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
-                                   "Parts (%zu)",
-                                   obj.parts.size());
+                ImGui::TextColored(
+                    ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "Selected: %s", model.name.c_str());
                 ImGui::Separator();
 
-                for (std::size_t pi = 0; pi < obj.parts.size(); ++pi)
-                {
-                    auto& part = obj.parts[pi];
-                    ImGui::PushID(static_cast<int>(pi));
+                ImGui::DragFloat3(
+                    "Position", &model.transform.position.x, 0.1f);
+                ImGui::DragFloat3("Rotation", &model.transform.rotation.x, 1.0f);
 
-                    if (ImGui::TreeNode(part.name.c_str()))
-                    {
-                        // Transform editing
-                        ImGui::DragFloat3("Offset", &part.offset.x, 0.05f);
-                        ImGui::DragFloat3(
-                            "Scale", &part.scale.x, 0.01f, 0.1f, 5.0f);
-
-                        if (part.can_rotate)
-                        {
-                            ImGui::Separator();
-                            ImGui::Text("Angle: %.1f", part.current_angle);
-                            if (!part.continuous)
-                            {
-                                ImGui::SliderFloat("Target",
-                                                   &part.target_angle,
-                                                   part.min_angle,
-                                                   part.max_angle);
-                            }
-                            ImGui::Checkbox("Continuous", &part.continuous);
-                            ImGui::DragFloat("Speed",
-                                             &part.rotation_speed,
-                                             1.0f,
-                                             0.0f,
-                                             1000.0f);
-                        }
-                        ImGui::TreePop();
-                    }
-                    ImGui::PopID();
-                }
+                float scale = model.transform.scale.x;
+                if (ImGui::DragFloat("Scale", &scale, 0.01f, 0.01f, 10.0f))
+                    model.transform.scale = glm::vec3(scale);
 
                 ImGui::Spacing();
-                ImGui::Separator();
-
-                // Export button - prints current offsets as Lua code
-                if (ImGui::Button("Copy Offsets to Log"))
+                if (ImGui::Button("Remove"))
                 {
-                    spdlog::info("-- {} part offsets:", obj.name);
-                    for (const auto& part : obj.parts)
-                    {
-                        spdlog::info(
-                            "{}.offset = vec3.new({:.2f}, {:.2f}, {:.2f})",
-                            part.name,
-                            part.offset.x,
-                            part.offset.y,
-                            part.offset.z);
-                        spdlog::info(
-                            "{}.scale = vec3.new({:.2f}, {:.2f}, {:.2f})",
-                            part.name,
-                            part.scale.x,
-                            part.scale.y,
-                            part.scale.z);
-                    }
-                }
-                ImGui::SameLine();
-
-                // Reload button
-                if (ImGui::Button("Reload Script"))
-                {
-                    (void)g_scripts.reload_object(obj);
+                    ctx->renderer->unload_model(model.handle);
+                    g_models.erase(g_models.begin() + g_selected_model);
+                    g_selected_model = -1;
                 }
             }
         }
         ImGui::End();
     }
 
-    // ===== SCRIPT LOG =====
-    g_scripts.draw_log_window(&g_show_script_log);
+    // ===== MODEL BROWSER =====
+    if (g_show_model_browser)
+    {
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 30),
+                                ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(310, 350), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Model Browser", &g_show_model_browser))
+        {
+            // Directory input
+            static char dir_buf[256];
+            strncpy(dir_buf, g_model_dir.c_str(), sizeof(dir_buf) - 1);
+            if (ImGui::InputText("Dir", dir_buf, sizeof(dir_buf)))
+                g_model_dir = dir_buf;
+            ImGui::SameLine();
+            if (ImGui::Button("Scan"))
+                scan_model_directory(g_model_dir);
+
+            ImGui::Text("Found %zu models", g_model_files.size());
+            ImGui::Separator();
+
+            // File list
+            ImGui::BeginChild(
+                "ModelList", ImVec2(0, -30), true, ImGuiWindowFlags_None);
+            for (std::size_t i = 0; i < g_model_files.size(); ++i)
+            {
+                std::string display =
+                    std::filesystem::path(g_model_files[i]).filename().string();
+                if (ImGui::Selectable(display.c_str(),
+                                      i == static_cast<std::size_t>(g_browser_selected)))
+                    g_browser_selected = static_cast<int>(i);
+            }
+            ImGui::EndChild();
+
+            // Load button
+            if (ImGui::Button("Load Selected") && g_browser_selected >= 0 &&
+                static_cast<std::size_t>(g_browser_selected) < g_model_files.size())
+            {
+                load_model_at(
+                    g_model_files[static_cast<std::size_t>(g_browser_selected)],
+                    { 0.0f, 0.0f, 0.0f });
+            }
+        }
+        ImGui::End();
+    }
+
+    // ===== MUSIC PLAYER =====
+    if (g_show_music_browser && ctx->audio)
+    {
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 400),
+                                ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(310, 200), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Music Player", &g_show_music_browser))
+        {
+            // Track list
+            ImGui::BeginChild(
+                "TrackList", ImVec2(0, -60), true, ImGuiWindowFlags_None);
+            for (std::size_t i = 0; i < g_music_tracks.size(); ++i)
+            {
+                auto& track    = g_music_tracks[i];
+                bool  playing  = (static_cast<int>(i) == g_current_track);
+                bool  selected = playing;
+
+                if (playing)
+                    ImGui::PushStyleColor(ImGuiCol_Text,
+                                          ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
+
+                if (ImGui::Selectable(track.name.c_str(), selected))
+                {
+                    // Load if needed
+                    if (track.handle == as3::invalid_music)
+                        track.handle = ctx->audio->load_music(track.path);
+
+                    if (track.handle != as3::invalid_music)
+                    {
+                        ctx->audio->play_music(track.handle, true);
+                        g_current_track = static_cast<int>(i);
+                    }
+                }
+
+                if (playing)
+                    ImGui::PopStyleColor();
+            }
+            ImGui::EndChild();
+
+            // Playback controls
+            bool is_playing = ctx->audio->is_music_playing();
+            bool is_paused  = ctx->audio->is_music_paused();
+
+            if (is_playing && !is_paused)
+            {
+                if (ImGui::Button("Pause"))
+                    ctx->audio->pause_music();
+            }
+            else if (is_paused)
+            {
+                if (ImGui::Button("Resume"))
+                    ctx->audio->resume_music();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Stop"))
+            {
+                ctx->audio->stop_music();
+                g_current_track = -1;
+            }
+
+            // Volume
+            float vol = ctx->audio->get_music_volume();
+            if (ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f))
+                ctx->audio->set_music_volume(vol);
+        }
+        ImGui::End();
+    }
 
     // ===== ENGINE SETTINGS =====
     if (g_show_settings && ctx->settings)
     {
-        ImGui::SetNextWindowSize(ImVec2(300, 350), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10, 450), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(280, 220), ImGuiCond_FirstUseEver);
 
         if (ImGui::Begin("Engine Settings", &g_show_settings))
         {
@@ -642,6 +609,8 @@ GAME_API void game_ui(as3::engine_context* ctx)
                         ctx->settings->get_window_width(),
                         ctx->settings->get_window_height());
             ImGui::Text("GPU: %s", ctx->settings->get_gpu_driver().data());
+
+            ImGui::Spacing();
 
             bool fullscreen = ctx->settings->is_fullscreen();
             if (ImGui::Checkbox("Fullscreen (F11)", &fullscreen))
@@ -659,18 +628,7 @@ GAME_API void game_ui(as3::engine_context* ctx)
             if (ImGui::RadioButton("Adaptive", &vsync, 2))
                 ctx->settings->set_vsync(as3::vsync_mode::adaptive);
 
-            if (ctx->audio)
-            {
-                ImGui::Spacing();
-                ImGui::Separator();
-                float music = ctx->audio->get_music_volume();
-                if (ImGui::SliderFloat("Music", &music, 0.0f, 1.0f))
-                    ctx->audio->set_music_volume(music);
-                float sound = ctx->audio->get_sound_volume();
-                if (ImGui::SliderFloat("Sound", &sound, 0.0f, 1.0f))
-                    ctx->audio->set_sound_volume(sound);
-            }
-
+            // Shader hot reload
             if (ctx->shaders)
             {
                 ImGui::Spacing();
@@ -678,6 +636,16 @@ GAME_API void game_ui(as3::engine_context* ctx)
                 bool hot = ctx->shaders->hot_reload_enabled();
                 if (ImGui::Checkbox("Shader Hot Reload", &hot))
                     ctx->shaders->enable_hot_reload(hot);
+            }
+
+            // Audio
+            if (ctx->audio)
+            {
+                ImGui::Spacing();
+                ImGui::Separator();
+                float sound_vol = ctx->audio->get_sound_volume();
+                if (ImGui::SliderFloat("Sound Vol", &sound_vol, 0.0f, 1.0f))
+                    ctx->audio->set_sound_volume(sound_vol);
             }
         }
         ImGui::End();
@@ -693,19 +661,15 @@ GAME_API void game_ui(as3::engine_context* ctx)
                          ImGuiWindowFlags_NoMove |
                          ImGuiWindowFlags_NoScrollbar))
     {
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                           "WASD/QE - fly | Click - select | Right-click - "
-                           "move | F5 - reload | F11 - fullscreen");
+        const char* help =
+            ctx->input.mouse_captured
+                ? "WASD - move | QE - up/down | Shift - fast | ESC - release "
+                  "mouse | F11 - fullscreen"
+                : "Click to capture mouse | WASD - move | F11 - fullscreen";
 
-        // Script error indicator
-        if (g_scripts.has_errors())
-        {
-            ImGui::SameLine(ImGui::GetWindowWidth() - 100);
-            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
-                               "ERRORS: %d",
-                               g_scripts.error_count());
-        }
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", help);
     }
     ImGui::End();
     ImGui::PopStyleVar();
 }
+
