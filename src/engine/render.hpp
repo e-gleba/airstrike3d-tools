@@ -3,8 +3,8 @@
 /// @file render.hpp
 /// @brief GPU renderer with mesh and model management
 
-#include "loaders/model_loader_registry.hpp"
 #include "renderer_interface.hpp"
+#include <model_loader_registry.hpp>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>

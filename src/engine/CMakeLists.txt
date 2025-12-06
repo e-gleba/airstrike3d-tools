@@ -18,6 +18,8 @@ set_target_properties(
     PROPERTIES CXX_STANDARD 26 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
 )
 
+add_subdirectory(model-loaders)
+
 target_link_libraries(
     engine
     PRIVATE
@@ -34,6 +36,7 @@ target_link_libraries(
         tinyobjloader
         tinygltf
         pybind11::embed
+        model-loaders
 )
 
 # Symlinks for runtime assets
