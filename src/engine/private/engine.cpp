@@ -152,7 +152,7 @@ bool engine::init(const engine_config& config)
     }
 
     // Initialize audio subsystem
-    audio_ = std::make_unique<AudioManager>();
+    audio_ = std::make_unique<audio_manager>();
     if (!audio_->init())
         spdlog::warn("audio init failed, continuing without audio");
 

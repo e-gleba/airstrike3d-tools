@@ -12,9 +12,8 @@ using sound_handle = std::uint64_t;
 constexpr music_handle invalid_music = 0;
 constexpr sound_handle invalid_sound = 0;
 
-class i_audio
+struct i_audio
 {
-public:
     virtual ~i_audio() = default;
 
     [[nodiscard]] virtual music_handle load_music(

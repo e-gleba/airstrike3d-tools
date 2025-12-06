@@ -1,13 +1,9 @@
 #pragma once
 
-/// @file audio.hpp
-/// @brief Audio manager for music and sound effects using SDL3_mixer
-
 #include <core-api/audio.hpp>
 
 #include <unordered_map>
 
-// Forward declarations for SDL3_mixer
 struct MIX_Mixer;
 struct MIX_Audio;
 struct MIX_Track;
@@ -15,26 +11,21 @@ struct MIX_Track;
 namespace euengine
 {
 
-/// Audio manager implementing IAudio interface
-class AudioManager final : public i_audio
+class audio_manager final : public i_audio
 {
 public:
-    AudioManager() = default;
-    ~AudioManager() override;
+    audio_manager() = default;
+    ~audio_manager() override;
 
-    // Non-copyable, non-movable
-    AudioManager(const AudioManager&)            = delete;
-    AudioManager& operator=(const AudioManager&) = delete;
-    AudioManager(AudioManager&&)                 = delete;
-    AudioManager& operator=(AudioManager&&)      = delete;
+    audio_manager(const audio_manager&)            = delete;
+    audio_manager& operator=(const audio_manager&) = delete;
+    audio_manager(audio_manager&&)                 = delete;
+    audio_manager& operator=(audio_manager&&)      = delete;
 
-    /// Initialize audio subsystem
     [[nodiscard]] bool init();
 
-    /// Shutdown and release all resources
     void shutdown();
 
-    // IAudio implementation
     [[nodiscard]] music_handle load_music(
         const std::filesystem::path& path) override;
     void                unload_music(music_handle music) override;
@@ -45,13 +36,13 @@ public:
     void                set_music_volume(float volume) override;
     [[nodiscard]] float get_music_volume() const noexcept override
     {
-        return music_volume_;
+        return music_volume;
     }
     [[nodiscard]] bool         is_music_playing() const override;
     [[nodiscard]] bool         is_music_paused() const override;
     [[nodiscard]] music_handle current_music() const noexcept override
     {
-        return current_music_;
+        return current_playing_music;
     }
 
     [[nodiscard]] sound_handle load_sound(
@@ -61,24 +52,24 @@ public:
     void                set_sound_volume(float volume) override;
     [[nodiscard]] float get_sound_volume() const noexcept override
     {
-        return sound_volume_;
+        return sound_volume;
     }
 
 private:
-    MIX_Mixer* mixer_       = nullptr;
-    MIX_Track* music_track_ = nullptr;
+    MIX_Mixer* mixer       = nullptr;
+    MIX_Track* music_track = nullptr;
 
-    std::unordered_map<music_handle, MIX_Audio*> music_;
-    std::unordered_map<sound_handle, MIX_Audio*> sounds_;
+    std::unordered_map<music_handle, MIX_Audio*> music;
+    std::unordered_map<sound_handle, MIX_Audio*> sounds;
 
-    std::uint64_t next_music_ = 1;
-    std::uint64_t next_sound_ = 1;
+    std::uint64_t next_music = 1;
+    std::uint64_t next_sound = 1;
 
-    music_handle current_music_ = invalid_music;
-    float        music_volume_  = 0.7f;
-    float        sound_volume_  = 1.0f;
-    bool         music_paused_  = false;
-    bool         initialized_   = false;
+    music_handle current_playing_music = invalid_music;
+    float        music_volume          = 0.7f;
+    float        sound_volume          = 1.0f;
+    bool         music_paused          = false;
+    bool         is_initialized        = false;
 };
 
 } // namespace euengine

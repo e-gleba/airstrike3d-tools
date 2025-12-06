@@ -11,14 +11,14 @@
 namespace euengine
 {
 
-AudioManager::~AudioManager()
+audio_manager::~audio_manager()
 {
     shutdown();
 }
 
-bool AudioManager::init()
+bool audio_manager::init()
 {
-    if (initialized_)
+    if (is_initialized)
         return true;
 
     if (!MIX_Init())
@@ -32,99 +32,99 @@ bool AudioManager::init()
     spec.channels = 2;
     spec.freq     = 44100;
 
-    mixer_ = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
-    if (!mixer_)
+    mixer = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
+    if (!mixer)
     {
         spdlog::error("MIX_CreateMixerDevice: {}", SDL_GetError());
         MIX_Quit();
         return false;
     }
 
-    music_track_ = MIX_CreateTrack(mixer_);
-    if (!music_track_)
+    music_track = MIX_CreateTrack(mixer);
+    if (!music_track)
     {
         spdlog::error("MIX_CreateTrack: {}", SDL_GetError());
-        MIX_DestroyMixer(mixer_);
-        mixer_ = nullptr;
+        MIX_DestroyMixer(mixer);
+        mixer = nullptr;
         MIX_Quit();
         return false;
     }
 
-    initialized_ = true;
-    set_music_volume(music_volume_);
+    is_initialized = true;
+    set_music_volume(music_volume);
     spdlog::info("=> audio init (44100 Hz, stereo)");
     return true;
 }
 
-void AudioManager::shutdown()
+void audio_manager::shutdown()
 {
-    if (!initialized_)
+    if (!is_initialized)
         return;
 
     stop_music();
 
-    for (auto& [h, audio] : music_)
+    for (auto& [h, audio] : music)
         if (audio)
             MIX_DestroyAudio(audio);
-    music_.clear();
+    music.clear();
 
-    for (auto& [h, audio] : sounds_)
+    for (auto& [h, audio] : sounds)
         if (audio)
             MIX_DestroyAudio(audio);
-    sounds_.clear();
+    sounds.clear();
 
-    if (music_track_)
+    if (music_track)
     {
-        MIX_DestroyTrack(music_track_);
-        music_track_ = nullptr;
+        MIX_DestroyTrack(music_track);
+        music_track = nullptr;
     }
 
-    if (mixer_)
+    if (mixer)
     {
-        MIX_DestroyMixer(mixer_);
-        mixer_ = nullptr;
+        MIX_DestroyMixer(mixer);
+        mixer = nullptr;
     }
 
     MIX_Quit();
-    initialized_ = false;
+    is_initialized = false;
     spdlog::info("=> audio shutdown");
 }
 
-music_handle AudioManager::load_music(const std::filesystem::path& path)
+music_handle audio_manager::load_music(const std::filesystem::path& path)
 {
-    if (!initialized_ || !mixer_ || path.empty())
+    if (!is_initialized || !mixer || path.empty())
         return invalid_music;
 
-    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), false); // Stream
+    auto* audio = MIX_LoadAudio(mixer, path.c_str(), false); // Stream
     if (!audio)
     {
         spdlog::error("== music {}: {}", path.string(), SDL_GetError());
         return invalid_music;
     }
 
-    music_[next_music_] = audio;
+    music[next_music] = audio;
     spdlog::info("=> music: {}", path.filename().string());
-    return next_music_++;
+    return next_music++;
 }
 
-void AudioManager::unload_music(music_handle h)
+void audio_manager::unload_music(music_handle h)
 {
-    if (auto it = music_.find(h); it != music_.end())
+    if (auto it = music.find(h); it != music.end())
     {
-        if (current_music_ == h)
+        if (current_playing_music == h)
             stop_music();
         MIX_DestroyAudio(it->second);
-        music_.erase(it);
+        music.erase(it);
     }
 }
 
-void AudioManager::play_music(music_handle h, bool loop)
+void audio_manager::play_music(music_handle h, bool loop)
 {
-    auto it = music_.find(h);
-    if (it == music_.end() || !music_track_)
+    auto it = music.find(h);
+    if (it == music.end() || !music_track)
         return;
 
-    if (!MIX_SetTrackAudio(music_track_, it->second))
+    if (!MIX_SetTrackAudio(music_track, it->second))
     {
         spdlog::error("MIX_SetTrackAudio: {}", SDL_GetError());
         return;
@@ -133,94 +133,94 @@ void AudioManager::play_music(music_handle h, bool loop)
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetBooleanProperty(props, "loop", loop);
 
-    if (!MIX_PlayTrack(music_track_, props))
+    if (!MIX_PlayTrack(music_track, props))
         spdlog::error("MIX_PlayTrack: {}", SDL_GetError());
 
     SDL_DestroyProperties(props);
-    current_music_ = h;
-    music_paused_  = false;
+    current_playing_music = h;
+    music_paused          = false;
 }
 
-void AudioManager::stop_music()
+void audio_manager::stop_music()
 {
-    if (music_track_)
-        MIX_StopTrack(music_track_, 0);
-    current_music_ = invalid_music;
-    music_paused_  = false;
+    if (music_track)
+        MIX_StopTrack(music_track, 0);
+    current_playing_music = invalid_music;
+    music_paused          = false;
 }
 
-void AudioManager::pause_music()
+void audio_manager::pause_music()
 {
-    if (music_track_)
+    if (music_track)
     {
-        MIX_PauseTrack(music_track_);
-        music_paused_ = true;
+        MIX_PauseTrack(music_track);
+        music_paused = true;
     }
 }
 
-void AudioManager::resume_music()
+void audio_manager::resume_music()
 {
-    if (music_track_)
+    if (music_track)
     {
-        MIX_ResumeTrack(music_track_);
-        music_paused_ = false;
+        MIX_ResumeTrack(music_track);
+        music_paused = false;
     }
 }
 
-void AudioManager::set_music_volume(float volume)
+void audio_manager::set_music_volume(float volume)
 {
-    music_volume_ = std::clamp(volume, 0.0f, 1.0f);
-    if (music_track_)
-        MIX_SetTrackGain(music_track_, music_volume_);
+    music_volume = std::clamp(volume, 0.0f, 1.0f);
+    if (music_track)
+        MIX_SetTrackGain(music_track, music_volume);
 }
 
-bool AudioManager::is_music_playing() const
+bool audio_manager::is_music_playing() const
 {
-    return music_track_ && MIX_TrackPlaying(music_track_);
+    return music_track && MIX_TrackPlaying(music_track);
 }
 
-bool AudioManager::is_music_paused() const
+bool audio_manager::is_music_paused() const
 {
-    return music_paused_;
+    return music_paused;
 }
 
-sound_handle AudioManager::load_sound(const std::filesystem::path& path)
+sound_handle audio_manager::load_sound(const std::filesystem::path& path)
 {
-    if (!initialized_ || !mixer_ || path.empty())
+    if (!is_initialized || !mixer || path.empty())
         return invalid_sound;
 
-    auto* audio = MIX_LoadAudio(mixer_, path.c_str(), true); // Predecode
+    auto* audio = MIX_LoadAudio(mixer, path.c_str(), true); // Predecode
     if (!audio)
     {
         spdlog::error("== sound {}: {}", path.string(), SDL_GetError());
         return invalid_sound;
     }
 
-    sounds_[next_sound_] = audio;
+    sounds[next_sound] = audio;
     spdlog::info("=> sound: {}", path.filename().string());
-    return next_sound_++;
+    return next_sound++;
 }
 
-void AudioManager::unload_sound(sound_handle h)
+void audio_manager::unload_sound(sound_handle h)
 {
-    if (auto it = sounds_.find(h); it != sounds_.end())
+    if (auto it = sounds.find(h); it != sounds.end())
     {
         MIX_DestroyAudio(it->second);
-        sounds_.erase(it);
+        sounds.erase(it);
     }
 }
 
-void AudioManager::play_sound(sound_handle h, [[maybe_unused]] float volume)
+void audio_manager::play_sound(sound_handle h, [[maybe_unused]] float volume)
 {
-    auto it = sounds_.find(h);
-    if (it == sounds_.end() || !mixer_)
+    auto it = sounds.find(h);
+    if (it == sounds.end() || !mixer)
         return;
-    MIX_PlayAudio(mixer_, it->second);
+    MIX_PlayAudio(mixer, it->second);
 }
 
-void AudioManager::set_sound_volume(float volume)
+void audio_manager::set_sound_volume(float volume)
 {
-    sound_volume_ = std::clamp(volume, 0.0f, 1.0f);
+    sound_volume = std::clamp(volume, 0.0f, 1.0f);
 }
 
 } // namespace euengine

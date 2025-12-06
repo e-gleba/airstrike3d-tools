@@ -23,7 +23,7 @@ namespace euengine
 class ShaderManager;
 class ImGuiLayer;
 class Renderer;
-class AudioManager;
+class audio_manager;
 
 /// Engine configuration combining window and game settings
 struct engine_config final
@@ -162,7 +162,7 @@ private:
     std::unique_ptr<ShaderManager> shader_manager_;
     std::unique_ptr<ImGuiLayer>    imgui_layer_;
     std::unique_ptr<Renderer>      renderer_;
-    std::unique_ptr<AudioManager>  audio_;
+    std::unique_ptr<audio_manager> audio_;
 
     // Game library hot-loading
     SDLSharedObjectPtr    game_lib_;
