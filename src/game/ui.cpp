@@ -14,121 +14,122 @@ namespace ui
 namespace
 {
 
-// Steam/Valve-inspired minimalist dark theme
+// Modern Steam 2024+ inspired theme - clean, flat, professional
 void apply_theme()
 {
     ImGuiStyle& s = ImGui::GetStyle();
     ImVec4* c = s.Colors;
 
-    // Base colors - dark, minimal, professional
-    const ImVec4 bg0 = ImVec4(0.10f, 0.10f, 0.11f, 1.0f);  // Darkest
-    const ImVec4 bg1 = ImVec4(0.14f, 0.14f, 0.15f, 1.0f);  // Window
-    const ImVec4 bg2 = ImVec4(0.18f, 0.18f, 0.19f, 1.0f);  // Child/Frame
-    const ImVec4 bg3 = ImVec4(0.22f, 0.22f, 0.24f, 1.0f);  // Hover
-    const ImVec4 bg4 = ImVec4(0.28f, 0.28f, 0.30f, 1.0f);  // Active
+    // Modern dark palette
+    const ImVec4 bg_deep   = ImVec4(0.067f, 0.067f, 0.075f, 1.0f);  // #111113
+    const ImVec4 bg_main   = ImVec4(0.098f, 0.098f, 0.110f, 1.0f);  // #19191C
+    const ImVec4 bg_panel  = ImVec4(0.129f, 0.129f, 0.145f, 1.0f);  // #212125
+    const ImVec4 bg_hover  = ImVec4(0.180f, 0.180f, 0.200f, 1.0f);  // #2E2E33
+    const ImVec4 bg_active = ImVec4(0.220f, 0.220f, 0.245f, 1.0f);  // #38383E
 
-    // Accent - subtle steam blue-green
-    const ImVec4 acc0 = ImVec4(0.40f, 0.56f, 0.56f, 1.0f);
-    const ImVec4 acc1 = ImVec4(0.50f, 0.70f, 0.70f, 1.0f);
-    const ImVec4 acc2 = ImVec4(0.60f, 0.82f, 0.82f, 1.0f);
+    // Modern accent - gradient-like blue-cyan
+    const ImVec4 accent    = ImVec4(0.380f, 0.680f, 0.934f, 1.0f);  // #61ADEE
+    const ImVec4 accent_h  = ImVec4(0.480f, 0.750f, 0.970f, 1.0f);  // #7AC0F8
+    const ImVec4 accent_d  = ImVec4(0.280f, 0.550f, 0.800f, 1.0f);  // #478CCC
 
     // Text
-    const ImVec4 txt0 = ImVec4(0.92f, 0.92f, 0.94f, 1.0f);
-    const ImVec4 txt1 = ImVec4(0.60f, 0.60f, 0.64f, 1.0f);
+    const ImVec4 text      = ImVec4(0.950f, 0.950f, 0.960f, 1.0f);
+    const ImVec4 text_dim  = ImVec4(0.550f, 0.550f, 0.580f, 1.0f);
 
-    c[ImGuiCol_Text]                  = txt0;
-    c[ImGuiCol_TextDisabled]          = txt1;
-    c[ImGuiCol_WindowBg]              = bg1;
-    c[ImGuiCol_ChildBg]               = bg0;
-    c[ImGuiCol_PopupBg]               = ImVec4(0.12f, 0.12f, 0.13f, 0.98f);
-    c[ImGuiCol_Border]                = ImVec4(0.25f, 0.25f, 0.28f, 0.60f);
+    c[ImGuiCol_Text]                  = text;
+    c[ImGuiCol_TextDisabled]          = text_dim;
+    c[ImGuiCol_WindowBg]              = bg_main;
+    c[ImGuiCol_ChildBg]               = bg_deep;
+    c[ImGuiCol_PopupBg]               = ImVec4(bg_panel.x, bg_panel.y, bg_panel.z, 0.98f);
+    c[ImGuiCol_Border]                = ImVec4(0.20f, 0.20f, 0.22f, 0.50f);
     c[ImGuiCol_BorderShadow]          = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_FrameBg]               = bg2;
-    c[ImGuiCol_FrameBgHovered]        = bg3;
-    c[ImGuiCol_FrameBgActive]         = bg4;
-    c[ImGuiCol_TitleBg]               = bg0;
-    c[ImGuiCol_TitleBgActive]         = ImVec4(0.12f, 0.12f, 0.13f, 1.0f);
-    c[ImGuiCol_TitleBgCollapsed]      = bg0;
-    c[ImGuiCol_MenuBarBg]             = bg0;
-    c[ImGuiCol_ScrollbarBg]           = bg0;
-    c[ImGuiCol_ScrollbarGrab]         = bg3;
-    c[ImGuiCol_ScrollbarGrabHovered]  = acc0;
-    c[ImGuiCol_ScrollbarGrabActive]   = acc1;
-    c[ImGuiCol_CheckMark]             = acc2;
-    c[ImGuiCol_SliderGrab]            = acc0;
-    c[ImGuiCol_SliderGrabActive]      = acc1;
-    c[ImGuiCol_Button]                = bg3;
-    c[ImGuiCol_ButtonHovered]         = acc0;
-    c[ImGuiCol_ButtonActive]          = acc1;
-    c[ImGuiCol_Header]                = bg3;
-    c[ImGuiCol_HeaderHovered]         = ImVec4(acc0.x, acc0.y, acc0.z, 0.7f);
-    c[ImGuiCol_HeaderActive]          = acc0;
-    c[ImGuiCol_Separator]             = ImVec4(0.30f, 0.30f, 0.32f, 1.0f);
-    c[ImGuiCol_SeparatorHovered]      = acc0;
-    c[ImGuiCol_SeparatorActive]       = acc1;
+    c[ImGuiCol_FrameBg]               = bg_panel;
+    c[ImGuiCol_FrameBgHovered]        = bg_hover;
+    c[ImGuiCol_FrameBgActive]         = bg_active;
+    c[ImGuiCol_TitleBg]               = bg_deep;
+    c[ImGuiCol_TitleBgActive]         = bg_panel;
+    c[ImGuiCol_TitleBgCollapsed]      = bg_deep;
+    c[ImGuiCol_MenuBarBg]             = bg_deep;
+    c[ImGuiCol_ScrollbarBg]           = bg_deep;
+    c[ImGuiCol_ScrollbarGrab]         = bg_hover;
+    c[ImGuiCol_ScrollbarGrabHovered]  = accent_d;
+    c[ImGuiCol_ScrollbarGrabActive]   = accent;
+    c[ImGuiCol_CheckMark]             = accent;
+    c[ImGuiCol_SliderGrab]            = accent_d;
+    c[ImGuiCol_SliderGrabActive]      = accent;
+    c[ImGuiCol_Button]                = bg_hover;
+    c[ImGuiCol_ButtonHovered]         = accent_d;
+    c[ImGuiCol_ButtonActive]          = accent;
+    c[ImGuiCol_Header]                = bg_hover;
+    c[ImGuiCol_HeaderHovered]         = accent_d;
+    c[ImGuiCol_HeaderActive]          = accent;
+    c[ImGuiCol_Separator]             = ImVec4(0.25f, 0.25f, 0.28f, 1.0f);
+    c[ImGuiCol_SeparatorHovered]      = accent_d;
+    c[ImGuiCol_SeparatorActive]       = accent;
     c[ImGuiCol_ResizeGrip]            = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_ResizeGripHovered]     = acc0;
-    c[ImGuiCol_ResizeGripActive]      = acc1;
-    c[ImGuiCol_Tab]                   = bg2;
-    c[ImGuiCol_TabHovered]            = acc0;
-    c[ImGuiCol_TabActive]             = ImVec4(acc0.x * 0.8f, acc0.y * 0.8f, acc0.z * 0.8f, 1.0f);
-    c[ImGuiCol_TabUnfocused]          = bg1;
-    c[ImGuiCol_TabUnfocusedActive]    = bg3;
-    c[ImGuiCol_PlotLines]             = acc1;
-    c[ImGuiCol_PlotLinesHovered]      = acc2;
-    c[ImGuiCol_PlotHistogram]         = acc0;
-    c[ImGuiCol_PlotHistogramHovered]  = acc1;
-    c[ImGuiCol_TableHeaderBg]         = bg2;
-    c[ImGuiCol_TableBorderStrong]     = bg4;
-    c[ImGuiCol_TableBorderLight]      = bg3;
+    c[ImGuiCol_ResizeGripHovered]     = accent_d;
+    c[ImGuiCol_ResizeGripActive]      = accent;
+    c[ImGuiCol_Tab]                   = bg_panel;
+    c[ImGuiCol_TabHovered]            = accent_d;
+    c[ImGuiCol_TabActive]             = accent;
+    c[ImGuiCol_TabUnfocused]          = bg_main;
+    c[ImGuiCol_TabUnfocusedActive]    = bg_hover;
+    c[ImGuiCol_PlotLines]             = accent;
+    c[ImGuiCol_PlotLinesHovered]      = accent_h;
+    c[ImGuiCol_PlotHistogram]         = accent_d;
+    c[ImGuiCol_PlotHistogramHovered]  = accent;
+    c[ImGuiCol_TableHeaderBg]         = bg_panel;
+    c[ImGuiCol_TableBorderStrong]     = bg_active;
+    c[ImGuiCol_TableBorderLight]      = bg_hover;
     c[ImGuiCol_TableRowBg]            = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_TableRowBgAlt]         = ImVec4(1, 1, 1, 0.02f);
-    c[ImGuiCol_TextSelectedBg]        = ImVec4(acc0.x, acc0.y, acc0.z, 0.35f);
-    c[ImGuiCol_DragDropTarget]        = acc2;
-    c[ImGuiCol_NavHighlight]          = acc1;
-    c[ImGuiCol_NavWindowingHighlight] = txt0;
-    c[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.1f, 0.1f, 0.1f, 0.2f);
-    c[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.05f, 0.05f, 0.06f, 0.70f);
+    c[ImGuiCol_TableRowBgAlt]         = ImVec4(1, 1, 1, 0.015f);
+    c[ImGuiCol_TextSelectedBg]        = ImVec4(accent.x, accent.y, accent.z, 0.30f);
+    c[ImGuiCol_DragDropTarget]        = accent_h;
+    c[ImGuiCol_NavHighlight]          = accent;
+    c[ImGuiCol_NavWindowingHighlight] = text;
+    c[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.05f, 0.05f, 0.06f, 0.20f);
+    c[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.03f, 0.03f, 0.04f, 0.75f);
 
-    // Tight, modern metrics
-    s.WindowRounding    = 4.0f;
-    s.ChildRounding     = 2.0f;
-    s.FrameRounding     = 2.0f;
-    s.PopupRounding     = 4.0f;
-    s.ScrollbarRounding = 6.0f;
-    s.GrabRounding      = 2.0f;
-    s.TabRounding       = 2.0f;
+    // Modern flat metrics
+    s.WindowRounding    = 8.0f;
+    s.ChildRounding     = 4.0f;
+    s.FrameRounding     = 4.0f;
+    s.PopupRounding     = 8.0f;
+    s.ScrollbarRounding = 8.0f;
+    s.GrabRounding      = 4.0f;
+    s.TabRounding       = 6.0f;
     
-    s.WindowPadding     = ImVec2(8, 8);
-    s.FramePadding      = ImVec2(6, 4);
-    s.ItemSpacing       = ImVec2(6, 4);
-    s.ItemInnerSpacing  = ImVec2(4, 4);
-    s.IndentSpacing     = 16.0f;
-    s.ScrollbarSize     = 12.0f;
-    s.GrabMinSize       = 8.0f;
+    s.WindowPadding     = ImVec2(12, 12);
+    s.FramePadding      = ImVec2(10, 6);
+    s.ItemSpacing       = ImVec2(8, 6);
+    s.ItemInnerSpacing  = ImVec2(6, 6);
+    s.IndentSpacing     = 20.0f;
+    s.ScrollbarSize     = 14.0f;
+    s.GrabMinSize       = 12.0f;
     
-    s.WindowBorderSize  = 1.0f;
+    s.WindowBorderSize  = 0.0f;
     s.ChildBorderSize   = 0.0f;
     s.PopupBorderSize   = 1.0f;
     s.FrameBorderSize   = 0.0f;
     s.TabBorderSize     = 0.0f;
     
-    s.WindowTitleAlign  = ImVec2(0.0f, 0.5f);
+    s.WindowTitleAlign  = ImVec2(0.5f, 0.5f);
     s.WindowMenuButtonPosition = ImGuiDir_None;
     s.ColorButtonPosition = ImGuiDir_Right;
     s.ButtonTextAlign   = ImVec2(0.5f, 0.5f);
-    s.SelectableTextAlign = ImVec2(0.0f, 0.0f);
 }
 
 void draw_menu(euengine::engine_context* ctx)
 {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 8));
+    
     if (ImGui::BeginMainMenuBar())
     {
         if (ImGui::BeginMenu("File"))
         {
             if (ImGui::MenuItem("Hot Reload", "F5"))
             {
-                log(2, "Hot reload");
+                log(2, "Shader hot reload triggered");
                 if (ctx->shaders)
                 {
                     ctx->shaders->enable_hot_reload(false);
@@ -136,10 +137,14 @@ void draw_menu(euengine::engine_context* ctx)
                 }
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Scan Models")) scene::scan_models();
-            if (ImGui::MenuItem("Scan Audio")) scene::scan_audio();
+            if (ImGui::MenuItem("Rescan Assets"))
+            {
+                scene::scan_models();
+                scene::scan_audio();
+            }
             ImGui::Separator();
-            if (ImGui::MenuItem("Quit", "Alt+F4")) ctx->settings->request_quit();
+            if (ImGui::MenuItem("Exit", "Alt+F4"))
+                ctx->settings->request_quit();
             ImGui::EndMenu();
         }
 
@@ -147,35 +152,42 @@ void draw_menu(euengine::engine_context* ctx)
         {
             ImGui::MenuItem("Scene", nullptr, &g_show_hierarchy);
             ImGui::MenuItem("Inspector", nullptr, &g_show_inspector);
-            ImGui::MenuItem("Browser", nullptr, &g_show_browser);
-            ImGui::MenuItem("Audio", nullptr, &g_show_audio);
+            ImGui::MenuItem("Asset Browser", nullptr, &g_show_browser);
+            ImGui::MenuItem("Audio Player", nullptr, &g_show_audio);
             ImGui::Separator();
-            ImGui::MenuItem("Engine", nullptr, &g_show_engine);
-            ImGui::MenuItem("Stats", nullptr, &g_show_stats);
+            ImGui::MenuItem("Engine Settings", nullptr, &g_show_engine);
+            ImGui::MenuItem("Performance", nullptr, &g_show_stats);
             ImGui::MenuItem("Console", "`", &g_show_console);
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Scene"))
+        if (ImGui::BeginMenu("Render"))
         {
-            ImGui::MenuItem("Wireframe", "Tab", &g_wireframe);
-            ImGui::MenuItem("Auto Rotate", "Space", &g_auto_rotate);
+            ImGui::MenuItem("Wireframe Mode", "Tab", &g_wireframe);
+            ImGui::MenuItem("Auto Animate", "Space", &g_auto_rotate);
+            ImGui::Separator();
+            if (ImGui::ColorEdit3("Background", g_sky_color, 
+                ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel))
+                scene::apply_sky();
+            ImGui::SameLine();
+            ImGui::Text("Background Color");
             ImGui::EndMenu();
         }
 
-        // Right-aligned info
-        char info[128];
-        snprintf(info, sizeof(info), "%.0f FPS  |  %d x %d  |  %zu objects",
+        // Right: Stats
+        char info[96];
+        snprintf(info, sizeof(info), "%.0f FPS  •  %d×%d  •  %zu objects",
                  ctx->time.fps,
                  ctx->settings->get_window_width(),
                  ctx->settings->get_window_height(),
                  scene::g_models.size());
         float w = ImGui::CalcTextSize(info).x;
-        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - w - 16);
-        ImGui::TextDisabled("%s", info);
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - w - 20);
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", info);
 
         ImGui::EndMainMenuBar();
     }
+    ImGui::PopStyleVar();
 }
 
 void draw_scene(euengine::engine_context* ctx)
@@ -183,67 +195,88 @@ void draw_scene(euengine::engine_context* ctx)
     if (!g_show_hierarchy) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(8, 28), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(200, 340), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(150, 100), ImVec2(350, io.DisplaySize.y - 60));
+    ImGui::SetNextWindowPos(ImVec2(16, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(260, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), ImVec2(400, io.DisplaySize.y - 80));
 
     if (ImGui::Begin("Scene", &g_show_hierarchy))
     {
-        // Camera
+        // Camera section
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
         {
             if (scene::g_camera != entt::null && ctx->registry->valid(scene::g_camera))
             {
                 auto& cam = ctx->registry->get<euengine::camera_component>(scene::g_camera);
-                ImGui::DragFloat3("Position", &cam.position.x, 0.2f);
-                ImGui::SliderFloat("Speed", &cam.move_speed, 1.0f, 40.0f);
-                ImGui::SliderFloat("FOV", &cam.fov, 30.0f, 110.0f);
+                
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+                ImGui::Text("Position");
+                ImGui::PopStyleColor();
+                ImGui::DragFloat3("##pos", &cam.position.x, 0.2f);
+                
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+                ImGui::Text("Settings");
+                ImGui::PopStyleColor();
+                ImGui::SliderFloat("Speed", &cam.move_speed, 1.0f, 50.0f);
+                ImGui::SliderFloat("FOV", &cam.fov, 30.0f, 120.0f);
             }
         }
 
-        // Environment
-        if (ImGui::CollapsingHeader("Environment"))
+        // Environment section
+        if (ImGui::CollapsingHeader("Environment", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            if (ImGui::ColorEdit3("Sky", g_sky_color, ImGuiColorEditFlags_NoInputs))
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+            ImGui::Text("Colors");
+            ImGui::PopStyleColor();
+            
+            if (ImGui::ColorEdit3("Sky", g_sky_color))
                 scene::apply_sky();
-            if (ImGui::ColorEdit3("Grid", g_grid_color, ImGuiColorEditFlags_NoInputs))
+            if (ImGui::ColorEdit3("Grid", g_grid_color))
                 scene::rebuild_grid();
         }
 
-        // Objects
+        // Objects list
         if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::BeginChild("##objs", ImVec2(0, 0), false);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+            ImGui::Text("%zu items", scene::g_models.size());
+            ImGui::PopStyleColor();
+            
+            ImGui::BeginChild("##objs", ImVec2(0, 0), true);
             for (std::size_t i = 0; i < scene::g_models.size(); ++i)
             {
                 auto& m = scene::g_models[i];
                 bool sel = (static_cast<int>(i) == scene::g_selected);
 
-                ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_Leaf |
-                                       ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                                       ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (sel) f |= ImGuiTreeNodeFlags_Selected;
-
-                // Color by type
+                // Type indicators
+                ImVec4 col = ImVec4(0.55f, 0.55f, 0.58f, 1.0f);
                 if (m.hover)
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.8f, 0.8f, 1.0f));
+                    col = ImVec4(0.40f, 0.80f, 0.95f, 1.0f);
                 else if (m.animate)
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.7f, 0.5f, 1.0f));
+                    col = ImVec4(0.95f, 0.75f, 0.30f, 1.0f);
 
-                ImGui::TreeNodeEx(reinterpret_cast<void*>(i), f, "%s", m.name.c_str());
+                if (sel)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.28f, 0.55f, 0.80f, 0.6f));
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                }
+                else
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_Text, col);
+                }
 
-                if (m.hover || m.animate)
-                    ImGui::PopStyleColor();
-
-                if (ImGui::IsItemClicked())
+                if (ImGui::Selectable(m.name.c_str(), sel))
                     scene::g_selected = static_cast<int>(i);
 
+                ImGui::PopStyleColor(2);
+
+                // Double-click to focus
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) &&
                     scene::g_camera != entt::null)
                 {
                     auto& cam = ctx->registry->get<euengine::camera_component>(scene::g_camera);
-                    cam.position = m.transform.position + glm::vec3(0, 2, 6);
-                    cam.pitch = -12.0f;
+                    cam.position = m.transform.position + glm::vec3(0, 2, 5);
+                    cam.pitch = -15.0f;
                     cam.yaw = -90.0f;
                 }
             }
@@ -258,9 +291,9 @@ void draw_inspector()
     if (!g_show_inspector) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(8, 380), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(150, 80), ImVec2(350, io.DisplaySize.y - 60));
+    ImGui::SetNextWindowPos(ImVec2(16, 455), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(260, 250), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 100), ImVec2(400, io.DisplaySize.y - 80));
 
     if (ImGui::Begin("Inspector", &g_show_inspector))
     {
@@ -269,31 +302,52 @@ void draw_inspector()
         {
             auto& m = scene::g_models[static_cast<std::size_t>(scene::g_selected)];
 
-            ImGui::TextColored(ImVec4(0.6f, 0.85f, 0.85f, 1.0f), "%s", m.name.c_str());
+            // Header
+            ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "%s", m.name.c_str());
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", 
+                               std::filesystem::path(m.path).filename().string().c_str());
             ImGui::Separator();
 
-            ImGui::DragFloat3("Position", &m.transform.position.x, 0.1f);
-            ImGui::DragFloat3("Rotation", &m.transform.rotation.x, 1.0f);
+            // Transform
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+            ImGui::Text("Transform");
+            ImGui::PopStyleColor();
+            
+            ImGui::DragFloat3("Position", &m.transform.position.x, 0.05f);
+            ImGui::DragFloat3("Rotation", &m.transform.rotation.x, 0.5f);
             
             float sc = m.transform.scale.x;
             if (ImGui::SliderFloat("Scale", &sc, 0.01f, 0.5f))
                 m.transform.scale = glm::vec3(sc);
 
             ImGui::Separator();
-            ImGui::Checkbox("Animate", &m.animate);
+
+            // Animation
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+            ImGui::Text("Animation");
+            ImGui::PopStyleColor();
+            
+            ImGui::Checkbox("Rotate", &m.animate);
             if (m.animate)
-                ImGui::SliderFloat("Speed", &m.anim_speed, 0.0f, 80.0f);
+            {
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(100);
+                ImGui::SliderFloat("##speed", &m.anim_speed, 0.0f, 100.0f, "%.0f°/s");
+            }
             ImGui::Checkbox("Hover", &m.hover);
 
             ImGui::Spacing();
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 0.8f));
-            if (ImGui::Button("Delete", ImVec2(-1, 0)))
+            ImGui::Spacing();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.70f, 0.25f, 0.25f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
+            if (ImGui::Button("Delete Object", ImVec2(-1, 32)))
                 scene::remove_model(scene::g_selected);
-            ImGui::PopStyleColor();
+            ImGui::PopStyleColor(2);
         }
         else
         {
-            ImGui::TextDisabled("No selection");
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "Select an object to inspect");
         }
     }
     ImGui::End();
@@ -304,36 +358,42 @@ void draw_browser()
     if (!g_show_browser) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 240, 28), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(232, 280), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(274, 320), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Browser", &g_show_browser))
+    if (ImGui::Begin("Asset Browser", &g_show_browser))
     {
-        if (ImGui::Button("Scan")) scene::scan_models();
+        if (ImGui::Button("Refresh", ImVec2(80, 0)))
+            scene::scan_models();
         ImGui::SameLine();
-        ImGui::TextDisabled("%zu", scene::g_model_files.size());
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%zu models", scene::g_model_files.size());
 
         ImGui::Separator();
 
-        ImGui::BeginChild("##list", ImVec2(0, -30), true);
+        ImGui::BeginChild("##list", ImVec2(0, -40), true);
         for (std::size_t i = 0; i < scene::g_model_files.size(); ++i)
         {
             auto name = std::filesystem::path(scene::g_model_files[i]).filename().string();
-            if (ImGui::Selectable(name.c_str(), std::cmp_equal(i, scene::g_browser_sel)))
+            bool sel = std::cmp_equal(i, scene::g_browser_sel);
+            if (ImGui::Selectable(name.c_str(), sel))
                 scene::g_browser_sel = static_cast<int>(i);
         }
         ImGui::EndChild();
 
         bool ok = scene::g_browser_sel >= 0 &&
                   static_cast<std::size_t>(scene::g_browser_sel) < scene::g_model_files.size();
+        
+        ImGui::PushStyleColor(ImGuiCol_Button, ok ? ImVec4(0.28f, 0.55f, 0.80f, 1.0f) : ImVec4(0.2f, 0.2f, 0.22f, 1.0f));
         if (!ok) ImGui::BeginDisabled();
-        if (ImGui::Button("Load", ImVec2(-1, 0)))
+        if (ImGui::Button("Add to Scene", ImVec2(-1, 32)))
         {
-            scene::add_model(scene::g_model_files[static_cast<std::size_t>(scene::g_browser_sel)],
-                             { 0, 0, 8 }, 0.1f);
+            auto* m = scene::add_model(scene::g_model_files[static_cast<std::size_t>(scene::g_browser_sel)],
+                             { 0, 0, 6 }, 0.1f);
+            if (m) m->animate = true;
             scene::g_selected = static_cast<int>(scene::g_models.size()) - 1;
         }
         if (!ok) ImGui::EndDisabled();
+        ImGui::PopStyleColor();
     }
     ImGui::End();
 }
@@ -343,23 +403,25 @@ void draw_audio(euengine::engine_context* ctx)
     if (!g_show_audio || !ctx->audio) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 240, 320), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(232, 220), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 375), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(274, 200), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Audio", &g_show_audio))
+    if (ImGui::Begin("Audio Player", &g_show_audio))
     {
         // Track list
-        ImGui::BeginChild("##tracks", ImVec2(0, -70), true);
+        ImGui::BeginChild("##tracks", ImVec2(0, -50), true);
         for (std::size_t i = 0; i < scene::g_audio.size(); ++i)
         {
             auto& t = scene::g_audio[i];
             bool playing = std::cmp_equal(i, scene::g_playing);
 
+            ImVec4 col = ImVec4(0.85f, 0.85f, 0.88f, 1.0f);
             if (playing)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.9f, 0.6f, 1.0f));
+                col = ImVec4(0.40f, 0.90f, 0.55f, 1.0f);
             else if (t.is_sfx)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.7f, 0.8f, 1.0f));
+                col = ImVec4(0.40f, 0.75f, 0.95f, 1.0f);
 
+            ImGui::PushStyleColor(ImGuiCol_Text, col);
             if (ImGui::Selectable(t.name.c_str(), playing))
             {
                 if (t.handle == euengine::invalid_music)
@@ -371,43 +433,43 @@ void draw_audio(euengine::engine_context* ctx)
                     ctx->audio->set_music_volume(g_volume / 100.0f);
                 }
             }
-
-            if (playing || t.is_sfx)
-                ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
         }
         ImGui::EndChild();
-
-        // Timeline placeholder
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.16f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.5f, 0.7f, 0.7f, 1.0f));
-        ImGui::SetNextItemWidth(-1);
-        ImGui::SliderFloat("##pos", &g_music_pos, 0.0f, 100.0f, "%.0f%%");
-        ImGui::PopStyleColor(2);
 
         // Controls
         bool playing = ctx->audio->is_music_playing();
         bool paused = ctx->audio->is_music_paused();
 
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 6));
+        
+        float bw = 60.0f;
         if (playing && !paused)
         {
-            if (ImGui::Button("Pause", ImVec2(50, 0))) ctx->audio->pause_music();
+            if (ImGui::Button("Pause", ImVec2(bw, 28)))
+                ctx->audio->pause_music();
         }
         else
         {
-            if (ImGui::Button("Play", ImVec2(50, 0))) ctx->audio->resume_music();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.80f, 1.0f));
+            if (ImGui::Button("Play", ImVec2(bw, 28)))
+                ctx->audio->resume_music();
+            ImGui::PopStyleColor();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Stop", ImVec2(50, 0)))
+        if (ImGui::Button("Stop", ImVec2(bw, 28)))
         {
             ctx->audio->stop_music();
             scene::g_playing = -1;
         }
         ImGui::SameLine();
         
-        // Volume (0-100)
+        // Volume
         ImGui::SetNextItemWidth(-1);
-        if (ImGui::SliderFloat("##vol", &g_volume, 0.0f, 100.0f, "%.0f%%"))
+        if (ImGui::SliderFloat("##vol", &g_volume, 0.0f, 100.0f, "Vol: %.0f%%"))
             ctx->audio->set_music_volume(g_volume / 100.0f);
+        
+        ImGui::PopStyleVar();
     }
     ImGui::End();
 }
@@ -417,66 +479,97 @@ void draw_engine(euengine::engine_context* ctx)
     if (!g_show_engine) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 240, 28), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(232, 280), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(274, 360), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Engine", &g_show_engine))
+    if (ImGui::Begin("Engine Settings", &g_show_engine))
     {
-        // Display
-        ImGui::TextColored(ImVec4(0.6f, 0.85f, 0.85f, 1.0f), "Display");
+        // Renderer
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Renderer");
+        ImGui::Separator();
+        
         ImGui::Text("GPU: %s", ctx->settings->get_gpu_driver().data());
-        ImGui::Text("Resolution: %d x %d",
+        ImGui::Text("Resolution: %d × %d",
                     ctx->settings->get_window_width(),
                     ctx->settings->get_window_height());
 
         bool fs = ctx->settings->is_fullscreen();
-        if (ImGui::Checkbox("Fullscreen", &fs))
+        if (ImGui::Checkbox("Fullscreen (F11)", &fs))
             ctx->settings->set_fullscreen(fs);
 
-        // VSync with all options
+        // VSync
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("VSync Mode");
+        ImGui::PopStyleColor();
+        
         int vs = static_cast<int>(ctx->settings->get_vsync());
-        ImGui::Text("VSync:");
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Off", vs == 0))
+        if (ImGui::RadioButton("Disabled", vs == 0))
             ctx->settings->set_vsync(euengine::vsync_mode::disabled);
         ImGui::SameLine();
-        if (ImGui::RadioButton("On", vs == 1))
+        if (ImGui::RadioButton("Enabled", vs == 1))
             ctx->settings->set_vsync(euengine::vsync_mode::enabled);
         ImGui::SameLine();
         if (ImGui::RadioButton("Adaptive", vs == 2))
             ctx->settings->set_vsync(euengine::vsync_mode::adaptive);
 
-        ImGui::Separator();
+        ImGui::Spacing();
 
         // Shaders
-        ImGui::TextColored(ImVec4(0.6f, 0.85f, 0.85f, 1.0f), "Shaders");
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Shaders");
+        ImGui::Separator();
+        
         if (ctx->shaders)
         {
             bool hot = ctx->shaders->hot_reload_enabled();
-            if (ImGui::Checkbox("Hot Reload", &hot))
+            if (ImGui::Checkbox("Enable Hot Reload", &hot))
                 ctx->shaders->enable_hot_reload(hot);
-            ImGui::SameLine();
-            if (ImGui::Button("Reload Now"))
+            
+            if (ImGui::Button("Reload Now (F5)", ImVec2(-1, 28)))
             {
-                log(2, "Hot reload");
+                log(2, "Shader hot reload triggered");
                 ctx->shaders->enable_hot_reload(false);
                 ctx->shaders->enable_hot_reload(true);
             }
         }
 
-        ImGui::Separator();
+        ImGui::Spacing();
 
-        // Module
-        ImGui::TextColored(ImVec4(0.6f, 0.85f, 0.85f, 1.0f), "Game Module");
+        // Game Module
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Game Module");
+        ImGui::Separator();
+        
         if (!scene::g_lib_path.empty())
         {
             auto name = std::filesystem::path(scene::g_lib_path).filename().string();
-            ImGui::Text("%s", name.c_str());
-            ImGui::Text("%.1f KB", static_cast<float>(scene::g_lib_size) / 1024.0f);
+            ImGui::Text("File: %s", name.c_str());
+            
+            float kb = static_cast<float>(scene::g_lib_size) / 1024.0f;
+            float mb = kb / 1024.0f;
+            if (mb >= 1.0f)
+                ImGui::Text("Size: %.2f MB", mb);
+            else
+                ImGui::Text("Size: %.1f KB", kb);
+            
+            // File timestamp
+            std::filesystem::path p(scene::g_lib_path);
+            if (std::filesystem::exists(p))
+            {
+                auto ftime = std::filesystem::last_write_time(p);
+                auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                    ftime - std::filesystem::file_time_type::clock::now() +
+                    std::chrono::system_clock::now());
+                auto time_t = std::chrono::system_clock::to_time_t(sctp);
+                char buf[64];
+                std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&time_t));
+                ImGui::Text("Modified: %s", buf);
+            }
+            
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "Path: %s", 
+                               scene::g_lib_path.c_str());
         }
         else
         {
-            ImGui::TextDisabled("Built-in");
+            ImGui::Text("Using built-in game module");
         }
     }
     ImGui::End();
@@ -488,29 +581,48 @@ void draw_stats(euengine::engine_context* ctx)
 
     ImGuiIO& io = ImGui::GetIO();
     
-    // Bottom-right overlay
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 180, io.DisplaySize.y - 120),
-                            ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(170, 90), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.7f);
+    // Floating overlay - bottom right
+    float w = 200.0f;
+    float h = 130.0f;
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40));
+    ImGui::SetNextWindowSize(ImVec2(w, h));
+    ImGui::SetNextWindowBgAlpha(0.85f);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                             ImGuiWindowFlags_NoFocusOnAppearing;
+                             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
-    if (ImGui::Begin("##stats", nullptr, flags))
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
+    
+    if (ImGui::Begin("##perf", nullptr, flags))
     {
-        ImGui::TextColored(ImVec4(0.6f, 0.85f, 0.85f, 1.0f), "Performance");
-        ImGui::Text("%.1f ms  (%.0f FPS)", ctx->time.delta * 1000.0f, ctx->time.fps);
-        ImGui::Text("Frame: %lu", static_cast<unsigned long>(ctx->time.frame_count));
+        // Header with close button
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Performance");
+        ImGui::SameLine(ImGui::GetWindowWidth() - 28);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        if (ImGui::SmallButton("×"))
+            g_show_stats = false;
+        ImGui::PopStyleColor();
+        
+        ImGui::Separator();
+        
+        // Stats
+        ImGui::Text("%.2f ms  •  %.0f FPS", ctx->time.delta * 1000.0f, ctx->time.fps);
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), 
+                           "Frame %lu  •  %.1fs elapsed",
+                           static_cast<unsigned long>(ctx->time.frame_count),
+                           ctx->time.elapsed);
         
         // Frame time graph
-        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.5f, 0.8f, 0.7f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.38f, 0.68f, 0.93f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
         ImGui::PlotLines("##ft", scene::g_frame_times, 120, scene::g_frame_idx, 
-                         nullptr, 0.0f, 33.3f, ImVec2(-1, 30));
-        ImGui::PopStyleColor();
+                         nullptr, 0.0f, 33.3f, ImVec2(-1, 40));
+        ImGui::PopStyleColor(2);
     }
     ImGui::End();
+    ImGui::PopStyleVar(2);
 }
 
 void draw_console()
@@ -518,39 +630,43 @@ void draw_console()
     if (!g_show_console) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(8, io.DisplaySize.y - 200), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 170), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 80), ImVec2(io.DisplaySize.x - 16, 300));
+    ImGui::SetNextWindowPos(ImVec2(16, io.DisplaySize.y - 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(300, 100), ImVec2(io.DisplaySize.x - 32, 400));
 
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.08f, 0.08f, 0.09f, 0.95f));
-    
     if (ImGui::Begin("Console", &g_show_console))
     {
-        if (ImGui::Button("Clear")) log_clear();
+        // Toolbar
+        if (ImGui::Button("Clear", ImVec2(60, 0)))
+            log_clear();
         ImGui::SameLine();
-        ImGui::TextDisabled("%zu entries", g_log.size());
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%zu entries", g_log.size());
 
         ImGui::Separator();
 
-        ImGui::BeginChild("##log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+        // Log view
+        ImGui::BeginChild("##log", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
         
         for (const auto& e : g_log)
         {
+            // Timestamp
+            ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.48f, 1.0f), "[%.1f]", e.time);
+            ImGui::SameLine();
+            
+            // Level tag and color
             ImVec4 col;
             const char* tag;
             switch (e.level)
             {
-                case 0: col = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); tag = "[trace]"; break;
-                case 1: col = ImVec4(0.6f, 0.6f, 0.7f, 1.0f); tag = "[debug]"; break;
-                case 2: col = ImVec4(0.5f, 0.8f, 0.8f, 1.0f); tag = "[info]"; break;
-                case 3: col = ImVec4(0.9f, 0.7f, 0.3f, 1.0f); tag = "[warn]"; break;
-                case 4: col = ImVec4(0.95f, 0.4f, 0.4f, 1.0f); tag = "[error]"; break;
-                default: col = ImVec4(0.7f, 0.7f, 0.7f, 1.0f); tag = "[?]"; break;
+                case 0: col = ImVec4(0.50f, 0.50f, 0.53f, 1.0f); tag = "TRACE"; break;
+                case 1: col = ImVec4(0.60f, 0.60f, 0.65f, 1.0f); tag = "DEBUG"; break;
+                case 2: col = ImVec4(0.38f, 0.68f, 0.93f, 1.0f); tag = "INFO"; break;
+                case 3: col = ImVec4(0.95f, 0.75f, 0.30f, 1.0f); tag = "WARN"; break;
+                case 4: col = ImVec4(0.95f, 0.40f, 0.40f, 1.0f); tag = "ERROR"; break;
+                default: col = ImVec4(0.70f, 0.70f, 0.70f, 1.0f); tag = "???"; break;
             }
 
-            ImGui::TextDisabled("[%.1f]", e.time);
-            ImGui::SameLine();
-            ImGui::TextColored(col, "%s", tag);
+            ImGui::TextColored(col, "[%s]", tag);
             ImGui::SameLine();
             ImGui::TextWrapped("%s", e.message.c_str());
         }
@@ -564,29 +680,30 @@ void draw_console()
         ImGui::EndChild();
     }
     ImGui::End();
-    ImGui::PopStyleColor();
 }
 
 void draw_statusbar(euengine::engine_context* ctx)
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    ImGui::SetNextWindowPos(ImVec2(0, io.DisplaySize.y - 22));
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 22));
+    float h = 28.0f;
+    ImGui::SetNextWindowPos(ImVec2(0, io.DisplaySize.y - h));
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, h));
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
                              ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 3));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.08f, 0.08f, 0.09f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 6));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
 
     if (ImGui::Begin("##bar", nullptr, flags))
     {
         const char* help = ctx->input.mouse_captured
-            ? "WASD Move | QE Up/Down | Shift Fast | Space Rotate | Tab Wire | F5 Reload | ESC Release"
-            : "Click viewport to capture | F5 Reload | F11 Fullscreen | ` Console";
-        ImGui::TextDisabled("%s", help);
+            ? "WASD Move • QE Up/Down • Shift Speed • Space Animate • Tab Wireframe • F5 Reload • ESC Release"
+            : "Click to capture mouse • F5 Reload • F11 Fullscreen • ` Console";
+        
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", help);
     }
     ImGui::End();
     ImGui::PopStyleColor();

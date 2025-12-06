@@ -338,8 +338,9 @@ model_instance* add_model(const std::string& path, const glm::vec3& pos, float s
     m.transform.scale = glm::vec3(scale);
     m.hover_base = pos.y;
 
+    std::string name = m.name; // capture before move
     g_models.push_back(std::move(m));
-    ui::log(2, "Loaded: " + m.name);
+    ui::log(2, "Loaded: " + name);
     return &g_models.back();
 }
 
