@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <core-api/camera.hpp>
 #include <core-api/game.hpp>
 
@@ -132,9 +133,9 @@ void scan_music_directory()
         }
     }
 
-    std::sort(g_music_tracks.begin(),
-              g_music_tracks.end(),
-              [](const auto& a, const auto& b) { return a.name < b.name; });
+    std::ranges::sort(g_music_tracks,
+                      [](const auto& a, const auto& b)
+                      { return a.name < b.name; });
     spdlog::info("Found {} music tracks", g_music_tracks.size());
 }
 
