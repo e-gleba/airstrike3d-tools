@@ -14,8 +14,13 @@ namespace euengine
 struct input_state final
 {
     const bool* keyboard       = nullptr;
-    float       mouse_xrel     = 0.0f;
-    float       mouse_yrel     = 0.0f;
+    float       mouse_x        = 0.0f; ///< Mouse X position in window
+    float       mouse_y        = 0.0f; ///< Mouse Y position in window
+    float       mouse_xrel     = 0.0f; ///< Relative mouse X motion
+    float       mouse_yrel     = 0.0f; ///< Relative mouse Y motion
+    bool        mouse_left     = false;
+    bool        mouse_right    = false;
+    bool        mouse_middle   = false;
     bool        mouse_captured = false;
 };
 
@@ -27,34 +32,79 @@ struct display_info final
     float aspect = 1.0f;
 };
 
+/// Time information for animations and game logic
+struct time_info final
+{
+    float    elapsed     = 0.0f; ///< Total elapsed time since start (seconds)
+    float    delta       = 0.0f; ///< Frame delta time (seconds)
+    uint64_t frame_count = 0;    ///< Total frames rendered
+    float    fps         = 0.0f; ///< Smoothed FPS estimate
+};
+
+/// Clear color for background
+struct clear_color final
+{
+    float r = 0.08f;
+    float g = 0.08f;
+    float b = 0.12f;
+    float a = 1.0f;
+
+    [[nodiscard]] static constexpr clear_color dark() noexcept
+    {
+        return { 0.08f, 0.08f, 0.12f, 1.0f };
+    }
+
+    [[nodiscard]] static constexpr clear_color sky() noexcept
+    {
+        return { 0.4f, 0.6f, 0.9f, 1.0f };
+    }
+
+    [[nodiscard]] static constexpr clear_color sunset() noexcept
+    {
+        return { 0.95f, 0.5f, 0.3f, 1.0f };
+    }
+
+    [[nodiscard]] static constexpr clear_color night() noexcept
+    {
+        return { 0.02f, 0.02f, 0.05f, 1.0f };
+    }
+};
+
 /// Engine context passed to game callbacks
 struct engine_context final
 {
-    entt::registry*    registry   = nullptr;
-    i_renderer*        renderer   = nullptr;
-    i_shader_manager*  shaders    = nullptr;
-    i_audio*           audio      = nullptr;
-    i_engine_settings* settings   = nullptr;
-    void*              imgui_ctx  = nullptr;
-    display_info       display    = {};
-    input_state        input      = {};
-    float              delta_time = 0.0f;
+    entt::registry*    registry  = nullptr;
+    i_renderer*        renderer  = nullptr;
+    i_shader_manager*  shaders   = nullptr;
+    i_audio*           audio     = nullptr;
+    i_engine_settings* settings  = nullptr;
+    void*              imgui_ctx = nullptr;
+    display_info       display   = {};
+    input_state        input     = {};
+    time_info          time      = {};
+    clear_color*       background =
+        nullptr; ///< Game can modify to change clear color
+
+    // Legacy compatibility
+    [[nodiscard]] float delta_time() const noexcept { return time.delta; }
 };
 
 /// Pre-initialization settings that game can configure before engine init
 /// All SDL-free, pure data structures
 struct preinit_settings final
 {
-    window_settings   window   = {};
-    renderer_settings renderer = {};
-    audio_settings    audio    = {};
+    window_settings   window     = {};
+    renderer_settings renderer   = {};
+    audio_settings    audio      = {};
+    clear_color       background = clear_color::dark();
 
     [[nodiscard]] static constexpr preinit_settings defaults() noexcept
     {
         return preinit_settings {
-            .window   = window_settings {},
-            .renderer = renderer_settings::defaults(),
-            .audio    = audio_settings::defaults(),
+            .window     = window_settings {},
+            .renderer   = renderer_settings::defaults(),
+            .audio      = audio_settings::defaults(),
+            .background = clear_color::dark(),
         };
     }
 };

@@ -176,9 +176,13 @@ private:
     game_ui_fn            game_ui_       = nullptr;
 
     // Frame timing
-    Uint64 last_time_  = 0;
-    float  delta_time_ = 0.016f;
-    float  target_fps_ = 0.0f; // 0 = unlimited/vsync controlled
+    Uint64   last_time_    = 0;
+    Uint64   start_time_   = 0;
+    float    delta_time_   = 0.016f;
+    float    elapsed_time_ = 0.0f;
+    float    target_fps_   = 0.0f; // 0 = unlimited/vsync controlled
+    float    smoothed_fps_ = 60.0f;
+    uint64_t frame_count_  = 0;
 
     // State
     bool        running_        = false;
@@ -187,6 +191,7 @@ private:
     vsync_mode  pending_vsync_  = vsync_mode::enabled;
     bool        vsync_dirty_    = false;
     input_state input_ {};
+    clear_color background_ = clear_color::dark();
 
     // Audio
     float master_volume_     = 1.0f;

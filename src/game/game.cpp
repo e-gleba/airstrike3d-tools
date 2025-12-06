@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <numbers>
 #include <string>
 #include <utility>
 #include <vector>
@@ -15,7 +16,7 @@
 namespace
 {
 
-// SDL scancodes (stable values from SDL3)
+// SDL scancodes
 constexpr int key_w      = 26;
 constexpr int key_a      = 4;
 constexpr int key_s      = 22;
@@ -27,55 +28,186 @@ constexpr int key_f5     = 62;
 constexpr int key_f11    = 68;
 constexpr int key_lshift = 225;
 constexpr int key_tab    = 43;
+constexpr int key_space  = 44;
+constexpr int key_1      = 30;
+constexpr int key_2      = 31;
+constexpr int key_3      = 32;
 
 // ============================================================================
-// State
+// Data structures
 // ============================================================================
 
-euengine::engine_context*          g_ctx = nullptr;
-std::vector<euengine::mesh_handle> g_meshes;
-float                              g_time = 0.0f;
-
-// Camera
-entt::entity g_camera_entity = entt::null;
-bool         g_camera_free   = true;
-
-// Models
-struct loaded_model
+struct showcase_model
 {
     euengine::model_handle handle = euengine::invalid_model;
     std::string            name;
     std::string            path;
     euengine::transform    transform;
     euengine::bounds       bounds;
+    bool                   rotate       = false;
+    float                  rotate_speed = 30.0f;
+    bool                   hover        = false;
+    float                  hover_height = 0.0f;
+    float                  hover_speed  = 1.5f;
+    float                  hover_amount = 0.3f;
 };
-std::vector<loaded_model> g_models;
-int                       g_selected_model = -1;
 
-// Music
 struct music_track
 {
     euengine::music_handle handle = euengine::invalid_music;
     std::string            name;
     std::string            path;
 };
+
+// ============================================================================
+// Global state
+// ============================================================================
+
+euengine::engine_context*          g_ctx = nullptr;
+std::vector<euengine::mesh_handle> g_meshes;
+entt::entity                       g_camera_entity = entt::null;
+
+std::vector<showcase_model> g_showcase;
+int                         g_selected_model = -1;
+
 std::vector<music_track> g_music_tracks;
 int                      g_current_track = -1;
 
-// UI state
-bool g_show_settings      = true;
-bool g_show_model_browser = true;
-bool g_show_music_browser = true;
-bool g_show_inspector     = true;
-bool g_wireframe          = false;
+// UI panels
+bool g_show_hierarchy  = true;
+bool g_show_properties = true;
+bool g_show_browser    = false;
+bool g_show_music      = true;
 
-// Model browser
+// Scene settings
+bool  g_wireframe   = false;
+bool  g_auto_rotate = true;
+int   g_sky_preset  = 1; // Start with day sky
+float g_sky_color[3] = { 0.4f, 0.6f, 0.9f };
+
+// Browser
 std::string              g_model_dir = "assets/models";
 std::vector<std::string> g_model_files;
 int                      g_browser_selected = -1;
 
 // ============================================================================
-// Model browser helpers
+// ImGui Theme
+// ============================================================================
+
+void setup_imgui_style()
+{
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4*     colors = style.Colors;
+
+    // Modern dark theme with subtle accents
+    colors[ImGuiCol_Text]                  = ImVec4(0.92f, 0.92f, 0.92f, 1.00f);
+    colors[ImGuiCol_TextDisabled]          = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    colors[ImGuiCol_WindowBg]              = ImVec4(0.13f, 0.13f, 0.15f, 0.95f);
+    colors[ImGuiCol_ChildBg]               = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_PopupBg]               = ImVec4(0.13f, 0.13f, 0.15f, 0.98f);
+    colors[ImGuiCol_Border]                = ImVec4(0.25f, 0.25f, 0.28f, 0.50f);
+    colors[ImGuiCol_BorderShadow]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg]               = ImVec4(0.20f, 0.20f, 0.22f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.28f, 0.28f, 0.30f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.35f, 0.35f, 0.38f, 1.00f);
+    colors[ImGuiCol_TitleBg]               = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.15f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.10f, 0.10f, 0.12f, 0.75f);
+    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.30f, 0.30f, 0.32f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.40f, 0.40f, 0.42f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.50f, 0.50f, 0.52f, 1.00f);
+    colors[ImGuiCol_CheckMark]             = ImVec4(0.40f, 0.70f, 0.45f, 1.00f);
+    colors[ImGuiCol_SliderGrab]            = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.50f, 0.65f, 0.80f, 1.00f);
+    colors[ImGuiCol_Button]                = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
+    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.35f, 0.35f, 0.38f, 1.00f);
+    colors[ImGuiCol_ButtonActive]          = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_Header]                = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
+    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.35f, 0.45f, 0.55f, 1.00f);
+    colors[ImGuiCol_HeaderActive]          = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_Separator]             = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
+    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.50f, 0.65f, 0.80f, 1.00f);
+    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.25f, 0.25f, 0.28f, 0.50f);
+    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.40f, 0.55f, 0.70f, 0.75f);
+    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.50f, 0.65f, 0.80f, 1.00f);
+    colors[ImGuiCol_Tab]                   = ImVec4(0.18f, 0.18f, 0.20f, 1.00f);
+    colors[ImGuiCol_TabHovered]            = ImVec4(0.35f, 0.45f, 0.55f, 1.00f);
+    colors[ImGuiCol_TabActive]             = ImVec4(0.25f, 0.35f, 0.45f, 1.00f);
+    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.15f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.20f, 0.20f, 0.22f, 1.00f);
+    colors[ImGuiCol_PlotLines]             = ImVec4(0.60f, 0.60f, 0.60f, 1.00f);
+    colors[ImGuiCol_PlotLinesHovered]      = ImVec4(0.40f, 0.70f, 0.45f, 1.00f);
+    colors[ImGuiCol_PlotHistogram]         = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(0.50f, 0.65f, 0.80f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg]         = ImVec4(0.18f, 0.18f, 0.20f, 1.00f);
+    colors[ImGuiCol_TableBorderStrong]     = ImVec4(0.25f, 0.25f, 0.28f, 1.00f);
+    colors[ImGuiCol_TableBorderLight]      = ImVec4(0.20f, 0.20f, 0.22f, 1.00f);
+    colors[ImGuiCol_TableRowBg]            = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_TableRowBgAlt]         = ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
+    colors[ImGuiCol_TextSelectedBg]        = ImVec4(0.40f, 0.55f, 0.70f, 0.35f);
+    colors[ImGuiCol_DragDropTarget]        = ImVec4(0.40f, 0.70f, 0.45f, 0.90f);
+    colors[ImGuiCol_NavHighlight]          = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
+
+    // Style adjustments
+    style.WindowRounding    = 6.0f;
+    style.ChildRounding     = 4.0f;
+    style.FrameRounding     = 4.0f;
+    style.PopupRounding     = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.GrabRounding      = 4.0f;
+    style.TabRounding       = 4.0f;
+
+    style.WindowPadding     = ImVec2(10, 10);
+    style.FramePadding      = ImVec2(8, 4);
+    style.ItemSpacing       = ImVec2(8, 6);
+    style.ItemInnerSpacing  = ImVec2(6, 4);
+    style.IndentSpacing     = 20.0f;
+    style.ScrollbarSize     = 14.0f;
+    style.GrabMinSize       = 12.0f;
+
+    style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize  = 1.0f;
+    style.PopupBorderSize  = 1.0f;
+    style.FrameBorderSize  = 0.0f;
+    style.TabBorderSize    = 0.0f;
+}
+
+void apply_sky_preset(int preset)
+{
+    if (g_ctx == nullptr || g_ctx->background == nullptr)
+    {
+        return;
+    }
+
+    switch (preset)
+    {
+        case 0: // Dark
+            *g_ctx->background = { 0.08f, 0.08f, 0.12f, 1.0f };
+            g_sky_color[0] = 0.08f; g_sky_color[1] = 0.08f; g_sky_color[2] = 0.12f;
+            break;
+        case 1: // Day
+            *g_ctx->background = { 0.4f, 0.6f, 0.9f, 1.0f };
+            g_sky_color[0] = 0.4f; g_sky_color[1] = 0.6f; g_sky_color[2] = 0.9f;
+            break;
+        case 2: // Sunset
+            *g_ctx->background = { 0.95f, 0.5f, 0.3f, 1.0f };
+            g_sky_color[0] = 0.95f; g_sky_color[1] = 0.5f; g_sky_color[2] = 0.3f;
+            break;
+        case 3: // Night
+            *g_ctx->background = { 0.02f, 0.02f, 0.05f, 1.0f };
+            g_sky_color[0] = 0.02f; g_sky_color[1] = 0.02f; g_sky_color[2] = 0.05f;
+            break;
+    }
+}
+
+// ============================================================================
+// Helpers
 // ============================================================================
 
 void scan_model_directory(const std::string& dir)
@@ -104,7 +236,7 @@ void scan_model_directory(const std::string& dir)
     }
 
     std::sort(g_model_files.begin(), g_model_files.end());
-    spdlog::info("Found {} model files in {}", g_model_files.size(), dir);
+    spdlog::info("found {} models", g_model_files.size());
 }
 
 void scan_music_directory()
@@ -123,8 +255,8 @@ void scan_music_directory()
         }
 
         auto ext = entry.path().extension().string();
-        if (ext == ".ogg" || ext == ".OGG" || ext == ".mp3" || ext == ".MP3" ||
-            ext == ".wav" || ext == ".WAV")
+        if (ext == ".ogg" || ext == ".mp3" || ext == ".wav" ||
+            ext == ".OGG" || ext == ".MP3" || ext == ".WAV")
         {
             music_track track;
             track.name = entry.path().filename().string();
@@ -134,41 +266,101 @@ void scan_music_directory()
     }
 
     std::ranges::sort(g_music_tracks,
-                      [](const auto& a, const auto& b)
-                      { return a.name < b.name; });
-    spdlog::info("Found {} music tracks", g_music_tracks.size());
+                      [](const auto& a, const auto& b) { return a.name < b.name; });
+    spdlog::info("found {} tracks", g_music_tracks.size());
 }
 
-void load_model_at(const std::string& path, const glm::vec3& pos)
+showcase_model* load_showcase_model(const std::string& path,
+                                    const glm::vec3&   pos,
+                                    bool               rotate = false,
+                                    bool               hover  = false)
 {
     auto handle = g_ctx->renderer->load_model(path);
     if (handle == euengine::invalid_model)
     {
-        spdlog::error("Failed to load model: {}", path);
-        return;
+        spdlog::error("load failed: {}", path);
+        return nullptr;
     }
 
-    loaded_model model;
+    showcase_model model;
     model.handle             = handle;
     model.path               = path;
     model.name               = std::filesystem::path(path).stem().string();
     model.bounds             = g_ctx->renderer->get_bounds(handle);
     model.transform.position = pos;
     model.transform.scale    = glm::vec3(1.0f);
+    model.rotate             = rotate;
+    model.hover              = hover;
+    model.hover_height       = pos.y;
 
-    g_models.push_back(model);
-    g_selected_model = static_cast<int>(g_models.size()) - 1;
-
-    spdlog::info("Loaded model: {} at ({:.1f}, {:.1f}, {:.1f})",
-                 model.name,
-                 pos.x,
-                 pos.y,
-                 pos.z);
+    g_showcase.push_back(std::move(model));
+    return &g_showcase.back();
 }
 
-// ============================================================================
-// Camera control
-// ============================================================================
+void setup_showcase_scene()
+{
+    g_meshes.push_back(
+        g_ctx->renderer->create_wireframe_grid(120.0f, 60, { 0.15f, 0.2f, 0.15f }));
+
+    constexpr float radius = 12.0f;
+    constexpr int   n      = 8;
+
+    auto pos = [](int i, float r, float h = 0.0f) {
+        float a = float(i) * (2.0f * std::numbers::pi_v<float> / n);
+        return glm::vec3 { r * std::cos(a), h, r * std::sin(a) };
+    };
+
+    // Center helicopter
+    if (auto* m = load_showcase_model(
+            "assets/models/helics/kamov/kamov.obj", { 0, 4, 0 }, true, true))
+    {
+        m->rotate_speed = 20.0f;
+        m->hover_amount = 0.5f;
+    }
+
+    // Circle of vehicles
+    load_showcase_model("assets/models/tanks/t72/t72_base.obj", pos(0, radius), true);
+    if (auto* m = load_showcase_model(
+            "assets/models/helics/mi_24/mi_24.obj", pos(1, radius, 3), true, true))
+    {
+        m->hover_speed = 1.2f;
+    }
+    load_showcase_model("assets/models/jeeps/uaz/uaz.obj", pos(2, radius), true);
+    load_showcase_model(
+        "assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", pos(3, radius), true);
+    load_showcase_model(
+        "assets/models/tanks/sherman/sherman_base.obj", pos(4, radius), true);
+    if (auto* m = load_showcase_model(
+            "assets/models/helics/cobra/cobra.obj", pos(5, radius, 3.5f), true, true))
+    {
+        m->hover_speed = 1.8f;
+    }
+    load_showcase_model(
+        "assets/models/btrs/btr_rocket/btr_rocket.obj", pos(6, radius), true);
+    load_showcase_model(
+        "assets/models/rocket_launcher_big/rocket_launcher_big.obj", pos(7, radius), true);
+
+    // Outer buildings
+    load_showcase_model("assets/models/mapobjects/cisterns/cisterna01.obj", { 25, 0, 0 });
+    load_showcase_model("assets/models/mapobjects/houses/temple.obj", { -25, 0, 0 });
+    if (auto* m = load_showcase_model(
+            "assets/models/mapobjects/radar/radar.obj", { 0, 0, 25 }, true))
+    {
+        m->rotate_speed = 45.0f;
+    }
+    load_showcase_model(
+        "assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 0, 0, -25 });
+
+    // Corner decorations
+    load_showcase_model("assets/models/mapobjects/barrel/barrel.obj", { 18, 0, 18 });
+    load_showcase_model("assets/models/mapobjects/sandbags/sand_bags.obj", { -18, 0, 18 });
+    load_showcase_model(
+        "assets/models/mapobjects/stones/stone3_gray_big.obj", { 18, 0, -18 });
+    load_showcase_model("assets/models/mapobjects/cactus/cactus_big.obj", { -18, 0, -18 });
+
+    // glTF sample
+    load_showcase_model("assets/models/samples/duck.glb", { -8, 1, 8 }, true);
+}
 
 void update_camera(euengine::engine_context* ctx)
 {
@@ -179,7 +371,6 @@ void update_camera(euengine::engine_context* ctx)
 
     auto& cam = ctx->registry->get<euengine::camera_component>(g_camera_entity);
 
-    // Mouse look (when captured)
     if (ctx->input.mouse_captured)
     {
         cam.yaw += ctx->input.mouse_xrel * cam.look_speed;
@@ -187,292 +378,673 @@ void update_camera(euengine::engine_context* ctx)
         cam.pitch = glm::clamp(cam.pitch, -89.0f, 89.0f);
     }
 
-    // Keyboard movement
-    if ((ctx->input.keyboard != nullptr) && g_camera_free)
+    if (ctx->input.keyboard != nullptr)
     {
-        float     speed = cam.move_speed * ctx->delta_time;
-        glm::vec3 front = cam.front();
-        glm::vec3 right = cam.right();
-        glm::vec3 up(0.0f, 1.0f, 0.0f);
-
-        // Shift for faster movement
+        float speed = cam.move_speed * ctx->time.delta;
         if (ctx->input.keyboard[key_lshift])
         {
             speed *= 3.0f;
         }
 
-        if (ctx->input.keyboard[key_w])
-        {
-            cam.position += front * speed;
-        }
-        if (ctx->input.keyboard[key_s])
-        {
-            cam.position -= front * speed;
-        }
-        if (ctx->input.keyboard[key_a])
-        {
-            cam.position -= right * speed;
-        }
-        if (ctx->input.keyboard[key_d])
-        {
-            cam.position += right * speed;
-        }
-        if (ctx->input.keyboard[key_q])
-        {
-            cam.position -= up * speed;
-        }
-        if (ctx->input.keyboard[key_e])
-        {
-            cam.position += up * speed;
-        }
+        glm::vec3 front = cam.front();
+        glm::vec3 right = cam.right();
 
-        // Toggle mouse capture
+        if (ctx->input.keyboard[key_w]) cam.position += front * speed;
+        if (ctx->input.keyboard[key_s]) cam.position -= front * speed;
+        if (ctx->input.keyboard[key_a]) cam.position -= right * speed;
+        if (ctx->input.keyboard[key_d]) cam.position += right * speed;
+        if (ctx->input.keyboard[key_e]) cam.position.y += speed;
+        if (ctx->input.keyboard[key_q]) cam.position.y -= speed;
+
         if (ctx->input.keyboard[key_escape])
         {
             ctx->settings->set_mouse_captured(false);
         }
 
-        // Fullscreen toggle (simple debounce)
-        static bool f11_was_pressed = false;
-        if (ctx->input.keyboard[key_f11])
-        {
-            if (!f11_was_pressed)
-            {
-                ctx->settings->set_fullscreen(!ctx->settings->is_fullscreen());
-                f11_was_pressed = true;
-            }
-        }
-        else
-        {
-            f11_was_pressed = false;
-        }
+        // Hotkeys with debounce
+        static bool keys[10] = {};
 
-        // Hot reload (F5)
-        static bool f5_was_pressed = false;
-        if (ctx->input.keyboard[key_f5])
+        if (ctx->input.keyboard[key_1] && !keys[0])
         {
-            if (!f5_was_pressed)
-            {
-                spdlog::info("Hot reload triggered (F5)");
-
-                // Rescan model directory
-                scan_model_directory(g_model_dir);
-
-                // If shader hot reload is enabled, shaders auto-reload
-                // Just log that we triggered it
-                if ((ctx->shaders != nullptr) &&
-                    ctx->shaders->hot_reload_enabled())
-                {
-                    spdlog::info("Shader hot reload is enabled - shaders will "
-                                 "reload if changed");
-                }
-
-                f5_was_pressed = true;
-            }
+            g_sky_preset = 0;
+            apply_sky_preset(0);
         }
-        else
+        keys[0] = ctx->input.keyboard[key_1];
+
+        if (ctx->input.keyboard[key_2] && !keys[1])
         {
-            f5_was_pressed = false;
+            g_sky_preset = 1;
+            apply_sky_preset(1);
         }
+        keys[1] = ctx->input.keyboard[key_2];
 
-        // Wireframe toggle (Tab)
-        static bool tab_was_pressed = false;
-        if (ctx->input.keyboard[key_tab])
+        if (ctx->input.keyboard[key_3] && !keys[2])
         {
-            if (!tab_was_pressed)
-            {
-                g_wireframe     = !g_wireframe;
-                tab_was_pressed = true;
-            }
+            g_sky_preset = 2;
+            apply_sky_preset(2);
         }
-        else
+        keys[2] = ctx->input.keyboard[key_3];
+
+        if (ctx->input.keyboard[key_space] && !keys[3])
         {
-            tab_was_pressed = false;
+            g_auto_rotate = !g_auto_rotate;
         }
+        keys[3] = ctx->input.keyboard[key_space];
+
+        if (ctx->input.keyboard[key_tab] && !keys[4])
+        {
+            g_wireframe = !g_wireframe;
+        }
+        keys[4] = ctx->input.keyboard[key_tab];
+
+        if (ctx->input.keyboard[key_f11] && !keys[5])
+        {
+            ctx->settings->set_fullscreen(!ctx->settings->is_fullscreen());
+        }
+        keys[5] = ctx->input.keyboard[key_f11];
+
+        if (ctx->input.keyboard[key_f5] && !keys[6])
+        {
+            scan_model_directory(g_model_dir);
+        }
+        keys[6] = ctx->input.keyboard[key_f5];
     }
 
-    // Update view-projection
-    glm::mat4 view = cam.view();
-    glm::mat4 proj = cam.projection(ctx->display.aspect);
-    ctx->renderer->set_view_projection(proj * view);
+    ctx->renderer->set_view_projection(
+        cam.projection(ctx->display.aspect) * cam.view());
+}
+
+void update_animations(float time, float delta)
+{
+    for (auto& m : g_showcase)
+    {
+        if (m.rotate && g_auto_rotate)
+        {
+            m.transform.rotation.y += m.rotate_speed * delta;
+            if (m.transform.rotation.y > 360.0f)
+            {
+                m.transform.rotation.y -= 360.0f;
+            }
+        }
+        if (m.hover)
+        {
+            m.transform.position.y =
+                m.hover_height + std::sin(time * m.hover_speed) * m.hover_amount;
+        }
+    }
+}
+
+// ============================================================================
+// UI Panels
+// ============================================================================
+
+void ui_toolbar(euengine::engine_context* ctx)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 32));
+    
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus;
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 0));
+    
+    if (ImGui::Begin("##toolbar", nullptr, flags))
+    {
+        // View toggles
+        if (ImGui::Button(g_show_hierarchy ? "H" : "h"))
+        {
+            g_show_hierarchy = !g_show_hierarchy;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Hierarchy (H)");
+        
+        ImGui::SameLine();
+        if (ImGui::Button(g_show_properties ? "P" : "p"))
+        {
+            g_show_properties = !g_show_properties;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Properties (P)");
+        
+        ImGui::SameLine();
+        if (ImGui::Button(g_show_browser ? "B" : "b"))
+        {
+            g_show_browser = !g_show_browser;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Browser (B)");
+        
+        ImGui::SameLine();
+        if (ImGui::Button(g_show_music ? "M" : "m"))
+        {
+            g_show_music = !g_show_music;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Music (M)");
+        
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(20, 0));
+        ImGui::SameLine();
+        
+        // Wireframe toggle
+        if (ImGui::Checkbox("Wire", &g_wireframe))
+        {
+            // Updated in render
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Toggle wireframe (Tab)");
+        
+        ImGui::SameLine();
+        ImGui::Checkbox("Rotate", &g_auto_rotate);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Auto-rotate models (Space)");
+        
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(20, 0));
+        ImGui::SameLine();
+        
+        // Sky presets
+        ImGui::SetNextItemWidth(100);
+        const char* presets[] = { "Dark", "Day", "Sunset", "Night" };
+        if (ImGui::Combo("Sky", &g_sky_preset, presets, 4))
+        {
+            apply_sky_preset(g_sky_preset);
+        }
+        
+        // Custom color
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(120);
+        if (ImGui::ColorEdit3("##skycolor", g_sky_color,
+                              ImGuiColorEditFlags_NoInputs))
+        {
+            if (g_ctx->background)
+            {
+                g_ctx->background->r = g_sky_color[0];
+                g_ctx->background->g = g_sky_color[1];
+                g_ctx->background->b = g_sky_color[2];
+            }
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Custom sky color");
+        
+        // Right side - stats
+        char stats[64];
+        snprintf(stats, sizeof(stats), "%.0f FPS | %zu models",
+                 ctx->time.fps, g_showcase.size());
+        float w = ImGui::CalcTextSize(stats).x;
+        ImGui::SameLine(io.DisplaySize.x - w - 16);
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", stats);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+}
+
+void ui_hierarchy(euengine::engine_context* ctx)
+{
+    if (!g_show_hierarchy) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(8, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(240, 350), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(180, 200), ImVec2(400, io.DisplaySize.y - 60));
+    
+    if (ImGui::Begin("Scene", &g_show_hierarchy))
+    {
+        // Camera section
+        if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (g_camera_entity != entt::null && ctx->registry->valid(g_camera_entity))
+            {
+                auto& cam = ctx->registry->get<euengine::camera_component>(g_camera_entity);
+                
+                ImGui::Text("Position");
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##campos", &cam.position.x, 0.5f);
+                ImGui::PopItemWidth();
+                
+                ImGui::Spacing();
+                ImGui::SliderFloat("Speed", &cam.move_speed, 1.0f, 100.0f, "%.0f");
+                ImGui::SliderFloat("FOV", &cam.fov, 30.0f, 120.0f, "%.0f");
+            }
+        }
+        
+        ImGui::Spacing();
+        
+        // Objects section
+        if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::BeginChild("##objlist", ImVec2(0, 0), false);
+            
+            for (std::size_t i = 0; i < g_showcase.size(); ++i)
+            {
+                auto& m = g_showcase[i];
+                bool selected = (static_cast<int>(i) == g_selected_model);
+                
+                // Icon based on type
+                const char* icon = "  ";
+                if (m.hover) icon = "^ ";
+                else if (m.rotate) icon = "* ";
+                
+                char label[128];
+                snprintf(label, sizeof(label), "%s%s##%zu", icon, m.name.c_str(), i);
+                
+                if (ImGui::Selectable(label, selected))
+                {
+                    g_selected_model = static_cast<int>(i);
+                }
+                
+                // Double-click to focus
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
+                {
+                    if (g_camera_entity != entt::null)
+                    {
+                        auto& cam = ctx->registry->get<euengine::camera_component>(g_camera_entity);
+                        cam.position = m.transform.position + glm::vec3(0, 5, 15);
+                        cam.pitch = -15.0f;
+                        cam.yaw = -90.0f;
+                    }
+                }
+            }
+            
+            ImGui::EndChild();
+        }
+    }
+    ImGui::End();
+}
+
+void ui_properties(euengine::engine_context* ctx)
+{
+    if (!g_show_properties) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(8, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(240, 280), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), ImVec2(400, io.DisplaySize.y - 60));
+    
+    if (ImGui::Begin("Properties", &g_show_properties))
+    {
+        if (g_selected_model >= 0 &&
+            static_cast<std::size_t>(g_selected_model) < g_showcase.size())
+        {
+            auto& m = g_showcase[static_cast<std::size_t>(g_selected_model)];
+            
+            ImGui::PushID(g_selected_model);
+            
+            // Header
+            ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "%s", m.name.c_str());
+            ImGui::Separator();
+            ImGui::Spacing();
+            
+            // Transform
+            if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::Text("Position");
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##pos", &m.transform.position.x, 0.1f);
+                ImGui::PopItemWidth();
+                
+                ImGui::Spacing();
+                ImGui::Text("Rotation");
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##rot", &m.transform.rotation.x, 1.0f);
+                ImGui::PopItemWidth();
+                
+                ImGui::Spacing();
+                ImGui::Text("Scale");
+                float scale = m.transform.scale.x;
+                if (ImGui::SliderFloat("##scale", &scale, 0.1f, 5.0f, "%.2f"))
+                {
+                    m.transform.scale = glm::vec3(scale);
+                }
+            }
+            
+            // Animation
+            if (ImGui::CollapsingHeader("Animation"))
+            {
+                ImGui::Checkbox("Auto Rotate", &m.rotate);
+                if (m.rotate)
+                {
+                    ImGui::SliderFloat("Speed##rot", &m.rotate_speed, 0.0f, 180.0f);
+                }
+                
+                ImGui::Spacing();
+                ImGui::Checkbox("Hover", &m.hover);
+                if (m.hover)
+                {
+                    ImGui::SliderFloat("Amount", &m.hover_amount, 0.0f, 2.0f);
+                    ImGui::SliderFloat("Speed##hov", &m.hover_speed, 0.5f, 5.0f);
+                }
+            }
+            
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            
+            // Actions
+            if (ImGui::Button("Remove", ImVec2(-1, 0)))
+            {
+                ctx->renderer->unload_model(m.handle);
+                g_showcase.erase(g_showcase.begin() + g_selected_model);
+                g_selected_model = -1;
+            }
+            
+            ImGui::PopID();
+        }
+        else
+        {
+            ImGui::TextDisabled("Select an object");
+        }
+    }
+    ImGui::End();
+}
+
+void ui_browser()
+{
+    if (!g_show_browser) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(310, 400), ImGuiCond_FirstUseEver);
+    
+    if (ImGui::Begin("Model Browser", &g_show_browser))
+    {
+        // Path input
+        static char dir_buf[256];
+        strncpy(dir_buf, g_model_dir.c_str(), sizeof(dir_buf) - 1);
+        
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 60);
+        if (ImGui::InputText("##dir", dir_buf, sizeof(dir_buf)))
+        {
+            g_model_dir = dir_buf;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Scan"))
+        {
+            scan_model_directory(g_model_dir);
+        }
+        
+        ImGui::Text("%zu models found", g_model_files.size());
+        ImGui::Separator();
+        
+        // File list
+        ImGui::BeginChild("##files", ImVec2(0, -36), true);
+        for (std::size_t i = 0; i < g_model_files.size(); ++i)
+        {
+            auto name = std::filesystem::path(g_model_files[i]).filename().string();
+            if (ImGui::Selectable(name.c_str(), std::cmp_equal(i, g_browser_selected)))
+            {
+                g_browser_selected = static_cast<int>(i);
+            }
+        }
+        ImGui::EndChild();
+        
+        // Load button
+        bool can_load = g_browser_selected >= 0 &&
+                        static_cast<std::size_t>(g_browser_selected) < g_model_files.size();
+        
+        if (!can_load) ImGui::BeginDisabled();
+        if (ImGui::Button("Load", ImVec2(-1, 0)))
+        {
+            load_showcase_model(
+                g_model_files[static_cast<std::size_t>(g_browser_selected)],
+                { 0, 0, 0 }, true);
+            g_selected_model = static_cast<int>(g_showcase.size()) - 1;
+        }
+        if (!can_load) ImGui::EndDisabled();
+    }
+    ImGui::End();
+}
+
+void ui_music(euengine::engine_context* ctx)
+{
+    if (!g_show_music || ctx->audio == nullptr) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 460), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(310, 180), ImGuiCond_FirstUseEver);
+    
+    if (ImGui::Begin("Music", &g_show_music))
+    {
+        // Track list
+        ImGui::BeginChild("##tracks", ImVec2(0, -50), true);
+        for (std::size_t i = 0; i < g_music_tracks.size(); ++i)
+        {
+            auto& t = g_music_tracks[i];
+            bool playing = std::cmp_equal(i, g_current_track);
+            
+            if (playing)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));
+            }
+            
+            if (ImGui::Selectable(t.name.c_str(), playing))
+            {
+                if (t.handle == euengine::invalid_music)
+                {
+                    t.handle = ctx->audio->load_music(t.path);
+                }
+                if (t.handle != euengine::invalid_music)
+                {
+                    ctx->audio->play_music(t.handle, true);
+                    g_current_track = static_cast<int>(i);
+                }
+            }
+            
+            if (playing)
+            {
+                ImGui::PopStyleColor();
+            }
+        }
+        ImGui::EndChild();
+        
+        // Controls
+        bool is_playing = ctx->audio->is_music_playing();
+        bool is_paused = ctx->audio->is_music_paused();
+        
+        if (is_playing && !is_paused)
+        {
+            if (ImGui::Button("Pause", ImVec2(60, 0)))
+            {
+                ctx->audio->pause_music();
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Play", ImVec2(60, 0)))
+            {
+                ctx->audio->resume_music();
+            }
+        }
+        
+        ImGui::SameLine();
+        if (ImGui::Button("Stop", ImVec2(60, 0)))
+        {
+            ctx->audio->stop_music();
+            g_current_track = -1;
+        }
+        
+        ImGui::SameLine();
+        float vol = ctx->audio->get_music_volume();
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::SliderFloat("##vol", &vol, 0.0f, 1.0f, "Vol: %.2f"))
+        {
+            ctx->audio->set_music_volume(vol);
+        }
+    }
+    ImGui::End();
+}
+
+void ui_statusbar(euengine::engine_context* ctx)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    
+    ImGui::SetNextWindowPos(ImVec2(0, io.DisplaySize.y - 24));
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 24));
+    
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus;
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 4));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.12f, 0.95f));
+    
+    if (ImGui::Begin("##status", nullptr, flags))
+    {
+        const char* help = ctx->input.mouse_captured
+            ? "WASD move | QE up/down | Shift fast | 1-3 sky | Space rotate | Tab wire | ESC release"
+            : "Click to capture | WASD move | 1-3 sky | Space rotate | Tab wire | F11 fullscreen";
+        
+        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "%s", help);
+        
+        // Right side info
+        char info[64];
+        snprintf(info, sizeof(info), "%.1f ms | %dx%d",
+                 ctx->time.delta * 1000.0f,
+                 ctx->settings->get_window_width(),
+                 ctx->settings->get_window_height());
+        float w = ImGui::CalcTextSize(info).x;
+        ImGui::SameLine(io.DisplaySize.x - w - 16);
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", info);
+    }
+    ImGui::End();
+    
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
 }
 
 } // namespace
 
 // ============================================================================
-// Game API implementation
+// Game API
 // ============================================================================
 
-/// Pre-initialization callback - configure engine settings before SDL init
-/// This is called BEFORE the engine is initialized
-GAME_API euengine::preinit_result game_preinit(
-    euengine::preinit_settings* settings)
+GAME_API euengine::preinit_result game_preinit(euengine::preinit_settings* s)
 {
     spdlog::info("=> game_preinit");
-
-    // Configure window settings
-    settings->window.title     = "airstrike3d preview";
-    settings->window.width     = 1600;
-    settings->window.height    = 900;
-    settings->window.mode      = euengine::window_mode::windowed;
-    settings->window.vsync     = euengine::vsync_mode::enabled;
-    settings->window.resizable = true;
-    settings->window.high_dpi  = true;
-
-    // Configure renderer settings
-    settings->renderer.wireframe_mode  = false;
-    settings->renderer.show_debug_info = false;
-
-    // Configure audio settings
-    settings->audio.master_volume = 0.8f;
-    settings->audio.music_volume  = 0.5f;
-    settings->audio.sound_volume  = 1.0f;
-
+    
+    s->window.title     = "euengine showcase";
+    s->window.width     = 1600;
+    s->window.height    = 900;
+    s->window.vsync     = euengine::vsync_mode::enabled;
+    s->window.resizable = true;
+    s->window.high_dpi  = true;
+    
+    s->audio.master_volume = 0.8f;
+    s->audio.music_volume  = 0.4f;
+    
+    s->background = euengine::clear_color::sky();
+    
     return euengine::preinit_result::ok;
 }
 
 GAME_API bool game_init(euengine::engine_context* ctx)
 {
-    g_ctx  = ctx;
-    g_time = 0.0f;
-
-    // Setup camera
+    g_ctx = ctx;
+    
+    // Setup ImGui style
+    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
+    setup_imgui_style();
+    
+    // Camera
     if (g_camera_entity != entt::null && ctx->registry->valid(g_camera_entity))
     {
         ctx->registry->destroy(g_camera_entity);
     }
-
+    
     g_camera_entity = ctx->registry->create();
-    auto& cam =
-        ctx->registry->emplace<euengine::camera_component>(g_camera_entity);
-    cam.position   = { 0.0f, 15.0f, 25.0f };
-    cam.pitch      = -25.0f;
-    cam.yaw        = -90.0f;
-    cam.move_speed = 15.0f;
-    cam.look_speed = 0.15f;
-
-    // Create ground grid
-    g_meshes.push_back(ctx->renderer->create_wireframe_grid(
-        100.0f, 50, { 0.2f, 0.25f, 0.2f }));
-
-    // Scan directories
+    auto& cam = ctx->registry->emplace<euengine::camera_component>(g_camera_entity);
+    cam.position   = { 0, 20, 35 };
+    cam.pitch      = -30;
+    cam.yaw        = -90;
+    cam.move_speed = 20;
+    cam.look_speed = 0.12f;
+    cam.fov        = 55;
+    cam.far_plane  = 500;
+    
+    // Scene
+    setup_showcase_scene();
     scan_model_directory(g_model_dir);
     scan_music_directory();
-
-    // Load some default models for demo
-    load_model_at("assets/models/tanks/t72/t72_base.obj",
-                  { -8.0f, 0.0f, 0.0f });
-    load_model_at("assets/models/helics/kamov/kamov.obj", { 0.0f, 3.0f, 0.0f });
-    load_model_at("assets/models/samples/duck.glb", { 8.0f, 0.0f, 0.0f });
-
+    
     ctx->renderer->set_render_mode(euengine::render_mode::textured);
-
-    spdlog::info("Demo initialized - WASD to move, mouse to look (click to "
-                 "capture), F11 fullscreen");
+    apply_sky_preset(g_sky_preset);
+    
+    spdlog::info("showcase initialized");
     return true;
 }
 
 GAME_API void game_shutdown()
 {
-    // Unload models
-    for (auto& model : g_models)
+    for (auto& m : g_showcase)
     {
-        if (model.handle != euengine::invalid_model &&
-            (g_ctx->renderer != nullptr))
+        if (m.handle != euengine::invalid_model && g_ctx->renderer)
         {
-            g_ctx->renderer->unload_model(model.handle);
+            g_ctx->renderer->unload_model(m.handle);
         }
     }
-    g_models.clear();
-
-    // Unload music
-    for (auto& track : g_music_tracks)
+    g_showcase.clear();
+    
+    for (auto& t : g_music_tracks)
     {
-        if (track.handle != euengine::invalid_music &&
-            (g_ctx->audio != nullptr))
+        if (t.handle != euengine::invalid_music && g_ctx->audio)
         {
-            g_ctx->audio->unload_music(track.handle);
+            g_ctx->audio->unload_music(t.handle);
         }
     }
     g_music_tracks.clear();
-
-    // Destroy meshes
+    
     for (auto h : g_meshes)
     {
-        if (h != euengine::invalid_mesh && (g_ctx->renderer != nullptr))
+        if (h != euengine::invalid_mesh && g_ctx->renderer)
         {
             g_ctx->renderer->destroy_mesh(h);
         }
     }
     g_meshes.clear();
-
-    // Destroy camera
-    if (g_camera_entity != entt::null &&
-        g_ctx->registry->valid(g_camera_entity))
+    
+    if (g_camera_entity != entt::null && g_ctx->registry->valid(g_camera_entity))
     {
         g_ctx->registry->destroy(g_camera_entity);
         g_camera_entity = entt::null;
     }
-
-    spdlog::info("Demo shutdown");
+    
+    spdlog::info("showcase shutdown");
     g_ctx = nullptr;
 }
 
 GAME_API void game_update(euengine::engine_context* ctx)
 {
-    g_time += ctx->delta_time;
-
-    // Update render mode
-    ctx->renderer->set_render_mode(g_wireframe
-                                       ? euengine::render_mode::wireframe
-                                       : euengine::render_mode::textured);
-
-    // Camera
+    ctx->renderer->set_render_mode(
+        g_wireframe ? euengine::render_mode::wireframe : euengine::render_mode::textured);
+    
     update_camera(ctx);
-
-    // Capture mouse on click (when not over ImGui)
-    if (ctx->imgui_ctx != nullptr)
+    update_animations(ctx->time.elapsed, ctx->time.delta);
+    
+    if (ctx->imgui_ctx)
     {
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
-        ImGuiIO& io = ImGui::GetIO();
-
-        if (!io.WantCaptureMouse && io.MouseClicked[0])
+        if (!ImGui::GetIO().WantCaptureMouse && ImGui::GetIO().MouseClicked[0])
         {
             ctx->settings->set_mouse_captured(true);
-        }
-    }
-
-    // Animate some models for fun
-    for (auto& model : g_models)
-    {
-        // Gentle hover animation for helicopters
-        if (model.name.find("kamov") != std::string::npos ||
-            model.name.find("helic") != std::string::npos ||
-            model.name.find("mi_24") != std::string::npos)
-        {
-            model.transform.position.y = 3.0f + std::sin(g_time * 1.5f) * 0.3f;
         }
     }
 }
 
 GAME_API void game_render(euengine::engine_context* ctx)
 {
-    // Draw grid
     for (auto h : g_meshes)
     {
         ctx->renderer->draw(h);
     }
-
-    // Draw models
-    for (auto& model : g_models)
+    
+    for (auto& m : g_showcase)
     {
-        ctx->renderer->draw_model(model.handle, model.transform);
-
-        // Draw bounds for selected model
-        if (&model - g_models.data() == g_selected_model)
+        ctx->renderer->draw_model(m.handle, m.transform);
+        
+        if (&m - g_showcase.data() == g_selected_model)
         {
-            ctx->renderer->draw_bounds(
-                model.bounds, model.transform, { 0.0f, 1.0f, 0.0f });
+            ctx->renderer->draw_bounds(m.bounds, m.transform, { 0, 1, 0 });
         }
     }
 }
@@ -480,350 +1052,11 @@ GAME_API void game_render(euengine::engine_context* ctx)
 GAME_API void game_ui(euengine::engine_context* ctx)
 {
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
-    ImGuiIO& io = ImGui::GetIO();
-
-    // ===== MAIN MENU BAR =====
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Quit", "Alt+F4"))
-            {
-                ctx->settings->request_quit();
-            }
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("View"))
-        {
-            ImGui::MenuItem("Inspector", nullptr, &g_show_inspector);
-            ImGui::MenuItem("Model Browser", nullptr, &g_show_model_browser);
-            ImGui::MenuItem("Music Player", nullptr, &g_show_music_browser);
-            ImGui::MenuItem("Engine Settings", nullptr, &g_show_settings);
-            ImGui::Separator();
-            ImGui::MenuItem("Wireframe", "Tab", &g_wireframe);
-            ImGui::EndMenu();
-        }
-
-        // FPS on right side
-        float fps = 1.0f / ctx->delta_time;
-        char  fps_text[32];
-        snprintf(fps_text, sizeof(fps_text), "%.0f FPS", fps);
-        float text_width = ImGui::CalcTextSize(fps_text).x;
-        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - text_width - 10);
-        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "%s", fps_text);
-
-        ImGui::EndMainMenuBar();
-    }
-
-    // ===== INSPECTOR =====
-    if (g_show_inspector)
-    {
-        ImGui::SetNextWindowPos(ImVec2(10, 30), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(280, 400), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Inspector", &g_show_inspector))
-        {
-            // Scene stats
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Scene");
-            ImGui::Separator();
-
-            const auto stats = ctx->renderer->get_stats();
-            ImGui::Text("Models: %zu", g_models.size());
-            ImGui::Text("Draw calls: %u", stats.draw_calls);
-            ImGui::Text("Triangles: %u", stats.triangles);
-
-            ImGui::Spacing();
-
-            // Camera info
-            if (g_camera_entity != entt::null &&
-                ctx->registry->valid(g_camera_entity))
-            {
-                auto& cam = ctx->registry->get<euengine::camera_component>(
-                    g_camera_entity);
-                ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Camera");
-                ImGui::Separator();
-                ImGui::Text("Pos: %.1f, %.1f, %.1f",
-                            cam.position.x,
-                            cam.position.y,
-                            cam.position.z);
-                ImGui::DragFloat("Speed", &cam.move_speed, 0.5f, 1.0f, 100.0f);
-                ImGui::DragFloat("FOV", &cam.fov, 1.0f, 30.0f, 120.0f);
-            }
-
-            ImGui::Spacing();
-
-            // Model list
-            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Loaded Models");
-            ImGui::Separator();
-
-            for (std::size_t i = 0; i < g_models.size(); ++i)
-            {
-                auto&      model    = g_models[i];
-                const bool selected = (std::cmp_equal(i, g_selected_model));
-
-                if (ImGui::Selectable(model.name.c_str(), selected))
-                {
-                    g_selected_model = static_cast<int>(i);
-                }
-            }
-
-            // Selected model properties
-            if (g_selected_model >= 0 &&
-                static_cast<std::size_t>(g_selected_model) < g_models.size())
-            {
-                auto& model =
-                    g_models[static_cast<std::size_t>(g_selected_model)];
-
-                ImGui::Spacing();
-                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f),
-                                   "Selected: %s",
-                                   model.name.c_str());
-                ImGui::Separator();
-
-                ImGui::DragFloat3(
-                    "Position", &model.transform.position.x, 0.1f);
-                ImGui::DragFloat3(
-                    "Rotation", &model.transform.rotation.x, 1.0f);
-
-                float scale = model.transform.scale.x;
-                if (ImGui::DragFloat("Scale", &scale, 0.01f, 0.01f, 10.0f))
-                {
-                    model.transform.scale = glm::vec3(scale);
-                }
-
-                ImGui::Spacing();
-                if (ImGui::Button("Remove"))
-                {
-                    ctx->renderer->unload_model(model.handle);
-                    g_models.erase(g_models.begin() + g_selected_model);
-                    g_selected_model = -1;
-                }
-            }
-        }
-        ImGui::End();
-    }
-
-    // ===== MODEL BROWSER =====
-    if (g_show_model_browser)
-    {
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 30),
-                                ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(310, 350), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Model Browser", &g_show_model_browser))
-        {
-            // Directory input
-            static char dir_buf[256];
-            strncpy(dir_buf, g_model_dir.c_str(), sizeof(dir_buf) - 1);
-            if (ImGui::InputText("Dir", dir_buf, sizeof(dir_buf)))
-            {
-                g_model_dir = dir_buf;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Scan"))
-            {
-                scan_model_directory(g_model_dir);
-            }
-
-            ImGui::Text("Found %zu models", g_model_files.size());
-            ImGui::Separator();
-
-            // File list
-            ImGui::BeginChild(
-                "ModelList", ImVec2(0, -30), 1, ImGuiWindowFlags_None);
-            for (std::size_t i = 0; i < g_model_files.size(); ++i)
-            {
-                std::string display =
-                    std::filesystem::path(g_model_files[i]).filename().string();
-                if (ImGui::Selectable(display.c_str(),
-                                      std::cmp_equal(i, g_browser_selected)))
-                {
-                    g_browser_selected = static_cast<int>(i);
-                }
-            }
-            ImGui::EndChild();
-
-            // Load button
-            if (ImGui::Button("Load Selected") && g_browser_selected >= 0 &&
-                static_cast<std::size_t>(g_browser_selected) <
-                    g_model_files.size())
-            {
-                load_model_at(
-                    g_model_files[static_cast<std::size_t>(g_browser_selected)],
-                    { 0.0f, 0.0f, 0.0f });
-            }
-        }
-        ImGui::End();
-    }
-
-    // ===== MUSIC PLAYER =====
-    if (g_show_music_browser && (ctx->audio != nullptr))
-    {
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 320, 400),
-                                ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(310, 200), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Music Player", &g_show_music_browser))
-        {
-            // Track list
-            ImGui::BeginChild(
-                "TrackList", ImVec2(0, -60), 1, ImGuiWindowFlags_None);
-            for (std::size_t i = 0; i < g_music_tracks.size(); ++i)
-            {
-                auto& track    = g_music_tracks[i];
-                bool  playing  = (std::cmp_equal(i, g_current_track));
-                bool  selected = playing;
-
-                if (playing)
-                {
-                    ImGui::PushStyleColor(ImGuiCol_Text,
-                                          ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
-                }
-
-                if (ImGui::Selectable(track.name.c_str(), selected))
-                {
-                    // Load if needed
-                    if (track.handle == euengine::invalid_music)
-                    {
-                        track.handle = ctx->audio->load_music(track.path);
-                    }
-
-                    if (track.handle != euengine::invalid_music)
-                    {
-                        ctx->audio->play_music(track.handle, true);
-                        g_current_track = static_cast<int>(i);
-                    }
-                }
-
-                if (playing)
-                {
-                    ImGui::PopStyleColor();
-                }
-            }
-            ImGui::EndChild();
-
-            // Playback controls
-            bool is_playing = ctx->audio->is_music_playing();
-            bool is_paused  = ctx->audio->is_music_paused();
-
-            if (is_playing && !is_paused)
-            {
-                if (ImGui::Button("Pause"))
-                {
-                    ctx->audio->pause_music();
-                }
-            }
-            else if (is_paused)
-            {
-                if (ImGui::Button("Resume"))
-                {
-                    ctx->audio->resume_music();
-                }
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("Stop"))
-            {
-                ctx->audio->stop_music();
-                g_current_track = -1;
-            }
-
-            // Volume
-            float vol = ctx->audio->get_music_volume();
-            if (ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f))
-            {
-                ctx->audio->set_music_volume(vol);
-            }
-        }
-        ImGui::End();
-    }
-
-    // ===== ENGINE SETTINGS =====
-    if (g_show_settings && (ctx->settings != nullptr))
-    {
-        ImGui::SetNextWindowPos(ImVec2(10, 450), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(280, 220), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Engine Settings", &g_show_settings))
-        {
-            ImGui::Text("Resolution: %dx%d",
-                        ctx->settings->get_window_width(),
-                        ctx->settings->get_window_height());
-            ImGui::Text("GPU: %s", ctx->settings->get_gpu_driver().data());
-
-            ImGui::Spacing();
-
-            bool fullscreen = ctx->settings->is_fullscreen();
-            if (ImGui::Checkbox("Fullscreen (F11)", &fullscreen))
-            {
-                ctx->settings->set_fullscreen(fullscreen);
-            }
-
-            ImGui::Spacing();
-            ImGui::Text("VSync:");
-            int vsync = static_cast<int>(ctx->settings->get_vsync());
-            if (ImGui::RadioButton("Off", &vsync, 0))
-            {
-                ctx->settings->set_vsync(euengine::vsync_mode::disabled);
-            }
-            ImGui::SameLine();
-            if (ImGui::RadioButton("On", &vsync, 1))
-            {
-                ctx->settings->set_vsync(euengine::vsync_mode::enabled);
-            }
-            ImGui::SameLine();
-            if (ImGui::RadioButton("Adaptive", &vsync, 2))
-            {
-                ctx->settings->set_vsync(euengine::vsync_mode::adaptive);
-            }
-
-            // Shader hot reload
-            if (ctx->shaders != nullptr)
-            {
-                ImGui::Spacing();
-                ImGui::Separator();
-                bool hot = ctx->shaders->hot_reload_enabled();
-                if (ImGui::Checkbox("Shader Hot Reload", &hot))
-                {
-                    ctx->shaders->enable_hot_reload(hot);
-                }
-            }
-
-            // Audio
-            if (ctx->audio != nullptr)
-            {
-                ImGui::Spacing();
-                ImGui::Separator();
-                float sound_vol = ctx->audio->get_sound_volume();
-                if (ImGui::SliderFloat("Sound Vol", &sound_vol, 0.0f, 1.0f))
-                {
-                    ctx->audio->set_sound_volume(sound_vol);
-                }
-            }
-        }
-        ImGui::End();
-    }
-
-    // ===== STATUS BAR =====
-    ImGui::SetNextWindowPos(ImVec2(0, io.DisplaySize.y - 25));
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 25));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 4));
-    if (ImGui::Begin("##statusbar",
-                     nullptr,
-                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                         ImGuiWindowFlags_NoMove |
-                         ImGuiWindowFlags_NoScrollbar))
-    {
-        const char* help =
-            ctx->input.mouse_captured
-                ? "WASD - move | QE - up/down | Shift - fast | Tab - wireframe "
-                  "| F5 - reload | F11 - fullscreen | ESC - release mouse"
-                : "Click to capture mouse | WASD - move | Tab - wireframe | "
-                  "F5 - reload | F11 - fullscreen";
-
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", help);
-    }
-    ImGui::End();
-    ImGui::PopStyleVar();
+    
+    ui_toolbar(ctx);
+    ui_hierarchy(ctx);
+    ui_properties(ctx);
+    ui_browser();
+    ui_music(ctx);
+    ui_statusbar(ctx);
 }

@@ -176,16 +176,22 @@ bool engine::init(const preinit_settings& settings)
         audio_->set_sound_volume(master_volume_ * sfx_volume_mult_);
     }
 
-    // Setup engine context for game
-    context_.registry  = &registry_;
-    context_.renderer  = renderer_.get();
-    context_.shaders   = shader_manager_.get();
-    context_.audio     = audio_.get();
-    context_.settings  = this; // Engine implements i_engine_settings
-    context_.imgui_ctx = ImGui::GetCurrentContext();
+    // Apply background color from settings
+    background_ = settings.background;
 
-    last_time_ = SDL_GetPerformanceCounter();
-    running_   = true;
+    // Setup engine context for game
+    context_.registry   = &registry_;
+    context_.renderer   = renderer_.get();
+    context_.shaders    = shader_manager_.get();
+    context_.audio      = audio_.get();
+    context_.settings   = this; // Engine implements i_engine_settings
+    context_.imgui_ctx  = ImGui::GetCurrentContext();
+    context_.background = &background_;
+
+    // Initialize timing
+    start_time_ = SDL_GetPerformanceCounter();
+    last_time_  = start_time_;
+    running_    = true;
     return true;
 }
 
@@ -495,8 +501,13 @@ void engine::update_context() noexcept
     context_.display.height = h;
     context_.display.aspect =
         (h > 0) ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
-    context_.input      = input_;
-    context_.delta_time = delta_time_;
+    context_.input = input_;
+
+    // Update time info
+    context_.time.delta       = delta_time_;
+    context_.time.elapsed     = elapsed_time_;
+    context_.time.frame_count = frame_count_;
+    context_.time.fps         = smoothed_fps_;
 }
 
 void engine::set_mouse_captured(bool captured) noexcept
@@ -534,13 +545,43 @@ bool engine::process_event(const SDL_Event& event)
             break;
 
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            if (!ImGui::GetIO().WantCaptureMouse)
+            if (event.button.button == SDL_BUTTON_LEFT)
+            {
+                input_.mouse_left = true;
+            }
+            else if (event.button.button == SDL_BUTTON_RIGHT)
+            {
+                input_.mouse_right = true;
+            }
+            else if (event.button.button == SDL_BUTTON_MIDDLE)
+            {
+                input_.mouse_middle = true;
+            }
+            if (!ImGui::GetIO().WantCaptureMouse &&
+                event.button.button == SDL_BUTTON_LEFT)
             {
                 set_mouse_captured(true);
             }
             break;
 
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (event.button.button == SDL_BUTTON_LEFT)
+            {
+                input_.mouse_left = false;
+            }
+            else if (event.button.button == SDL_BUTTON_RIGHT)
+            {
+                input_.mouse_right = false;
+            }
+            else if (event.button.button == SDL_BUTTON_MIDDLE)
+            {
+                input_.mouse_middle = false;
+            }
+            break;
+
         case SDL_EVENT_MOUSE_MOTION:
+            input_.mouse_x = event.motion.x;
+            input_.mouse_y = event.motion.y;
             if (mouse_captured_)
             {
                 input_.mouse_xrel += event.motion.xrel;
@@ -640,11 +681,14 @@ void engine::render()
 
     renderer_->ensure_depth_texture(swapchain_w, swapchain_h);
 
-    // Setup color target with dark clear color
+    // Setup color target with game-controlled clear color
     SDL_GPUColorTargetInfo color_target {};
     color_target.texture     = swapchain;
     color_target.clear_color = {
-        .r = 0.08f, .g = 0.08f, .b = 0.12f, .a = 1.0f
+        .r = background_.r,
+        .g = background_.g,
+        .b = background_.b,
+        .a = background_.a,
     };
     color_target.load_op  = SDL_GPU_LOADOP_CLEAR;
     color_target.store_op = SDL_GPU_STOREOP_STORE;
@@ -706,6 +750,17 @@ void engine::iterate()
 
     // Clamp delta time to avoid spiral of death
     delta_time_ = std::min(delta_time_, k_max_delta_time);
+
+    // Update timing info
+    elapsed_time_ =
+        static_cast<float>(now - start_time_) / static_cast<float>(freq);
+    ++frame_count_;
+
+    // Smooth FPS using exponential moving average
+    constexpr float fps_smoothing = 0.9f;
+    const float instant_fps = (delta_time_ > 0.0f) ? 1.0f / delta_time_ : 0.0f;
+    smoothed_fps_ =
+        fps_smoothing * smoothed_fps_ + (1.0f - fps_smoothing) * instant_fps;
 
     // Update keyboard state (mouse motion was accumulated via process_event)
     input_.keyboard       = SDL_GetKeyboardState(nullptr);
