@@ -27,6 +27,7 @@ enum class msaa_samples : std::uint8_t
     x2   = 2,
     x4   = 4,
     x8   = 8,
+    x16  = 16,
 };
 
 struct window_settings final

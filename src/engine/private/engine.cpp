@@ -407,11 +407,40 @@ bool engine::is_msaa_supported(msaa_samples samples) const noexcept
         case msaa_samples::x2:   count = SDL_GPU_SAMPLECOUNT_2; break;
         case msaa_samples::x4:   count = SDL_GPU_SAMPLECOUNT_4; break;
         case msaa_samples::x8:   count = SDL_GPU_SAMPLECOUNT_8; break;
+        case msaa_samples::x16:  
+            // SDL_GPU only supports up to 8x, check 8x support for 16x
+            count = SDL_GPU_SAMPLECOUNT_8;
+            break;
     }
     
     // Check if this sample count is supported for the swapchain format
     auto format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
-    return SDL_GPUTextureSupportsSampleCount(device_.get(), format, count);
+    bool supported = SDL_GPUTextureSupportsSampleCount(device_.get(), format, count);
+    
+    // For 16x, warn that it's actually 8x
+    if (samples == msaa_samples::x16 && supported)
+    {
+        // It's supported but will use 8x internally
+    }
+    
+    return supported;
+}
+
+void engine::set_fxaa_enabled(bool enabled) noexcept
+{
+    fxaa_enabled_ = enabled;
+    // FXAA will be applied in post-processing pass (requires shader implementation)
+}
+
+void engine::set_texture_filter(texture_filter filter) noexcept
+{
+    texture_filter_ = filter;
+    // Texture filter will be applied when creating/updating samplers
+    if (renderer_)
+    {
+        i_renderer::texture_filter rf = static_cast<i_renderer::texture_filter>(static_cast<int>(filter));
+        renderer_->set_texture_filter(rf);
+    }
 }
 
 void engine::set_gamma(float gamma) noexcept
@@ -427,6 +456,16 @@ void engine::set_brightness(float brightness) noexcept
 void engine::set_contrast(float contrast) noexcept
 {
     contrast_ = std::clamp(contrast, 0.5f, 2.0f);
+}
+
+void engine::set_saturation(float saturation) noexcept
+{
+    saturation_ = std::clamp(saturation, 0.0f, 2.0f);
+}
+
+void engine::set_vignette(float intensity) noexcept
+{
+    vignette_ = std::clamp(intensity, 0.0f, 1.0f);
 }
 
 void engine::set_master_volume(float volume) noexcept

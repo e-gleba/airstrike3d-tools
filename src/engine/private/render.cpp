@@ -317,6 +317,7 @@ void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFo
         case msaa_samples::x2:   sample_count = SDL_GPU_SAMPLECOUNT_2; break;
         case msaa_samples::x4:   sample_count = SDL_GPU_SAMPLECOUNT_4; break;
         case msaa_samples::x8:   sample_count = SDL_GPU_SAMPLECOUNT_8; break;
+        case msaa_samples::x16:  sample_count = SDL_GPU_SAMPLECOUNT_8; break; // SDL_GPU max is 8x
     }
     
     // Check if this sample count is supported
@@ -458,6 +459,10 @@ bool Renderer::create_wireframe_pipeline()
         case msaa_samples::x8:
             sample_count = SDL_GPU_SAMPLECOUNT_8;
             break;
+        case msaa_samples::x16:
+            // SDL_GPU may not support 16x, try 8x as fallback
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break;
     }
     ms_state.sample_count = sample_count;
     spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})", 
@@ -551,6 +556,10 @@ bool Renderer::create_textured_pipeline()
             sample_count = SDL_GPU_SAMPLECOUNT_4;
             break;
         case msaa_samples::x8:
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break;
+        case msaa_samples::x16:
+            // SDL_GPU may not support 16x, try 8x as fallback
             sample_count = SDL_GPU_SAMPLECOUNT_8;
             break;
     }
@@ -1339,6 +1348,15 @@ void Renderer::set_max_anisotropy(float anisotropy)
         // Note: Full implementation would recreate all texture samplers
         // For now, this just stores the value for future texture loads
     }
+}
+
+void Renderer::set_texture_filter(texture_filter filter)
+{
+    texture_filter_ = filter;
+    sampler_dirty_ = true;
+    spdlog::info("Texture filter set to: {}", 
+                 filter == texture_filter::nearest ? "Nearest" :
+                 filter == texture_filter::linear ? "Linear" : "Trilinear");
 }
 
 } // namespace euengine

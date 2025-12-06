@@ -50,6 +50,20 @@ public:
     /// Check if MSAA sample count is supported by GPU
     [[nodiscard]] virtual bool is_msaa_supported(msaa_samples samples) const noexcept = 0;
     
+    /// FXAA (Fast Approximate Anti-Aliasing) - post-processing
+    virtual void               set_fxaa_enabled(bool enabled) noexcept = 0;
+    [[nodiscard]] virtual bool is_fxaa_enabled() const noexcept       = 0;
+    
+    /// Texture filtering quality
+    enum class texture_filter : std::uint8_t
+    {
+        nearest = 0,  ///< Nearest neighbor (pixelated)
+        linear  = 1,  ///< Bilinear filtering
+        trilinear = 2, ///< Trilinear with mipmaps
+    };
+    virtual void                    set_texture_filter(texture_filter filter) noexcept = 0;
+    [[nodiscard]] virtual texture_filter get_texture_filter() const noexcept          = 0;
+    
     /// Gamma correction (1.0-3.0, default 2.2)
     virtual void                set_gamma(float gamma) noexcept = 0;
     [[nodiscard]] virtual float get_gamma() const noexcept     = 0;
@@ -61,6 +75,14 @@ public:
     /// Contrast adjustment (0.5 to 2.0, default 1.0)
     virtual void                set_contrast(float contrast) noexcept = 0;
     [[nodiscard]] virtual float get_contrast() const noexcept         = 0;
+    
+    /// Saturation adjustment (0.0 to 2.0, default 1.0)
+    virtual void                set_saturation(float saturation) noexcept = 0;
+    [[nodiscard]] virtual float get_saturation() const noexcept           = 0;
+    
+    /// Vignette intensity (0.0 to 1.0, default 0.0 = off)
+    virtual void                set_vignette(float intensity) noexcept = 0;
+    [[nodiscard]] virtual float get_vignette() const noexcept          = 0;
 
     virtual void request_quit() noexcept = 0;
 

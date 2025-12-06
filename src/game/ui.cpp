@@ -757,7 +757,7 @@ void draw_engine(euengine::engine_context* ctx)
 
         // MSAA
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
-        ImGui::Text("MSAA (Anti-Aliasing)");
+        ImGui::Text("MSAA (Multi-Sample Anti-Aliasing)");
         ImGui::PopStyleColor();
         
         int msaa = static_cast<int>(ctx->settings->get_msaa());
@@ -766,6 +766,7 @@ void draw_engine(euengine::engine_context* ctx)
         bool msaa2_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x2);
         bool msaa4_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x4);
         bool msaa8_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x8);
+        bool msaa16_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x16);
         
         if (ImGui::RadioButton("Off", msaa == 1))
             ctx->settings->set_msaa(euengine::msaa_samples::none);
@@ -787,6 +788,26 @@ void draw_engine(euengine::engine_context* ctx)
         if (ImGui::RadioButton("8x", msaa == 8))
             ctx->settings->set_msaa(euengine::msaa_samples::x8);
         ImGui::EndDisabled();
+        
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!msaa16_ok);
+        if (ImGui::RadioButton("16x*", msaa == 16))
+            ctx->settings->set_msaa(euengine::msaa_samples::x16);
+        ImGui::EndDisabled();
+        if (msaa == 16)
+        {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.30f, 1.0f), "(uses 8x)");
+        }
+        
+        // FXAA - not implemented yet
+        ImGui::BeginDisabled(true);
+        bool fxaa = ctx->settings->is_fxaa_enabled();
+        if (ImGui::Checkbox("FXAA (Not Implemented)", &fxaa))
+            ctx->settings->set_fxaa_enabled(fxaa);
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Fast Approximate Anti-Aliasing - requires post-processing shader");
 
         ImGui::Spacing();
 
@@ -795,10 +816,33 @@ void draw_engine(euengine::engine_context* ctx)
         if (ImGui::SliderFloat("Render Scale", &render_scale, 0.25f, 4.0f, "%.2fx"))
             ctx->settings->set_render_scale(render_scale);
 
+        // Texture Quality (applies to newly loaded textures)
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("Texture Quality (new textures only)");
+        ImGui::PopStyleColor();
+        
+        int tex_filter = static_cast<int>(ctx->settings->get_texture_filter());
+        if (ImGui::RadioButton("Nearest", tex_filter == 0))
+            ctx->settings->set_texture_filter(euengine::i_engine_settings::texture_filter::nearest);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Pixelated, fastest - applies to newly loaded textures");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Linear", tex_filter == 1))
+            ctx->settings->set_texture_filter(euengine::i_engine_settings::texture_filter::linear);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Smooth, good quality - applies to newly loaded textures");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Trilinear", tex_filter == 2))
+            ctx->settings->set_texture_filter(euengine::i_engine_settings::texture_filter::trilinear);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Best quality with mipmaps - applies to newly loaded textures");
+        
         // Max Anisotropy
         float max_aniso = ctx->settings->get_max_anisotropy();
         if (ImGui::SliderFloat("Anisotropic Filter", &max_aniso, 1.0f, 16.0f, "%.0fx"))
             ctx->settings->set_max_anisotropy(max_aniso);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Improves texture quality at angles - applies to newly loaded textures");
         
         ImGui::Spacing();
         
@@ -825,33 +869,27 @@ void draw_engine(euengine::engine_context* ctx)
 
         ImGui::Spacing();
         
-        // Display Settings
-        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Display");
-        ImGui::Separator();
-        
-        float gamma = ctx->settings->get_gamma();
-        if (ImGui::SliderFloat("Gamma", &gamma, 1.0f, 3.0f, "%.2f"))
-            ctx->settings->set_gamma(gamma);
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Display gamma correction (default: 2.2)");
-        
-        float brightness = ctx->settings->get_brightness();
-        if (ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f"))
-            ctx->settings->set_brightness(brightness);
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Brightness adjustment (default: 0)");
-        
-        float contrast = ctx->settings->get_contrast();
-        if (ImGui::SliderFloat("Contrast", &contrast, 0.5f, 2.0f, "%.2f"))
-            ctx->settings->set_contrast(contrast);
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Contrast adjustment (default: 1.0)");
-        
-        if (ImGui::Button("Reset Display", ImVec2(-1, 0)))
+        // Post-Processing (Not Implemented - requires shader)
+        if (ImGui::CollapsingHeader("Post-Processing (Not Implemented)"))
         {
-            ctx->settings->set_gamma(2.2f);
-            ctx->settings->set_brightness(0.0f);
-            ctx->settings->set_contrast(1.0f);
+            ImGui::BeginDisabled(true);
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.30f, 1.0f), "Requires post-processing shader");
+            
+            float gamma = ctx->settings->get_gamma();
+            ImGui::SliderFloat("Gamma", &gamma, 1.0f, 3.0f, "%.2f");
+            
+            float brightness = ctx->settings->get_brightness();
+            ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f");
+            
+            float contrast = ctx->settings->get_contrast();
+            ImGui::SliderFloat("Contrast", &contrast, 0.5f, 2.0f, "%.2f");
+            
+            float saturation = ctx->settings->get_saturation();
+            ImGui::SliderFloat("Saturation", &saturation, 0.0f, 2.0f, "%.2f");
+            
+            float vignette = ctx->settings->get_vignette();
+            ImGui::SliderFloat("Vignette", &vignette, 0.0f, 1.0f, "%.2f");
+            ImGui::EndDisabled();
         }
 
         ImGui::Spacing();

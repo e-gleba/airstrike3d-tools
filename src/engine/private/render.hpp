@@ -125,6 +125,8 @@ public:
     void set_msaa_samples(msaa_samples samples) override;
     /// Set max anisotropy (requires sampler recreation)
     void set_max_anisotropy(float anisotropy) override;
+    /// Set texture filter quality
+    void set_texture_filter(texture_filter filter) override;
 
     /// Get current depth texture
     [[nodiscard]] SDL_GPUTexture* depth_texture() const noexcept
@@ -232,6 +234,7 @@ private:
     msaa_samples msaa_samples_  = msaa_samples::none;
     float        max_anisotropy_ = 16.0f;
     bool         sampler_dirty_  = false;
+    texture_filter texture_filter_ = texture_filter::trilinear;
 
     // Resource maps
     std::unordered_map<mesh_handle, gpu_mesh>       meshes_;
