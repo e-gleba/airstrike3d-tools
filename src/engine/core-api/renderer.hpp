@@ -1,5 +1,7 @@
 #pragma once
 
+#include "window.hpp"
+
 #include <glm/glm.hpp>
 
 #include <cstdint>
@@ -109,6 +111,9 @@ public:
 
     virtual texture_handle load_texture(const std::filesystem::path& path) = 0;
     virtual void           unload_texture(texture_handle tex)              = 0;
+
+    virtual void set_msaa_samples(msaa_samples samples) = 0;
+    virtual void set_max_anisotropy(float anisotropy)   = 0;
 
     [[nodiscard]] virtual render_stats get_stats() const = 0;
 };

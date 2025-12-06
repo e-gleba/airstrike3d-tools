@@ -106,6 +106,11 @@ public:
     /// Ensure depth texture matches given dimensions
     void ensure_depth_texture(Uint32 width, Uint32 height);
 
+    /// Set MSAA samples (requires pipeline recreation)
+    void set_msaa_samples(msaa_samples samples) override;
+    /// Set max anisotropy (requires sampler recreation)
+    void set_max_anisotropy(float anisotropy) override;
+
     /// Get current depth texture
     [[nodiscard]] SDL_GPUTexture* depth_texture() const noexcept
     {
@@ -209,6 +214,9 @@ private:
     glm::mat4   view_proj_      = glm::mat4(1.0f);
     render_mode render_mode_    = render_mode::wireframe;
     bool        pipeline_dirty_ = false;
+    msaa_samples msaa_samples_  = msaa_samples::none;
+    float        max_anisotropy_ = 16.0f;
+    bool         sampler_dirty_  = false;
 
     // Resource maps
     std::unordered_map<mesh_handle, gpu_mesh>       meshes_;

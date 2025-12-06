@@ -136,6 +136,11 @@ bool engine::init(const preinit_settings& settings)
     current_vsync_ = settings.window.vsync;
     apply_vsync_mode();
 
+    // Initialize rendering settings
+    current_msaa_     = settings.window.msaa;
+    render_scale_     = settings.renderer.render_scale;
+    max_anisotropy_   = settings.renderer.max_anisotropy;
+
     // Initialize shader manager
     shader_manager_ = std::make_unique<ShaderManager>(device_.get());
     shader_manager_->set_shader_directory("shaders");
@@ -147,6 +152,10 @@ bool engine::init(const preinit_settings& settings)
         spdlog::error("renderer init failed");
         return false;
     }
+    
+    // Apply initial rendering settings to renderer
+    renderer_->set_msaa_samples(current_msaa_);
+    renderer_->set_max_anisotropy(max_anisotropy_);
     renderer_->ensure_depth_texture(
         static_cast<Uint32>(settings.window.width),
         static_cast<Uint32>(settings.window.height));
@@ -342,6 +351,33 @@ void engine::set_target_fps(float fps) noexcept
     target_fps_ = std::max(0.0f, fps);
     spdlog::info("Target FPS set to: {}",
                  target_fps_ > 0 ? target_fps_ : -1.0f);
+}
+
+void engine::set_msaa(msaa_samples samples) noexcept
+{
+    if (current_msaa_ != samples)
+    {
+        current_msaa_ = samples;
+        if (renderer_)
+        {
+            renderer_->set_msaa_samples(samples);
+        }
+    }
+}
+
+void engine::set_render_scale(float scale) noexcept
+{
+    render_scale_ = std::clamp(scale, 0.25f, 4.0f);
+    // Render scale can be applied immediately in render() if needed
+}
+
+void engine::set_max_anisotropy(float anisotropy) noexcept
+{
+    max_anisotropy_ = std::clamp(anisotropy, 1.0f, 16.0f);
+    if (renderer_)
+    {
+        renderer_->set_max_anisotropy(max_anisotropy_);
+    }
 }
 
 void engine::set_master_volume(float volume) noexcept

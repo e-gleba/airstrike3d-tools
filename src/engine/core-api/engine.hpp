@@ -34,6 +34,15 @@ public:
     [[nodiscard]] virtual float get_master_volume() const noexcept       = 0;
     [[nodiscard]] virtual bool  is_audio_available() const noexcept      = 0;
 
+    virtual void                    set_msaa(msaa_samples samples) noexcept = 0;
+    [[nodiscard]] virtual msaa_samples get_msaa() const noexcept            = 0;
+
+    virtual void                set_render_scale(float scale) noexcept = 0;
+    [[nodiscard]] virtual float get_render_scale() const noexcept     = 0;
+
+    virtual void                set_max_anisotropy(float anisotropy) noexcept = 0;
+    [[nodiscard]] virtual float get_max_anisotropy() const noexcept          = 0;
+
     virtual void request_quit() noexcept = 0;
 
     virtual void stop() noexcept = 0;

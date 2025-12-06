@@ -139,6 +139,23 @@ public:
         return audio_ != nullptr;
     }
 
+    // Rendering settings
+    void                    set_msaa(msaa_samples samples) noexcept override;
+    [[nodiscard]] msaa_samples get_msaa() const noexcept override
+    {
+        return current_msaa_;
+    }
+    void                set_render_scale(float scale) noexcept override;
+    [[nodiscard]] float get_render_scale() const noexcept override
+    {
+        return render_scale_;
+    }
+    void                set_max_anisotropy(float anisotropy) noexcept override;
+    [[nodiscard]] float get_max_anisotropy() const noexcept override
+    {
+        return max_anisotropy_;
+    }
+
     void request_quit() noexcept override { running_ = false; }
 
 private:
@@ -192,6 +209,11 @@ private:
     bool        vsync_dirty_    = false;
     input_state input_ {};
     clear_color background_ = clear_color::dark();
+
+    // Rendering settings
+    msaa_samples current_msaa_   = msaa_samples::none;
+    float        render_scale_   = 1.0f;
+    float        max_anisotropy_ = 16.0f;
 
     // Audio
     float master_volume_     = 1.0f;

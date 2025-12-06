@@ -755,6 +755,45 @@ void draw_engine(euengine::engine_context* ctx)
 
         ImGui::Spacing();
 
+        // MSAA
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("MSAA (Limited - requires render target)");
+        ImGui::PopStyleColor();
+        
+        int msaa = static_cast<int>(ctx->settings->get_msaa());
+        if (ImGui::RadioButton("Off", msaa == 1))
+            ctx->settings->set_msaa(euengine::msaa_samples::none);
+        ImGui::SameLine();
+        if (ImGui::RadioButton("2x", msaa == 2))
+            ctx->settings->set_msaa(euengine::msaa_samples::x2);
+        ImGui::SameLine();
+        if (ImGui::RadioButton("4x", msaa == 4))
+            ctx->settings->set_msaa(euengine::msaa_samples::x4);
+        ImGui::SameLine();
+        if (ImGui::RadioButton("8x", msaa == 8))
+            ctx->settings->set_msaa(euengine::msaa_samples::x8);
+        
+        if (msaa != 1)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+            ImGui::TextWrapped("Note: MSAA requires render target implementation for full effect.");
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::Spacing();
+
+        // Render Scale
+        float render_scale = ctx->settings->get_render_scale();
+        if (ImGui::SliderFloat("Render Scale", &render_scale, 0.25f, 4.0f, "%.2fx"))
+            ctx->settings->set_render_scale(render_scale);
+
+        // Max Anisotropy
+        float max_aniso = ctx->settings->get_max_anisotropy();
+        if (ImGui::SliderFloat("Max Anisotropy", &max_aniso, 1.0f, 16.0f, "%.0f"))
+            ctx->settings->set_max_anisotropy(max_aniso);
+
+        ImGui::Spacing();
+
         // Shaders
         ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Shaders");
         ImGui::Separator();

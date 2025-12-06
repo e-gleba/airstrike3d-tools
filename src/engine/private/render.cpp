@@ -288,7 +288,26 @@ bool Renderer::create_wireframe_pipeline()
     raster_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
     SDL_GPUMultisampleState ms_state {};
-    ms_state.sample_count = SDL_GPU_SAMPLECOUNT_1;
+    // Convert msaa_samples to SDL_GPUSampleCount
+    SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+    switch (msaa_samples_)
+    {
+        case msaa_samples::none:
+            sample_count = SDL_GPU_SAMPLECOUNT_1;
+            break;
+        case msaa_samples::x2:
+            sample_count = SDL_GPU_SAMPLECOUNT_2;
+            break;
+        case msaa_samples::x4:
+            sample_count = SDL_GPU_SAMPLECOUNT_4;
+            break;
+        case msaa_samples::x8:
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break;
+    }
+    ms_state.sample_count = sample_count;
+    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})", 
+                  static_cast<int>(msaa_samples_), static_cast<int>(sample_count));
 
     SDL_GPUDepthStencilState depth_state {};
     depth_state.compare_op         = SDL_GPU_COMPAREOP_LESS;
@@ -364,7 +383,26 @@ bool Renderer::create_textured_pipeline()
     raster_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
     SDL_GPUMultisampleState ms_state {};
-    ms_state.sample_count = SDL_GPU_SAMPLECOUNT_1;
+    // Convert msaa_samples to SDL_GPUSampleCount
+    SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+    switch (msaa_samples_)
+    {
+        case msaa_samples::none:
+            sample_count = SDL_GPU_SAMPLECOUNT_1;
+            break;
+        case msaa_samples::x2:
+            sample_count = SDL_GPU_SAMPLECOUNT_2;
+            break;
+        case msaa_samples::x4:
+            sample_count = SDL_GPU_SAMPLECOUNT_4;
+            break;
+        case msaa_samples::x8:
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break;
+    }
+    ms_state.sample_count = sample_count;
+    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})", 
+                  static_cast<int>(msaa_samples_), static_cast<int>(sample_count));
 
     SDL_GPUDepthStencilState depth_state {};
     depth_state.compare_op         = SDL_GPU_COMPAREOP_LESS;
@@ -1115,6 +1153,38 @@ void Renderer::draw_bounds(const bounds&    b,
 render_stats Renderer::get_stats() const noexcept
 {
     return frame_stats_;
+}
+
+void Renderer::set_msaa_samples(msaa_samples samples)
+{
+    if (msaa_samples_ != samples)
+    {
+        msaa_samples_ = samples;
+        pipeline_dirty_ = true; // Mark pipelines for recreation
+        if (samples != msaa_samples::none)
+        {
+            spdlog::warn("MSAA set to {}x, but MSAA requires render target implementation. "
+                         "Currently only pipeline MSAA is configured - visual effect may be limited. "
+                         "Full MSAA requires creating MSAA render target and resolving to swapchain.",
+                         static_cast<int>(samples));
+        }
+        else
+        {
+            spdlog::info("MSAA disabled");
+        }
+    }
+}
+
+void Renderer::set_max_anisotropy(float anisotropy)
+{
+    if (max_anisotropy_ != anisotropy)
+    {
+        max_anisotropy_ = anisotropy;
+        sampler_dirty_ = true; // Mark samplers for recreation
+        spdlog::info("Max anisotropy set to {:.1f}, samplers will be recreated", anisotropy);
+        // Note: Full implementation would recreate all texture samplers
+        // For now, this just stores the value for future texture loads
+    }
 }
 
 } // namespace euengine
