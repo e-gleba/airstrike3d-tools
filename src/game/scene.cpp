@@ -312,13 +312,15 @@ void update(euengine::engine_context* ctx)
 
 void render(euengine::engine_context* ctx)
 {
+    // Draw grid first
     for (auto h : g_grids)
         ctx->renderer->draw(h);
     
-    // Draw origin axis gizmo
+    // Draw origin axis gizmo after grid so it appears on top
     if (g_show_origin && g_origin_axis != euengine::invalid_mesh)
         ctx->renderer->draw(g_origin_axis);
 
+    // Draw models last
     for (auto& m : g_models)
     {
         ctx->renderer->draw_model(m.handle, m.transform);
@@ -524,28 +526,39 @@ void rebuild_grid()
             g_ctx->renderer->destroy_mesh(h);
     g_grids.clear();
 
-    // Large ground grid with more subdivisions for prettier look
+    // Infinite ground grid - very large size with many subdivisions
     // Main grid - lighter color
     g_grids.push_back(g_ctx->renderer->create_wireframe_grid(
-        200.0f, 200, { ui::g_grid_color[0], ui::g_grid_color[1], ui::g_grid_color[2] }));
+        10000.0f, 1000, { ui::g_grid_color[0], ui::g_grid_color[1], ui::g_grid_color[2] }));
     
-    // Create origin axis gizmo (RGB = XYZ like Godot)
+    // Create infinite origin axis gizmo (RGB = XYZ like Godot)
+    // Make lines very long to appear infinite, and slightly above grid to avoid z-fighting
     if (g_origin_axis != euengine::invalid_mesh)
         g_ctx->renderer->destroy_mesh(g_origin_axis);
     
-    const float axis_len = 5.0f;
+    const float axis_len = 10000.0f; // Very long to appear infinite
+    const float axis_y_offset = 0.01f; // Slightly above grid to avoid z-fighting
     std::vector<euengine::vertex> axis_verts = {
-        // X axis - Red
-        {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{axis_len, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        // Y axis - Green
+        // X axis - Red (positive direction)
+        {{0.0f, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{axis_len, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        // X axis - Red (negative direction)
+        {{0.0f, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{-axis_len, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        // Y axis - Green (positive direction)
         {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
         {{0.0f, axis_len, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        // Z axis - Blue
-        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-        {{0.0f, 0.0f, axis_len}, {0.0f, 0.0f, 1.0f}},
+        // Y axis - Green (negative direction)
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{0.0f, -axis_len, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        // Z axis - Blue (positive direction)
+        {{0.0f, axis_y_offset, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{0.0f, axis_y_offset, axis_len}, {0.0f, 0.0f, 1.0f}},
+        // Z axis - Blue (negative direction)
+        {{0.0f, axis_y_offset, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{0.0f, axis_y_offset, -axis_len}, {0.0f, 0.0f, 1.0f}},
     };
-    std::vector<uint16_t> axis_indices = {0, 1, 2, 3, 4, 5};
+    std::vector<uint16_t> axis_indices = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     g_origin_axis = g_ctx->renderer->create_mesh(axis_verts, axis_indices, euengine::primitive_type::lines);
 }
 
