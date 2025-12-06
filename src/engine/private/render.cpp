@@ -200,6 +200,11 @@ void Renderer::shutdown()
         SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_pipeline_);
         wireframe_pipeline_ = nullptr;
     }
+    if (wireframe_tri_pipeline_ != nullptr)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_tri_pipeline_);
+        wireframe_tri_pipeline_ = nullptr;
+    }
     if (textured_pipeline_ != nullptr)
     {
         SDL_ReleaseGPUGraphicsPipeline(device_, textured_pipeline_);
@@ -521,7 +526,19 @@ bool Renderer::create_wireframe_pipeline()
 
     wireframe_pipeline_ =
         SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
-    return wireframe_pipeline_ != nullptr;
+    if (wireframe_pipeline_ == nullptr)
+    {
+        return false;
+    }
+    
+    // Create triangle variant for thick lines
+    pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    if (wireframe_tri_pipeline_ != nullptr)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_tri_pipeline_);
+    }
+    wireframe_tri_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
+    return wireframe_tri_pipeline_ != nullptr;
 }
 
 bool Renderer::create_textured_pipeline()
@@ -794,7 +811,7 @@ void Renderer::reload_pipelines()
 {
     if (pipeline_dirty_)
     {
-        (void)create_wireframe_pipeline();
+        (void)create_wireframe_pipeline(); // This also creates wireframe_tri_pipeline_
         (void)create_textured_pipeline();
         (void)create_postprocess_pipeline();
         pipeline_dirty_ = false;
@@ -1076,7 +1093,7 @@ mesh_handle Renderer::create_wireframe_grid(float            size,
 
 mesh_handle Renderer::create_mesh(std::span<const vertex>   verts,
                                   std::span<const uint16_t> idx,
-                                  [[maybe_unused]] primitive_type /*type*/)
+                                  primitive_type type)
 {
     if (verts.empty() || idx.empty())
     {
@@ -1094,7 +1111,9 @@ mesh_handle Renderer::create_mesh(std::span<const vertex>   verts,
                                                          .color    = v.color };
                            });
 
-    meshes_[next_mesh_handle_] = upload_wireframe_mesh(converted, idx);
+    auto mesh = upload_wireframe_mesh(converted, idx);
+    mesh.type = type;
+    meshes_[next_mesh_handle_] = mesh;
     return next_mesh_handle_++;
 }
 
@@ -1143,9 +1162,23 @@ void Renderer::draw(mesh_handle h)
 {
     if (auto it = meshes_.find(h); it != meshes_.end())
     {
-        if ((wireframe_pipeline_ != nullptr) && (current_pass_ != nullptr))
+        if (current_pass_ != nullptr)
         {
-            SDL_BindGPUGraphicsPipeline(current_pass_, wireframe_pipeline_);
+            // Select pipeline based on primitive type
+            SDL_GPUGraphicsPipeline* pipeline = nullptr;
+            if (it->second.type == primitive_type::triangles)
+            {
+                pipeline = wireframe_tri_pipeline_;
+            }
+            else
+            {
+                pipeline = wireframe_pipeline_;
+            }
+            
+            if (pipeline != nullptr)
+            {
+                SDL_BindGPUGraphicsPipeline(current_pass_, pipeline);
+            }
         }
         draw_mesh_internal(it->second);
     }

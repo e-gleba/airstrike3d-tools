@@ -27,6 +27,7 @@ struct gpu_mesh final
     SDL_GPUBuffer* index_buffer  = nullptr;
     Uint32         index_count   = 0;
     Uint32         vertex_count  = 0;
+    primitive_type type          = primitive_type::lines;
 };
 
 /// GPU texture with sampler
@@ -244,6 +245,7 @@ private:
 
     // Pipelines
     SDL_GPUGraphicsPipeline* wireframe_pipeline_          = nullptr;
+    SDL_GPUGraphicsPipeline* wireframe_tri_pipeline_      = nullptr; // For triangle wireframe meshes
     SDL_GPUGraphicsPipeline* textured_pipeline_           = nullptr;
     SDL_GPUGraphicsPipeline* textured_wireframe_pipeline_ = nullptr;
     SDL_GPUGraphicsPipeline* postprocess_pipeline_        = nullptr;

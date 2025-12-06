@@ -538,28 +538,76 @@ void rebuild_grid()
     
     const float axis_len = 10000.0f; // Very long to appear infinite
     const float axis_y_offset = 0.01f; // Slightly above grid to avoid z-fighting
-    std::vector<euengine::vertex> axis_verts = {
-        // X axis - Red (positive direction)
-        {{0.0f, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{axis_len, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        // X axis - Red (negative direction)
-        {{0.0f, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{-axis_len, axis_y_offset, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        // Y axis - Green (positive direction)
-        {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        {{0.0f, axis_len, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        // Y axis - Green (negative direction)
-        {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        {{0.0f, -axis_len, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        // Z axis - Blue (positive direction)
-        {{0.0f, axis_y_offset, 0.0f}, {0.0f, 0.0f, 1.0f}},
-        {{0.0f, axis_y_offset, axis_len}, {0.0f, 0.0f, 1.0f}},
-        // Z axis - Blue (negative direction)
-        {{0.0f, axis_y_offset, 0.0f}, {0.0f, 0.0f, 1.0f}},
-        {{0.0f, axis_y_offset, -axis_len}, {0.0f, 0.0f, 1.0f}},
+    const float axis_thickness = 0.05f; // Thickness of axis lines
+    
+    // Helper lambda to create a thick line segment as a quad
+    auto add_thick_line = [&](const glm::vec3& start, const glm::vec3& end, 
+                               const glm::vec3& color, const glm::vec3& perp1, const glm::vec3& perp2,
+                               std::vector<euengine::vertex>& verts, std::vector<uint16_t>& indices) {
+        const glm::vec3 half_thick1 = perp1 * (axis_thickness * 0.5f);
+        const glm::vec3 half_thick2 = perp2 * (axis_thickness * 0.5f);
+        
+        const uint16_t base_idx = static_cast<uint16_t>(verts.size());
+        
+        // Create quad vertices
+        verts.push_back({{start + half_thick1 + half_thick2}, color});
+        verts.push_back({{start - half_thick1 + half_thick2}, color});
+        verts.push_back({{start - half_thick1 - half_thick2}, color});
+        verts.push_back({{start + half_thick1 - half_thick2}, color});
+        verts.push_back({{end + half_thick1 + half_thick2}, color});
+        verts.push_back({{end - half_thick1 + half_thick2}, color});
+        verts.push_back({{end - half_thick1 - half_thick2}, color});
+        verts.push_back({{end + half_thick1 - half_thick2}, color});
+        
+        // Create quad indices (two triangles per quad)
+        // Front face
+        indices.push_back(base_idx + 0); indices.push_back(base_idx + 1); indices.push_back(base_idx + 2);
+        indices.push_back(base_idx + 0); indices.push_back(base_idx + 2); indices.push_back(base_idx + 3);
+        // Back face
+        indices.push_back(base_idx + 4); indices.push_back(base_idx + 7); indices.push_back(base_idx + 6);
+        indices.push_back(base_idx + 4); indices.push_back(base_idx + 6); indices.push_back(base_idx + 5);
+        // Side faces
+        indices.push_back(base_idx + 0); indices.push_back(base_idx + 4); indices.push_back(base_idx + 5);
+        indices.push_back(base_idx + 0); indices.push_back(base_idx + 5); indices.push_back(base_idx + 1);
+        indices.push_back(base_idx + 1); indices.push_back(base_idx + 5); indices.push_back(base_idx + 6);
+        indices.push_back(base_idx + 1); indices.push_back(base_idx + 6); indices.push_back(base_idx + 2);
+        indices.push_back(base_idx + 2); indices.push_back(base_idx + 6); indices.push_back(base_idx + 7);
+        indices.push_back(base_idx + 2); indices.push_back(base_idx + 7); indices.push_back(base_idx + 3);
+        indices.push_back(base_idx + 3); indices.push_back(base_idx + 7); indices.push_back(base_idx + 4);
+        indices.push_back(base_idx + 3); indices.push_back(base_idx + 4); indices.push_back(base_idx + 0);
     };
-    std::vector<uint16_t> axis_indices = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    g_origin_axis = g_ctx->renderer->create_mesh(axis_verts, axis_indices, euengine::primitive_type::lines);
+    
+    std::vector<euengine::vertex> axis_verts;
+    std::vector<uint16_t> axis_indices;
+    
+    // X axis - Red (positive and negative)
+    const glm::vec3 x_start_pos = {0.0f, axis_y_offset, 0.0f};
+    const glm::vec3 x_end_pos = {axis_len, axis_y_offset, 0.0f};
+    const glm::vec3 x_end_neg = {-axis_len, axis_y_offset, 0.0f};
+    add_thick_line(x_start_pos, x_end_pos, {1.0f, 0.0f, 0.0f}, 
+                   {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, axis_verts, axis_indices);
+    add_thick_line(x_start_pos, x_end_neg, {1.0f, 0.0f, 0.0f}, 
+                   {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, axis_verts, axis_indices);
+    
+    // Y axis - Green (positive and negative)
+    const glm::vec3 y_start = {0.0f, 0.0f, 0.0f};
+    const glm::vec3 y_end_pos = {0.0f, axis_len, 0.0f};
+    const glm::vec3 y_end_neg = {0.0f, -axis_len, 0.0f};
+    add_thick_line(y_start, y_end_pos, {0.0f, 1.0f, 0.0f}, 
+                   {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, axis_verts, axis_indices);
+    add_thick_line(y_start, y_end_neg, {0.0f, 1.0f, 0.0f}, 
+                   {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, axis_verts, axis_indices);
+    
+    // Z axis - Blue (positive and negative)
+    const glm::vec3 z_start = {0.0f, axis_y_offset, 0.0f};
+    const glm::vec3 z_end_pos = {0.0f, axis_y_offset, axis_len};
+    const glm::vec3 z_end_neg = {0.0f, axis_y_offset, -axis_len};
+    add_thick_line(z_start, z_end_pos, {0.0f, 0.0f, 1.0f}, 
+                   {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, axis_verts, axis_indices);
+    add_thick_line(z_start, z_end_neg, {0.0f, 0.0f, 1.0f}, 
+                   {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, axis_verts, axis_indices);
+    
+    g_origin_axis = g_ctx->renderer->create_mesh(axis_verts, axis_indices, euengine::primitive_type::triangles);
 }
 
 } // namespace scene
