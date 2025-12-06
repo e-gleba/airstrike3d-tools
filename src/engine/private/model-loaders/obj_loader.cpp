@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <ranges>
 
-namespace as3
+namespace euengine
 {
 
 load_result ObjLoader::load(const std::filesystem::path& path) const
@@ -127,4 +127,4 @@ std::span<const std::string_view> ObjLoader::extensions() const
     return k_extensions;
 }
 
-} // namespace as3
+} // namespace euengine

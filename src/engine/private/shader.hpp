@@ -12,7 +12,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace as3
+namespace euengine
 {
 
 enum class ShaderStage
@@ -115,4 +115,4 @@ private:
     bool                                           hot_reload_enabled_ = true;
 };
 
-} // namespace as3
+} // namespace euengine

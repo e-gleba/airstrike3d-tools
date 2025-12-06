@@ -30,8 +30,8 @@ constexpr int KEY_TAB    = 43;
 // State
 // ============================================================================
 
-as3::engine_context*          g_ctx = nullptr;
-std::vector<as3::mesh_handle> g_meshes;
+euengine::engine_context*          g_ctx = nullptr;
+std::vector<euengine::mesh_handle> g_meshes;
 float                         g_time = 0.0f;
 
 // Camera
@@ -41,11 +41,11 @@ bool         g_camera_free   = true;
 // Models
 struct loaded_model
 {
-    as3::model_handle handle = as3::invalid_model;
+    euengine::model_handle handle = euengine::invalid_model;
     std::string       name;
     std::string       path;
-    as3::transform    transform;
-    as3::bounds       bounds;
+    euengine::transform    transform;
+    euengine::bounds       bounds;
 };
 std::vector<loaded_model> g_models;
 int                       g_selected_model = -1;
@@ -53,7 +53,7 @@ int                       g_selected_model = -1;
 // Music
 struct music_track
 {
-    as3::music_handle handle = as3::invalid_music;
+    euengine::music_handle handle = euengine::invalid_music;
     std::string       name;
     std::string       path;
 };
@@ -132,7 +132,7 @@ void scan_music_directory()
 void load_model_at(const std::string& path, const glm::vec3& pos)
 {
     auto handle = g_ctx->renderer->load_model(path);
-    if (handle == as3::invalid_model)
+    if (handle == euengine::invalid_model)
     {
         spdlog::error("Failed to load model: {}", path);
         return;
@@ -160,12 +160,12 @@ void load_model_at(const std::string& path, const glm::vec3& pos)
 // Camera control
 // ============================================================================
 
-void update_camera(as3::engine_context* ctx)
+void update_camera(euengine::engine_context* ctx)
 {
     if (g_camera_entity == entt::null || !ctx->registry->valid(g_camera_entity))
         return;
 
-    auto& cam = ctx->registry->get<as3::camera_component>(g_camera_entity);
+    auto& cam = ctx->registry->get<euengine::camera_component>(g_camera_entity);
 
     // Mouse look (when captured)
     if (ctx->input.mouse_captured)
@@ -274,7 +274,7 @@ void update_camera(as3::engine_context* ctx)
 // Game API implementation
 // ============================================================================
 
-GAME_API bool game_init(as3::engine_context* ctx)
+GAME_API bool game_init(euengine::engine_context* ctx)
 {
     g_ctx  = ctx;
     g_time = 0.0f;
@@ -284,7 +284,7 @@ GAME_API bool game_init(as3::engine_context* ctx)
         ctx->registry->destroy(g_camera_entity);
 
     g_camera_entity = ctx->registry->create();
-    auto& cam = ctx->registry->emplace<as3::camera_component>(g_camera_entity);
+    auto& cam = ctx->registry->emplace<euengine::camera_component>(g_camera_entity);
     cam.position   = { 0.0f, 15.0f, 25.0f };
     cam.pitch      = -25.0f;
     cam.yaw        = -90.0f;
@@ -305,7 +305,7 @@ GAME_API bool game_init(as3::engine_context* ctx)
     load_model_at("assets/models/helics/kamov/kamov.obj", { 0.0f, 3.0f, 0.0f });
     load_model_at("assets/models/samples/duck.glb", { 8.0f, 0.0f, 0.0f });
 
-    ctx->renderer->set_render_mode(as3::render_mode::textured);
+    ctx->renderer->set_render_mode(euengine::render_mode::textured);
 
     spdlog::info("Demo initialized - WASD to move, mouse to look (click to "
                  "capture), F11 fullscreen");
@@ -317,7 +317,7 @@ GAME_API void game_shutdown()
     // Unload models
     for (auto& model : g_models)
     {
-        if (model.handle != as3::invalid_model && g_ctx->renderer)
+        if (model.handle != euengine::invalid_model && g_ctx->renderer)
             g_ctx->renderer->unload_model(model.handle);
     }
     g_models.clear();
@@ -325,14 +325,14 @@ GAME_API void game_shutdown()
     // Unload music
     for (auto& track : g_music_tracks)
     {
-        if (track.handle != as3::invalid_music && g_ctx->audio)
+        if (track.handle != euengine::invalid_music && g_ctx->audio)
             g_ctx->audio->unload_music(track.handle);
     }
     g_music_tracks.clear();
 
     // Destroy meshes
     for (auto h : g_meshes)
-        if (h != as3::invalid_mesh && g_ctx->renderer)
+        if (h != euengine::invalid_mesh && g_ctx->renderer)
             g_ctx->renderer->destroy_mesh(h);
     g_meshes.clear();
 
@@ -348,13 +348,13 @@ GAME_API void game_shutdown()
     g_ctx = nullptr;
 }
 
-GAME_API void game_update(as3::engine_context* ctx)
+GAME_API void game_update(euengine::engine_context* ctx)
 {
     g_time += ctx->delta_time;
 
     // Update render mode
-    ctx->renderer->set_render_mode(g_wireframe ? as3::render_mode::wireframe
-                                               : as3::render_mode::textured);
+    ctx->renderer->set_render_mode(g_wireframe ? euengine::render_mode::wireframe
+                                               : euengine::render_mode::textured);
 
     // Camera
     update_camera(ctx);
@@ -384,7 +384,7 @@ GAME_API void game_update(as3::engine_context* ctx)
     }
 }
 
-GAME_API void game_render(as3::engine_context* ctx)
+GAME_API void game_render(euengine::engine_context* ctx)
 {
     // Draw grid
     for (auto h : g_meshes)
@@ -404,7 +404,7 @@ GAME_API void game_render(as3::engine_context* ctx)
     }
 }
 
-GAME_API void game_ui(as3::engine_context* ctx)
+GAME_API void game_ui(euengine::engine_context* ctx)
 {
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx->imgui_ctx));
     ImGuiIO& io = ImGui::GetIO();
@@ -465,7 +465,7 @@ GAME_API void game_ui(as3::engine_context* ctx)
                 ctx->registry->valid(g_camera_entity))
             {
                 auto& cam =
-                    ctx->registry->get<as3::camera_component>(g_camera_entity);
+                    ctx->registry->get<euengine::camera_component>(g_camera_entity);
                 ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Camera");
                 ImGui::Separator();
                 ImGui::Text("Pos: %.1f, %.1f, %.1f",
@@ -598,10 +598,10 @@ GAME_API void game_ui(as3::engine_context* ctx)
                 if (ImGui::Selectable(track.name.c_str(), selected))
                 {
                     // Load if needed
-                    if (track.handle == as3::invalid_music)
+                    if (track.handle == euengine::invalid_music)
                         track.handle = ctx->audio->load_music(track.path);
 
-                    if (track.handle != as3::invalid_music)
+                    if (track.handle != euengine::invalid_music)
                     {
                         ctx->audio->play_music(track.handle, true);
                         g_current_track = static_cast<int>(i);
@@ -666,13 +666,13 @@ GAME_API void game_ui(as3::engine_context* ctx)
             ImGui::Text("VSync:");
             int vsync = static_cast<int>(ctx->settings->get_vsync());
             if (ImGui::RadioButton("Off", &vsync, 0))
-                ctx->settings->set_vsync(as3::vsync_mode::disabled);
+                ctx->settings->set_vsync(euengine::vsync_mode::disabled);
             ImGui::SameLine();
             if (ImGui::RadioButton("On", &vsync, 1))
-                ctx->settings->set_vsync(as3::vsync_mode::enabled);
+                ctx->settings->set_vsync(euengine::vsync_mode::enabled);
             ImGui::SameLine();
             if (ImGui::RadioButton("Adaptive", &vsync, 2))
-                ctx->settings->set_vsync(as3::vsync_mode::adaptive);
+                ctx->settings->set_vsync(euengine::vsync_mode::adaptive);
 
             // Shader hot reload
             if (ctx->shaders)

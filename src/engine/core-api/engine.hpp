@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace as3
+namespace euengine
 {
 
 class i_engine_settings
@@ -39,4 +39,4 @@ public:
     virtual void stop() noexcept = 0;
 };
 
-} // namespace as3
+} // namespace euengine

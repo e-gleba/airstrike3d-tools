@@ -5,7 +5,7 @@
 
 #include "model_loader.hpp"
 
-namespace as3
+namespace euengine
 {
 
 /// glTF 2.0 file format loader
@@ -33,4 +33,4 @@ private:
                                                                    ".glb" };
 };
 
-} // namespace as3
+} // namespace euengine

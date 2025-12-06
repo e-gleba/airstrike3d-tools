@@ -5,7 +5,7 @@
 
 #include "model_loader.hpp"
 
-namespace as3
+namespace euengine
 {
 
 /// OBJ file format loader
@@ -32,4 +32,4 @@ private:
     static constexpr std::array<std::string_view, 1> k_extensions{ ".obj" };
 };
 
-} // namespace as3
+} // namespace euengine

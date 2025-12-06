@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 
-namespace as3
+namespace euengine
 {
 
 using music_handle = std::uint64_t;
@@ -38,4 +38,4 @@ public:
     [[nodiscard]] virtual float get_sound_volume() const             = 0;
 };
 
-} // namespace as3
+} // namespace euengine

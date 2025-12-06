@@ -10,7 +10,7 @@
 #include <cstring>
 #include <ranges>
 
-namespace as3
+namespace euengine
 {
 
 namespace
@@ -740,7 +740,7 @@ std::filesystem::path Renderer::find_texture_for_model(
 
 texture_handle Renderer::load_texture(const std::filesystem::path& path)
 {
-    auto result = as3::load_texture(device_, path, true);
+    auto result = euengine::load_texture(device_, path, true);
     if (!result)
     {
         spdlog::error("== texture {}: {}", path.string(), result.error());
@@ -1017,4 +1017,4 @@ render_stats Renderer::get_stats() const noexcept
     return frame_stats_;
 }
 
-} // namespace as3
+} // namespace euengine

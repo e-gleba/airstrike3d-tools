@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace as3
+namespace euengine
 {
 
 enum class vsync_mode : std::uint8_t
@@ -97,4 +97,4 @@ struct audio_settings final
     }
 };
 
-} // namespace as3
+} // namespace euengine

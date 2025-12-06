@@ -5,7 +5,7 @@
 #include <cstring>
 #include <format>
 
-namespace as3
+namespace euengine
 {
 
 std::expected<texture_data, std::string> load_texture(
@@ -160,4 +160,4 @@ void release_texture(SDL_GPUDevice* device, texture_data& tex)
     tex = {};
 }
 
-} // namespace as3
+} // namespace euengine

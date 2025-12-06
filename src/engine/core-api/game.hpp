@@ -6,7 +6,7 @@
 
 #include <entt/entt.hpp>
 
-namespace as3
+namespace euengine
 {
 
 struct input_state final
@@ -52,4 +52,4 @@ extern "C"
 #define GAME_API extern "C" __attribute__((visibility("default")))
 #endif
 
-} // namespace as3
+} // namespace euengine

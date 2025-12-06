@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <span>
 
-namespace as3
+namespace euengine
 {
 
 using mesh_handle    = uint64_t;
@@ -121,4 +121,4 @@ public:
     virtual void enable_hot_reload(bool enable) = 0;
 };
 
-} // namespace as3
+} // namespace euengine

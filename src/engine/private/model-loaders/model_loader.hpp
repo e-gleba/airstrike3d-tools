@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace as3
+namespace euengine
 {
 
 /// Vertex with position, normal, and texture coordinates
@@ -141,4 +141,4 @@ public:
         const = 0;
 };
 
-} // namespace as3
+} // namespace euengine

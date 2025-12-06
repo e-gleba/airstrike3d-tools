@@ -7,7 +7,7 @@
 #include <sstream>
 #include <utility>
 
-namespace as3
+namespace euengine
 {
 
 ShaderProgram::ShaderProgram(ShaderProgram&& other) noexcept
@@ -325,4 +325,4 @@ void ShaderManager::release_all() noexcept
     programs_.clear();
 }
 
-} // namespace as3
+} // namespace euengine

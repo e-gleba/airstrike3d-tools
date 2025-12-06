@@ -12,7 +12,7 @@
 #include <ranges>
 #include <vector>
 
-namespace as3
+namespace euengine
 {
 
 /// Registry managing multiple model loaders
@@ -91,4 +91,4 @@ private:
     return registry;
 }
 
-} // namespace as3
+} // namespace euengine

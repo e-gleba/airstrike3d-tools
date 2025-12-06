@@ -20,14 +20,14 @@ namespace
         return {};
 
     return std::filesystem::path(base_path) /
-           as3::platform::game_library_name();
+           euengine::platform::game_library_name();
 }
 
 } // namespace
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    using namespace as3;
+    using namespace euengine;
 
     const window_settings window{
         .title     = "airstrike3d",

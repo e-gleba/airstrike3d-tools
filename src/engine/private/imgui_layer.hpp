@@ -5,7 +5,7 @@
 
 #include <functional>
 
-namespace as3
+namespace euengine
 {
 
 class ImGuiLayer
@@ -41,4 +41,4 @@ private:
     bool                 input_enabled_ = true;
 };
 
-} // namespace as3
+} // namespace euengine

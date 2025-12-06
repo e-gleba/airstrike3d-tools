@@ -12,7 +12,7 @@ struct MIX_Mixer;
 struct MIX_Audio;
 struct MIX_Track;
 
-namespace as3
+namespace euengine
 {
 
 /// Audio manager implementing IAudio interface
@@ -81,4 +81,4 @@ private:
     bool         initialized_   = false;
 };
 
-} // namespace as3
+} // namespace euengine

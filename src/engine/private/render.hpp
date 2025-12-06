@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace as3
+namespace euengine
 {
 
 // Forward declarations
@@ -235,4 +235,4 @@ private:
     mutable render_stats frame_stats_{};
 };
 
-} // namespace as3
+} // namespace euengine

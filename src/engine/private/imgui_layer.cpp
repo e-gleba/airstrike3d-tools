@@ -5,7 +5,7 @@
 #include <imgui_impl_sdlgpu3.h>
 #include <spdlog/spdlog.h>
 
-namespace as3
+namespace euengine
 {
 
 ImGuiLayer::~ImGuiLayer()
@@ -109,4 +109,4 @@ void ImGuiLayer::set_draw_callback(DrawCallback callback)
     draw_callback_ = std::move(callback);
 }
 
-} // namespace as3
+} // namespace euengine

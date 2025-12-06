@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <ranges>
 
-namespace as3
+namespace euengine
 {
 
 namespace
@@ -208,4 +208,4 @@ std::span<const std::string_view> GltfLoader::extensions() const
     return k_extensions;
 }
 
-} // namespace as3
+} // namespace euengine

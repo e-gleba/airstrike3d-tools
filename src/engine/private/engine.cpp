@@ -15,7 +15,7 @@
 #include <format>
 #include <ranges>
 
-namespace as3
+namespace euengine
 {
 
 // RAII deleters implementation
@@ -650,4 +650,4 @@ void engine::run()
     }
 }
 
-} // namespace as3
+} // namespace euengine

@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-namespace as3::platform
+namespace euengine::platform
 {
 
 enum class os : unsigned char
@@ -99,4 +99,4 @@ enum class os : unsigned char
 #endif
 }
 
-} // namespace as3::platform
+} // namespace euengine::platform

@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-namespace as3
+namespace euengine
 {
 
 AudioManager::~AudioManager()
@@ -223,4 +223,4 @@ void AudioManager::set_sound_volume(float volume)
     sound_volume_ = std::clamp(volume, 0.0f, 1.0f);
 }
 
-} // namespace as3
+} // namespace euengine

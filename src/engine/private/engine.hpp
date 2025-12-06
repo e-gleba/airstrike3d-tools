@@ -16,7 +16,7 @@
 #include <string>
 #include <string_view>
 
-namespace as3
+namespace euengine
 {
 
 // Forward declarations
@@ -197,4 +197,4 @@ private:
     static constexpr float k_pitch_limit    = 89.0f;
 };
 
-} // namespace as3
+} // namespace euengine
