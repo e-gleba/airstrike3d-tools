@@ -707,19 +707,14 @@ void engine::iterate()
     // Clamp delta time to avoid spiral of death
     delta_time_ = std::min(delta_time_, k_max_delta_time);
 
-    // Reset mouse relative motion for this frame
-    input_.mouse_xrel     = 0.0f;
-    input_.mouse_yrel     = 0.0f;
+    // Update keyboard state (mouse motion was accumulated via process_event)
     input_.keyboard       = SDL_GetKeyboardState(nullptr);
     input_.mouse_captured = mouse_captured_;
-
-    // Note: Events are processed via process_event() called by SDL callbacks
-    // We accumulate mouse motion there
 
     update();
     render();
 
-    // Reset accumulated mouse motion after processing
+    // Reset accumulated mouse motion for next frame
     input_.mouse_xrel = 0.0f;
     input_.mouse_yrel = 0.0f;
 }
