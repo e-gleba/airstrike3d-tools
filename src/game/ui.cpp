@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <format>
+#include <ranges>
 
 namespace ui
 {
@@ -175,15 +177,14 @@ void draw_menu(euengine::engine_context* ctx)
         }
 
         // Right: Stats
-        char info[96];
-        snprintf(info, sizeof(info), "%.0f FPS  •  %d×%d  •  %zu objects",
-                 ctx->time.fps,
-                 ctx->settings->get_window_width(),
-                 ctx->settings->get_window_height(),
-                 scene::g_models.size());
-        float w = ImGui::CalcTextSize(info).x;
+        auto info = std::format("{:.0f} FPS  |  {}x{}  |  {} objects",
+                                ctx->time.fps,
+                                ctx->settings->get_window_width(),
+                                ctx->settings->get_window_height(),
+                                scene::g_models.size());
+        float w = ImGui::CalcTextSize(info.c_str()).x;
         ImGui::SetCursorPosX(ImGui::GetWindowWidth() - w - 20);
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", info);
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", info.c_str());
 
         ImGui::EndMainMenuBar();
     }
@@ -196,8 +197,8 @@ void draw_scene(euengine::engine_context* ctx)
 
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(16, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(260, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), ImVec2(400, io.DisplaySize.y - 80));
+    ImGui::SetNextWindowSize(ImVec2(280, 450), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(220, 200), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Scene", &g_show_hierarchy))
     {
@@ -238,7 +239,7 @@ void draw_scene(euengine::engine_context* ctx)
         if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
-            ImGui::Text("%zu items", scene::g_models.size());
+            ImGui::Text("%s", std::format("{} items", scene::g_models.size()).c_str());
             ImGui::PopStyleColor();
             
             ImGui::BeginChild("##objs", ImVec2(0, 0), true);
@@ -291,9 +292,9 @@ void draw_inspector()
     if (!g_show_inspector) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(16, 455), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(260, 250), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 100), ImVec2(400, io.DisplaySize.y - 80));
+    ImGui::SetNextWindowPos(ImVec2(16, 510), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(280, 280), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(220, 150), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Inspector", &g_show_inspector))
     {
@@ -358,15 +359,17 @@ void draw_browser()
     if (!g_show_browser) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(274, 320), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(284, 360), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 200), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Asset Browser", &g_show_browser))
     {
         if (ImGui::Button("Refresh", ImVec2(80, 0)))
             scene::scan_models();
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%zu models", scene::g_model_files.size());
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", 
+                           std::format("{} models", scene::g_model_files.size()).c_str());
 
         ImGui::Separator();
 
@@ -403,8 +406,9 @@ void draw_audio(euengine::engine_context* ctx)
     if (!g_show_audio || !ctx->audio) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 375), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(274, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 420), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(284, 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 150), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Audio Player", &g_show_audio))
     {
@@ -479,8 +483,9 @@ void draw_engine(euengine::engine_context* ctx)
     if (!g_show_engine) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 290, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(274, 360), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(284, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 250), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Engine Settings", &g_show_engine))
     {
@@ -488,10 +493,10 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Renderer");
         ImGui::Separator();
         
-        ImGui::Text("GPU: %s", ctx->settings->get_gpu_driver().data());
-        ImGui::Text("Resolution: %d × %d",
-                    ctx->settings->get_window_width(),
-                    ctx->settings->get_window_height());
+        ImGui::Text("%s", std::format("GPU: {}", ctx->settings->get_gpu_driver()).c_str());
+        ImGui::Text("%s", std::format("Resolution: {} x {}",
+                                       ctx->settings->get_window_width(),
+                                       ctx->settings->get_window_height()).c_str());
 
         bool fs = ctx->settings->is_fullscreen();
         if (ImGui::Checkbox("Fullscreen (F11)", &fs))
@@ -503,14 +508,15 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PopStyleColor();
         
         int vs = static_cast<int>(ctx->settings->get_vsync());
-        if (ImGui::RadioButton("Disabled", vs == 0))
-            ctx->settings->set_vsync(euengine::vsync_mode::disabled);
-        ImGui::SameLine();
         if (ImGui::RadioButton("Enabled", vs == 1))
             ctx->settings->set_vsync(euengine::vsync_mode::enabled);
         ImGui::SameLine();
         if (ImGui::RadioButton("Adaptive", vs == 2))
             ctx->settings->set_vsync(euengine::vsync_mode::adaptive);
+        
+        // If somehow disabled, force to enabled
+        if (vs == 0)
+            ctx->settings->set_vsync(euengine::vsync_mode::enabled);
 
         ImGui::Spacing();
 
@@ -541,14 +547,14 @@ void draw_engine(euengine::engine_context* ctx)
         if (!scene::g_lib_path.empty())
         {
             auto name = std::filesystem::path(scene::g_lib_path).filename().string();
-            ImGui::Text("File: %s", name.c_str());
+            ImGui::Text("%s", std::format("File: {}", name).c_str());
             
             float kb = static_cast<float>(scene::g_lib_size) / 1024.0f;
             float mb = kb / 1024.0f;
             if (mb >= 1.0f)
-                ImGui::Text("Size: %.2f MB", mb);
+                ImGui::Text("%s", std::format("Size: {:.2f} MB", mb).c_str());
             else
-                ImGui::Text("Size: %.1f KB", kb);
+                ImGui::Text("%s", std::format("Size: {:.1f} KB", kb).c_str());
             
             // File timestamp
             std::filesystem::path p(scene::g_lib_path);
@@ -566,6 +572,19 @@ void draw_engine(euengine::engine_context* ctx)
             
             ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "Path: %s", 
                                scene::g_lib_path.c_str());
+            
+            ImGui::Spacing();
+            
+            // Hot reload button
+            if (ImGui::Button("Hot Reload Module (F5)", ImVec2(-1, 32)))
+            {
+                log(2, "Game module hot reload triggered");
+                if (ctx->shaders)
+                {
+                    ctx->shaders->enable_hot_reload(false);
+                    ctx->shaders->enable_hot_reload(true);
+                }
+            }
         }
         else
         {
@@ -608,11 +627,13 @@ void draw_stats(euengine::engine_context* ctx)
         ImGui::Separator();
         
         // Stats
-        ImGui::Text("%.2f ms  •  %.0f FPS", ctx->time.delta * 1000.0f, ctx->time.fps);
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), 
-                           "Frame %lu  •  %.1fs elapsed",
-                           static_cast<unsigned long>(ctx->time.frame_count),
-                           ctx->time.elapsed);
+        auto perf_text = std::format("{:.2f} ms  |  {:.0f} FPS", 
+                                      ctx->time.delta * 1000.0f, ctx->time.fps);
+        ImGui::Text("%s", perf_text.c_str());
+        
+        auto frame_text = std::format("Frame {}  |  {:.1f}s elapsed",
+                                       ctx->time.frame_count, ctx->time.elapsed);
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", frame_text.c_str());
         
         // Frame time graph
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.38f, 0.68f, 0.93f, 1.0f));
@@ -630,9 +651,9 @@ void draw_console()
     if (!g_show_console) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(16, io.DisplaySize.y - 240), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 200), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(300, 100), ImVec2(io.DisplaySize.x - 32, 400));
+    ImGui::SetNextWindowPos(ImVec2(16, io.DisplaySize.y - 280), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(400, 120), ImVec2(io.DisplaySize.x - 32, 500));
 
     if (ImGui::Begin("Console", &g_show_console))
     {
@@ -640,17 +661,39 @@ void draw_console()
         if (ImGui::Button("Clear", ImVec2(60, 0)))
             log_clear();
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%zu entries", g_log.size());
+        
+        // Filter input
+        ImGui::SetNextItemWidth(200);
+        char filter_buf[256] = {};
+        std::strncpy(filter_buf, g_console_filter.c_str(), sizeof(filter_buf) - 1);
+        if (ImGui::InputTextWithHint("##filter", "Filter...", filter_buf, sizeof(filter_buf)))
+            g_console_filter = filter_buf;
+        ImGui::SameLine();
+        
+        std::size_t entry_count = g_console_filter.empty() 
+            ? g_log.size() 
+            : static_cast<std::size_t>(std::ranges::count_if(g_log, [](const auto& e) {
+                return e.message.find(g_console_filter) != std::string::npos;
+            }));
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", 
+                           std::format("{} entries", entry_count).c_str());
 
         ImGui::Separator();
 
         // Log view
         ImGui::BeginChild("##log", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
         
+        bool should_scroll = false;
         for (const auto& e : g_log)
         {
+            // Apply filter
+            if (!g_console_filter.empty() && 
+                e.message.find(g_console_filter) == std::string::npos)
+                continue;
+            
             // Timestamp
-            ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.48f, 1.0f), "[%.1f]", e.time);
+            auto time_str = std::format("[{:.1f}]", e.time);
+            ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.48f, 1.0f), "%s", time_str.c_str());
             ImGui::SameLine();
             
             // Level tag and color
@@ -669,9 +712,11 @@ void draw_console()
             ImGui::TextColored(col, "[%s]", tag);
             ImGui::SameLine();
             ImGui::TextWrapped("%s", e.message.c_str());
+            
+            should_scroll = true;
         }
 
-        if (g_log_scroll)
+        if (g_log_scroll && should_scroll)
         {
             ImGui::SetScrollHereY(1.0f);
             g_log_scroll = false;
@@ -700,8 +745,8 @@ void draw_statusbar(euengine::engine_context* ctx)
     if (ImGui::Begin("##bar", nullptr, flags))
     {
         const char* help = ctx->input.mouse_captured
-            ? "WASD Move • QE Up/Down • Shift Speed • Space Animate • Tab Wireframe • F5 Reload • ESC Release"
-            : "Click to capture mouse • F5 Reload • F11 Fullscreen • ` Console";
+            ? "WASD Move | QE Up/Down | Shift Speed | Space Animate | Tab Wireframe | F5 Reload | ESC Release"
+            : "Click to capture mouse | F5 Reload | F11 Fullscreen | ` Console";
         
         ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", help);
     }

@@ -32,60 +32,58 @@ void setup_scene()
 {
     rebuild_grid();
 
-    // Organized showcase layout
-    // Front row: vehicles
-    add_model("assets/models/tanks/t72/t72_base.obj",         { -8, 0, 6 }, 0.10f)->animate = true;
-    add_model("assets/models/tanks/sherman/sherman_base.obj", { -4, 0, 6 }, 0.10f)->animate = true;
-    add_model("assets/models/jeeps/uaz/uaz.obj",              { 0, 0, 6 },  0.10f)->animate = true;
-    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 4, 0, 6 },  0.10f)->animate = true;
-    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 8, 0, 6 }, 0.12f)->animate = true;
+    // Organized showcase layout - all animations disabled by default
+    // Front row: vehicles (smaller scale)
+    add_model("assets/models/tanks/t72/t72_base.obj",         { -8, 0, 6 }, 0.06f);
+    add_model("assets/models/tanks/sherman/sherman_base.obj", { -4, 0, 6 }, 0.06f);
+    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 4, 0, 6 },  0.06f);
+    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 8, 0, 6 }, 0.08f);
 
-    // Middle row: aircraft
-    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -5, 1.5f, 0 }, 0.08f))
+    // Moving jeep - rides in a loop
+    if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -10, 0, 6 }, 0.06f))
     {
-        m->animate = true;
-        m->hover = true;
-        m->hover_base = 1.5f;
-        m->hover_range = 0.12f;
+        m->moving = true;
+        m->move_speed = 0.5f; // Speed along path (0-1 range per second)
+        m->move_dir = 1.0f;   // Start moving forward
+        m->move_start = { -10, 0, 6 };
+        m->move_end = { 10, 0, 6 };
+        m->transform.rotation.y = 90.0f; // Face forward
     }
-    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.8f, 0 }, 0.08f))
+
+    // Middle row: aircraft (hovering, no rotation by default)
+    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -5, 1.2f, 0 }, 0.06f))
     {
-        m->animate = true;
         m->hover = true;
-        m->hover_base = 1.8f;
-        m->hover_speed = 1.3f;
-        m->hover_range = 0.15f;
-    }
-    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 5, 1.6f, 0 }, 0.08f))
-    {
-        m->animate = true;
-        m->hover = true;
-        m->hover_base = 1.6f;
-        m->hover_speed = 1.7f;
+        m->hover_base = 1.2f;
         m->hover_range = 0.10f;
     }
-
-    // Back row: structures
-    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -7, 0, -6 }, 0.12f);
-    add_model("assets/models/mapobjects/houses/temple.obj", { -2, 0, -6 }, 0.10f);
-    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 3, 0, -6 }, 0.08f);
-    
-    if (auto* m = add_model("assets/models/mapobjects/radar/radar.obj", { 8, 0, -6 }, 0.12f))
+    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.4f, 0 }, 0.06f))
     {
-        m->animate = true;
-        m->anim_speed = 35.0f;
+        m->hover = true;
+        m->hover_base = 1.4f;
+        m->hover_speed = 1.2f;
+        m->hover_range = 0.12f;
+    }
+    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 5, 1.3f, 0 }, 0.06f))
+    {
+        m->hover = true;
+        m->hover_base = 1.3f;
+        m->hover_speed = 1.5f;
+        m->hover_range = 0.08f;
     }
 
-    // Sides: ships
-    add_model("assets/models/ships/lodka/lodka.obj", { -12, 0, 0 }, 0.08f);
-    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 12, 0, 0 }, 0.06f);
+    // Back row: structures (smaller)
+    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -7, 0, -6 }, 0.08f);
+    add_model("assets/models/mapobjects/houses/temple.obj", { -2, 0, -6 }, 0.07f);
+    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 3, 0, -6 }, 0.06f);
+    add_model("assets/models/mapobjects/radar/radar.obj", { 8, 0, -6 }, 0.08f);
 
-    // Center: featured
-    if (auto* m = add_model("assets/models/samples/duck.glb", { 0, 0.15f, 9 }, 0.15f))
-    {
-        m->animate = true;
-        m->anim_speed = 12.0f;
-    }
+    // Sides: ships (smaller)
+    add_model("assets/models/ships/lodka/lodka.obj", { -12, 0, 0 }, 0.05f);
+    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 12, 0, 0 }, 0.04f);
+
+    // Center: featured duck (smaller)
+    add_model("assets/models/samples/duck.glb", { 0, 0.1f, 9 }, 0.10f);
 }
 
 void process_input()
@@ -165,6 +163,27 @@ void animate(float t, float dt)
         if (m.hover)
         {
             m.transform.position.y = m.hover_base + std::sin(t * m.hover_speed) * m.hover_range;
+        }
+        if (m.moving && ui::g_auto_rotate)
+        {
+            // Move along path (ping-pong)
+            m.move_path += m.move_speed * dt * m.move_dir;
+            
+            if (m.move_path >= 1.0f)
+            {
+                m.move_path = 2.0f - m.move_path;
+                m.move_dir = -1.0f;
+                m.transform.rotation.y = 270.0f; // Face left
+            }
+            else if (m.move_path <= 0.0f)
+            {
+                m.move_path = -m.move_path;
+                m.move_dir = 1.0f;
+                m.transform.rotation.y = 90.0f; // Face right
+            }
+            
+            // Interpolate position
+            m.transform.position = glm::mix(m.move_start, m.move_end, m.move_path);
         }
     }
 }
@@ -369,9 +388,10 @@ void rebuild_grid()
             g_ctx->renderer->destroy_mesh(h);
     g_grids.clear();
 
-    // Large ground grid
+    // Large ground grid with more subdivisions for prettier look
+    // Main grid - lighter color
     g_grids.push_back(g_ctx->renderer->create_wireframe_grid(
-        200.0f, 100, { ui::g_grid_color[0], ui::g_grid_color[1], ui::g_grid_color[2] }));
+        200.0f, 200, { ui::g_grid_color[0], ui::g_grid_color[1], ui::g_grid_color[2] }));
 }
 
 } // namespace scene

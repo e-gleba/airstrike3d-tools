@@ -20,6 +20,12 @@ struct model_instance
     float                  hover_base   = 0.0f;
     float                  hover_speed  = 1.5f;
     float                  hover_range  = 0.2f;
+    bool                   moving       = false;  // Moving along path
+    float                  move_speed   = 0.5f;
+    float                  move_path    = 0.0f;   // Position along path (0-1)
+    float                  move_dir     = 1.0f;   // Direction: 1.0 forward, -1.0 backward
+    glm::vec3              move_start   = {};
+    glm::vec3              move_end     = {};
 };
 
 struct audio_file
