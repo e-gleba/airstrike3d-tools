@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <format>
 #include <ranges>
 
@@ -170,22 +171,25 @@ void apply_theme()
     c[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.05f, 0.05f, 0.06f, 0.20f);
     c[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.03f, 0.03f, 0.04f, 0.75f);
 
-    // Modern flat metrics
-    s.WindowRounding    = 8.0f;
+    // Modern flat metrics - Steam-like precision
+    s.WindowRounding    = 6.0f;
     s.ChildRounding     = 4.0f;
-    s.FrameRounding     = 4.0f;
-    s.PopupRounding     = 8.0f;
-    s.ScrollbarRounding = 8.0f;
-    s.GrabRounding      = 4.0f;
-    s.TabRounding       = 6.0f;
+    s.FrameRounding     = 3.0f;
+    s.PopupRounding     = 6.0f;
+    s.ScrollbarRounding = 6.0f;
+    s.GrabRounding      = 3.0f;
+    s.TabRounding       = 4.0f;
     
-    s.WindowPadding     = ImVec2(12, 12);
-    s.FramePadding      = ImVec2(10, 6);
-    s.ItemSpacing       = ImVec2(8, 6);
-    s.ItemInnerSpacing  = ImVec2(6, 6);
-    s.IndentSpacing     = 20.0f;
-    s.ScrollbarSize     = 14.0f;
-    s.GrabMinSize       = 12.0f;
+    // Improved spacing and alignment - professional look
+    s.WindowPadding     = ImVec2(14, 14);
+    s.FramePadding      = ImVec2(8, 5);
+    s.ItemSpacing       = ImVec2(10, 6);
+    s.ItemInnerSpacing  = ImVec2(8, 4);
+    s.IndentSpacing     = 22.0f;
+    s.ScrollbarSize     = 16.0f;
+    s.GrabMinSize       = 14.0f;
+    s.CellPadding       = ImVec2(6, 4);
+    s.TouchExtraPadding = ImVec2(0, 0);
     
     s.WindowBorderSize  = 0.0f;
     s.ChildBorderSize   = 0.0f;
@@ -193,10 +197,13 @@ void apply_theme()
     s.FrameBorderSize   = 0.0f;
     s.TabBorderSize     = 0.0f;
     
-    s.WindowTitleAlign  = ImVec2(0.5f, 0.5f);
+    // Better text alignment
+    s.WindowTitleAlign  = ImVec2(0.0f, 0.5f);  // Left-aligned titles
     s.WindowMenuButtonPosition = ImGuiDir_None;
     s.ColorButtonPosition = ImGuiDir_Right;
     s.ButtonTextAlign   = ImVec2(0.5f, 0.5f);
+    s.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+    s.DisplaySafeAreaPadding = ImVec2(3.0f, 3.0f);
 }
 
 void draw_menu(euengine::engine_context* ctx)
@@ -253,6 +260,31 @@ void draw_menu(euengine::engine_context* ctx)
             ImGui::MenuItem("Engine Settings", nullptr, &g_show_engine);
             ImGui::MenuItem("Performance", nullptr, &g_show_stats);
             ImGui::MenuItem("Console", "`", &g_show_console);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Reset Window Layout"))
+            {
+                // Set flag to reset all window positions on next frame
+                g_reset_window_layout = true;
+                
+                // Also clear INI file for future sessions
+                ImGuiIO& io = ImGui::GetIO();
+                if (io.IniFilename != nullptr)
+                {
+                    try
+                    {
+                        std::filesystem::path ini_path = io.IniFilename;
+                        if (std::filesystem::exists(ini_path))
+                        {
+                            std::filesystem::remove(ini_path);
+                        }
+                    }
+                    catch (const std::exception& e)
+                    {
+                        log(4, std::format("Failed to delete INI file: {}", e.what()));
+                    }
+                }
+                log(2, "Window layout will reset on next frame");
+            }
             ImGui::EndMenu();
         }
 
@@ -290,8 +322,8 @@ void draw_scene(euengine::engine_context* ctx)
     if (!g_show_hierarchy) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(16, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(16, 40), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 600), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(280, 300), ImVec2(500, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Scene", &g_show_hierarchy))
@@ -443,8 +475,8 @@ void draw_inspector()
 
     ImGuiIO& io = ImGui::GetIO();
     // Position below Scene window (Scene is at y=40, height=600, so start at 650)
-    ImGui::SetNextWindowPos(ImVec2(16, 650), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(16, 650), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 200), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(280, 150), ImVec2(500, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Inspector", &g_show_inspector))
@@ -549,8 +581,8 @@ void draw_browser()
     if (!g_show_browser) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(284, 360), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 40), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(284, 360), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(250, 200), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Asset Browser", &g_show_browser))
@@ -618,8 +650,8 @@ void draw_audio(euengine::engine_context* ctx)
     if (!g_show_audio || !ctx->audio) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 420), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(284, 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 420), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(284, 240), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(250, 150), ImVec2(450, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Audio Player", &g_show_audio))
@@ -710,9 +742,10 @@ void draw_engine(euengine::engine_context* ctx)
     if (!g_show_engine) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 420, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(400, io.DisplaySize.y - 80), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(350, 400), ImVec2(600, io.DisplaySize.y - 60));
+    // Position above Performance Metrics (which is at bottom-right)
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 420, 40), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, io.DisplaySize.y - 360), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(350, 400), ImVec2(600, io.DisplaySize.y - 360));
 
     if (ImGui::Begin("Engine Settings", &g_show_engine))
     {
@@ -735,6 +768,7 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
         ImGui::Text("VSync Mode");
         ImGui::PopStyleColor();
+        ImGui::Spacing();
         
         int vs = static_cast<int>(ctx->settings->get_vsync());
         if (ImGui::RadioButton("Enabled", vs == 1))
@@ -746,6 +780,8 @@ void draw_engine(euengine::engine_context* ctx)
         // If somehow disabled, force to enabled
         if (vs == 0)
             ctx->settings->set_vsync(euengine::vsync_mode::enabled);
+        
+        ImGui::Spacing();
 
         ImGui::Spacing();
         ImGui::Separator();
@@ -759,6 +795,7 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
         ImGui::Text("MSAA");
         ImGui::PopStyleColor();
+        ImGui::Spacing();
         
         int msaa = static_cast<int>(ctx->settings->get_msaa());
         
@@ -799,6 +836,7 @@ void draw_engine(euengine::engine_context* ctx)
             ImGui::SameLine();
             ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.30f, 1.0f), "(uses 8x)");
         }
+        ImGui::Spacing();
         
         // FXAA (post-processing)
         bool fxaa = ctx->settings->is_fxaa_enabled();
@@ -826,6 +864,7 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
         ImGui::Text("Texture Filtering");
         ImGui::PopStyleColor();
+        ImGui::Spacing();
         
         int tex_filter = static_cast<int>(ctx->settings->get_texture_filter());
         if (ImGui::RadioButton("Nearest", tex_filter == 0))
@@ -862,6 +901,7 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
         ImGui::Text("Frame Buffering");
         ImGui::PopStyleColor();
+        ImGui::Spacing();
         
         int frames = static_cast<int>(ctx->settings->get_frames_in_flight());
         if (ImGui::RadioButton("Single (1)", frames == 1))
@@ -883,6 +923,7 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
         ImGui::Text("Render Distance");
         ImGui::PopStyleColor();
+        ImGui::Spacing();
         
         float render_dist = ctx->settings->get_render_distance();
         if (ImGui::SliderFloat("##render_dist", &render_dist, 10.0f, 10000.0f, "%.0f units"))
@@ -1026,8 +1067,8 @@ void draw_stats(euengine::engine_context* ctx)
     // Enhanced floating overlay - bottom right, larger
     float w = 380.0f;
     float h = 280.0f;
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(w, h), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.92f);
 
     // Use title bar like engine settings - allows built-in close button
@@ -1122,8 +1163,8 @@ void draw_console()
     if (!g_show_console) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(16, io.DisplaySize.y - 280), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(600, 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(16, io.DisplaySize.y - 280), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 240), g_reset_window_layout ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(400, 120), ImVec2(io.DisplaySize.x - 32, 500));
 
     if (ImGui::Begin("Console", &g_show_console))
@@ -1268,6 +1309,12 @@ void draw(euengine::engine_context* ctx)
     draw_console();
     draw_file_dialog();
     draw_statusbar(ctx);
+    
+    // Reset window layout flag after all windows have been drawn
+    if (g_reset_window_layout)
+    {
+        g_reset_window_layout = false;
+    }
     
     // Keep UI from capturing mouse when camera is focused
     if (ctx->input.mouse_captured)

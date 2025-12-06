@@ -24,6 +24,7 @@ inline std::string           g_browser_filter;
 inline std::string           g_audio_filter;
 inline std::filesystem::path g_file_dialog_current_path = std::filesystem::current_path();
 inline std::filesystem::path g_file_dialog_selected_file;
+inline bool g_reset_window_layout = false;
 
 // Panels
 inline bool g_show_hierarchy  = true;
