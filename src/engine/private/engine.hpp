@@ -3,11 +3,11 @@
 /// @file engine.hpp
 /// @brief Main engine class with SDL3 GPU backend
 
-#include "game_api.hpp"
+#include <game_api.hpp>
 
-#include "../shared/engine_settings_interface.hpp"
-#include "../shared/platform.hpp"
-#include "../shared/window_settings.hpp"
+#include <engine_settings_interface.hpp>
+#include <platform.hpp>
+#include <window_settings.hpp>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
