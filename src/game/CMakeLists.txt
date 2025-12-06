@@ -17,14 +17,5 @@ set_target_properties(
 
 target_link_libraries(
     game
-    PRIVATE
-        warnings
-        glm
-        EnTT::EnTT
-        spdlog
-        imgui
-        yaml-cpp
-        Recast
-        Detour
-        engine_interface
+    PRIVATE warnings glm EnTT::EnTT spdlog imgui engine_interface
 )
