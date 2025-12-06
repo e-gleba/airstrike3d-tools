@@ -21,8 +21,10 @@ constexpr int KEY_D      = 7;
 constexpr int KEY_Q      = 20;
 constexpr int KEY_E      = 8;
 constexpr int KEY_ESCAPE = 41;
+constexpr int KEY_F5     = 62;
 constexpr int KEY_F11    = 68;
 constexpr int KEY_LSHIFT = 225;
+constexpr int KEY_TAB    = 43;
 
 // ============================================================================
 // State
@@ -216,6 +218,48 @@ void update_camera(as3::engine_context* ctx)
         else
         {
             f11_was_pressed = false;
+        }
+
+        // Hot reload (F5)
+        static bool f5_was_pressed = false;
+        if (ctx->input.keyboard[KEY_F5])
+        {
+            if (!f5_was_pressed)
+            {
+                spdlog::info("Hot reload triggered (F5)");
+
+                // Rescan model directory
+                scan_model_directory(g_model_dir);
+
+                // If shader hot reload is enabled, shaders auto-reload
+                // Just log that we triggered it
+                if (ctx->shaders && ctx->shaders->hot_reload_enabled())
+                {
+                    spdlog::info("Shader hot reload is enabled - shaders will "
+                                 "reload if changed");
+                }
+
+                f5_was_pressed = true;
+            }
+        }
+        else
+        {
+            f5_was_pressed = false;
+        }
+
+        // Wireframe toggle (Tab)
+        static bool tab_was_pressed = false;
+        if (ctx->input.keyboard[KEY_TAB])
+        {
+            if (!tab_was_pressed)
+            {
+                g_wireframe    = !g_wireframe;
+                tab_was_pressed = true;
+            }
+        }
+        else
+        {
+            tab_was_pressed = false;
         }
     }
 
@@ -663,9 +707,10 @@ GAME_API void game_ui(as3::engine_context* ctx)
     {
         const char* help =
             ctx->input.mouse_captured
-                ? "WASD - move | QE - up/down | Shift - fast | ESC - release "
-                  "mouse | F11 - fullscreen"
-                : "Click to capture mouse | WASD - move | F11 - fullscreen";
+                ? "WASD - move | QE - up/down | Shift - fast | Tab - wireframe "
+                  "| F5 - reload | F11 - fullscreen | ESC - release mouse"
+                : "Click to capture mouse | WASD - move | Tab - wireframe | "
+                  "F5 - reload | F11 - fullscreen";
 
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", help);
     }
