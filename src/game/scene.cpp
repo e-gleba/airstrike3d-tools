@@ -35,13 +35,13 @@ void setup_scene()
     // Organized showcase layout - spread out for better visibility
     // All animations disabled by default
     
-    // Front row: vehicles - wider spacing
-    add_model("assets/models/tanks/t72/t72_base.obj",         { -12, 0, 8 }, 0.07f);
-    add_model("assets/models/tanks/sherman/sherman_base.obj", { -6, 0, 8 }, 0.07f);
-    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 6, 0, 8 },  0.07f);
-    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 12, 0, 8 }, 0.09f);
+    // Front row: vehicles - moved further forward so jeep doesn't go through them
+    add_model("assets/models/tanks/t72/t72_base.obj",         { -12, 0, 12 }, 0.07f);
+    add_model("assets/models/tanks/sherman/sherman_base.obj", { -6, 0, 12 }, 0.07f);
+    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 6, 0, 12 },  0.07f);
+    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 12, 0, 12 }, 0.09f);
 
-    // Moving jeep - rides in a wider loop
+    // Moving jeep - rides in a wider loop (behind tanks)
     if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -15, 0, 8 }, 0.07f))
     {
         m->moving = true;
@@ -74,18 +74,18 @@ void setup_scene()
         m->hover_range = 0.10f;
     }
 
-    // Back row: structures - wider spacing
-    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -10, 0, -8 }, 0.09f);
-    add_model("assets/models/mapobjects/houses/temple.obj", { -3, 0, -8 }, 0.08f);
-    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 4, 0, -8 }, 0.07f);
-    add_model("assets/models/mapobjects/radar/radar.obj", { 11, 0, -8 }, 0.09f);
+    // Back row: structures - much wider spacing to avoid overlap
+    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -26, 0, -16 }, 0.09f);
+    add_model("assets/models/mapobjects/houses/temple.obj", { -9, 0, -16 }, 0.08f);
+    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 9, 0, -16 }, 0.07f);
+    add_model("assets/models/mapobjects/radar/radar.obj", { 26, 0, -16 }, 0.09f);
 
-    // Sides: ships - further out
-    add_model("assets/models/ships/lodka/lodka.obj", { -18, 0, -2 }, 0.06f);
-    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 18, 0, -2 }, 0.05f);
+    // Sides: ships - further out and spread
+    add_model("assets/models/ships/lodka/lodka.obj", { -20, 0, -4 }, 0.06f);
+    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 20, 0, -4 }, 0.05f);
 
-    // Center: featured duck - appropriately sized
-    add_model("assets/models/samples/duck.glb", { 0, 0.1f, 12 }, 0.06f);
+    // Center: featured duck - forward from machines, smaller
+    add_model("assets/models/samples/duck.glb", { 0, 0.06f, 15 }, 0.03f);
 }
 
 void process_input()
@@ -95,12 +95,20 @@ void process_input()
 
     auto& cam = g_ctx->registry->get<euengine::camera_component>(g_camera);
 
-    if (g_ctx->input.mouse_captured)
+    // Allow escape to release mouse even when not captured
+    if (g_ctx->input.keyboard && g_ctx->input.keyboard[key_escape] && g_ctx->input.mouse_captured)
     {
-        cam.yaw += g_ctx->input.mouse_xrel * cam.look_speed;
-        cam.pitch -= g_ctx->input.mouse_yrel * cam.look_speed;
-        cam.pitch = glm::clamp(cam.pitch, -89.0f, 89.0f);
+        g_ctx->settings->set_mouse_captured(false);
     }
+
+    // Only process camera input when mouse is captured (camera focused)
+    if (!g_ctx->input.mouse_captured)
+        return;
+
+    // Mouse look
+    cam.yaw += g_ctx->input.mouse_xrel * cam.look_speed;
+    cam.pitch -= g_ctx->input.mouse_yrel * cam.look_speed;
+    cam.pitch = glm::clamp(cam.pitch, -89.0f, 89.0f);
 
     if (g_ctx->input.keyboard == nullptr) return;
 
@@ -116,9 +124,6 @@ void process_input()
     if (g_ctx->input.keyboard[key_d]) cam.position += right * speed;
     if (g_ctx->input.keyboard[key_e]) cam.position.y += speed;
     if (g_ctx->input.keyboard[key_q]) cam.position.y -= speed;
-
-    if (g_ctx->input.keyboard[key_escape])
-        g_ctx->settings->set_mouse_captured(false);
 
     static bool keys[8] = {};
 

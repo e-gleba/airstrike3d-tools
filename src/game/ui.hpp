@@ -20,6 +20,8 @@ inline constexpr std::size_t g_log_max = 1000;
 inline bool                  g_log_scroll = true;
 inline float                 g_time = 0.0f;
 inline std::string           g_console_filter;
+inline std::string           g_browser_filter;
+inline std::string           g_audio_filter;
 
 // Panels
 inline bool g_show_hierarchy  = true;

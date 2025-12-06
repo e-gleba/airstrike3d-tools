@@ -26,6 +26,7 @@ struct model_instance
     float                  move_dir     = 1.0f;   // Direction: 1.0 forward, -1.0 backward
     glm::vec3              move_start   = {};
     glm::vec3              move_end     = {};
+    glm::vec3              color_tint   = {1.0f, 1.0f, 1.0f}; // Color tint (white = no tint)
 };
 
 struct audio_file

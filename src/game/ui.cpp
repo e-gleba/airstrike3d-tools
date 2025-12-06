@@ -16,6 +16,82 @@ namespace ui
 namespace
 {
 
+// Sanitize UTF-8 string to avoid Pango warnings
+std::string sanitize_utf8(const std::string& str)
+{
+    std::string result;
+    result.reserve(str.size());
+    
+    for (std::size_t i = 0; i < str.size(); ++i)
+    {
+        unsigned char c = static_cast<unsigned char>(str[i]);
+        
+        // Valid ASCII
+        if (c < 0x80)
+        {
+            result += static_cast<char>(c);
+        }
+        // Valid UTF-8 continuation or start
+        else if ((c & 0xE0) == 0xC0 && i + 1 < str.size())
+        {
+            // 2-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            if ((c2 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                ++i;
+            }
+            else
+            {
+                result += '?'; // Invalid, replace
+            }
+        }
+        else if ((c & 0xF0) == 0xE0 && i + 2 < str.size())
+        {
+            // 3-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(str[i + 2]);
+            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                result += static_cast<char>(c3);
+                i += 2;
+            }
+            else
+            {
+                result += '?';
+            }
+        }
+        else if ((c & 0xF8) == 0xF0 && i + 3 < str.size())
+        {
+            // 4-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(str[i + 2]);
+            unsigned char c4 = static_cast<unsigned char>(str[i + 3]);
+            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80 && (c4 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                result += static_cast<char>(c3);
+                result += static_cast<char>(c4);
+                i += 3;
+            }
+            else
+            {
+                result += '?';
+            }
+        }
+        else
+        {
+            result += '?'; // Invalid byte, replace with ?
+        }
+    }
+    
+    return result;
+}
+
 // Modern Steam 2024+ inspired theme - clean, flat, professional
 void apply_theme()
 {
@@ -291,7 +367,8 @@ void draw_scene(euengine::engine_context* ctx)
                     ImGui::PushStyleColor(ImGuiCol_Text, col);
                 }
 
-                auto label = std::format("{}{}", icon, m.name);
+                auto safe_name = sanitize_utf8(m.name);
+                auto label = std::format("{}{}", icon, safe_name);
                 if (ImGui::Selectable(label.c_str(), sel))
                     scene::g_selected = static_cast<int>(i);
 
@@ -342,9 +419,10 @@ void draw_inspector()
             auto& m = scene::g_models[static_cast<std::size_t>(scene::g_selected)];
 
             // Header
-            ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "%s", m.name.c_str());
-            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", 
-                               std::filesystem::path(m.path).filename().string().c_str());
+            auto safe_name = sanitize_utf8(m.name);
+            auto safe_path = sanitize_utf8(std::filesystem::path(m.path).filename().string());
+            ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "%s", safe_name.c_str());
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", safe_path.c_str());
             ImGui::Separator();
 
             // Transform
@@ -360,6 +438,22 @@ void draw_inspector()
                 m.transform.scale = glm::vec3(sc);
 
             ImGui::Separator();
+
+            // Color tint (especially for duck)
+            if (m.name.find("duck") != std::string::npos || m.name == "duck")
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+                ImGui::Text("Color Tint");
+                ImGui::PopStyleColor();
+                
+                float color[3] = { m.color_tint.r, m.color_tint.g, m.color_tint.b };
+                if (ImGui::ColorEdit3("##tint", color))
+                {
+                    m.color_tint = glm::vec3(color[0], color[1], color[2]);
+                }
+                
+                ImGui::Separator();
+            }
 
             // Animation
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
@@ -406,17 +500,39 @@ void draw_browser()
         if (ImGui::Button("Refresh", ImVec2(80, 0)))
             scene::scan_models();
         ImGui::SameLine();
+        
+        std::size_t visible_count = g_browser_filter.empty() 
+            ? scene::g_model_files.size()
+            : static_cast<std::size_t>(std::ranges::count_if(scene::g_model_files, [](const auto& f) {
+                auto name = std::filesystem::path(f).filename().string();
+                return name.find(g_browser_filter) != std::string::npos;
+            }));
         ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", 
-                           std::format("{} models", scene::g_model_files.size()).c_str());
+                           std::format("{} models", visible_count).c_str());
 
         ImGui::Separator();
+        
+        // Search filter
+        ImGui::SetNextItemWidth(-1);
+        char filter_buf[256] = {};
+        std::strncpy(filter_buf, g_browser_filter.c_str(), sizeof(filter_buf) - 1);
+        if (ImGui::InputTextWithHint("##browser_filter", "Search models...", filter_buf, sizeof(filter_buf)))
+            g_browser_filter = filter_buf;
+        
+        ImGui::Spacing();
 
         ImGui::BeginChild("##list", ImVec2(0, -40), true);
         for (std::size_t i = 0; i < scene::g_model_files.size(); ++i)
         {
             auto name = std::filesystem::path(scene::g_model_files[i]).filename().string();
+            
+            // Apply filter
+            if (!g_browser_filter.empty() && name.find(g_browser_filter) == std::string::npos)
+                continue;
+            
+            auto safe_name = sanitize_utf8(name);
             bool sel = std::cmp_equal(i, scene::g_browser_sel);
-            if (ImGui::Selectable(name.c_str(), sel))
+            if (ImGui::Selectable(safe_name.c_str(), sel))
                 scene::g_browser_sel = static_cast<int>(i);
         }
         ImGui::EndChild();
@@ -450,11 +566,25 @@ void draw_audio(euengine::engine_context* ctx)
 
     if (ImGui::Begin("Audio Player", &g_show_audio))
     {
+        // Search filter
+        ImGui::SetNextItemWidth(-1);
+        char filter_buf[256] = {};
+        std::strncpy(filter_buf, g_audio_filter.c_str(), sizeof(filter_buf) - 1);
+        if (ImGui::InputTextWithHint("##audio_filter", "Search audio...", filter_buf, sizeof(filter_buf)))
+            g_audio_filter = filter_buf;
+        
+        ImGui::Spacing();
+        
         // Track list
         ImGui::BeginChild("##tracks", ImVec2(0, -50), true);
         for (std::size_t i = 0; i < scene::g_audio.size(); ++i)
         {
             auto& t = scene::g_audio[i];
+            
+            // Apply filter
+            if (!g_audio_filter.empty() && t.name.find(g_audio_filter) == std::string::npos)
+                continue;
+            
             bool playing = std::cmp_equal(i, scene::g_playing);
 
             ImVec4 col = ImVec4(0.85f, 0.85f, 0.88f, 1.0f);
@@ -464,7 +594,8 @@ void draw_audio(euengine::engine_context* ctx)
                 col = ImVec4(0.40f, 0.75f, 0.95f, 1.0f);
 
             ImGui::PushStyleColor(ImGuiCol_Text, col);
-            if (ImGui::Selectable(t.name.c_str(), playing))
+            auto safe_name = sanitize_utf8(t.name);
+            if (ImGui::Selectable(safe_name.c_str(), playing))
             {
                 if (t.handle == euengine::invalid_music)
                     t.handle = ctx->audio->load_music(t.path);
@@ -584,7 +715,7 @@ void draw_engine(euengine::engine_context* ctx)
         
         if (!scene::g_lib_path.empty())
         {
-            auto name = std::filesystem::path(scene::g_lib_path).filename().string();
+            auto name = sanitize_utf8(std::filesystem::path(scene::g_lib_path).filename().string());
             ImGui::Text("%s", std::format("File: {}", name).c_str());
             
             float kb = static_cast<float>(scene::g_lib_size) / 1024.0f;
@@ -608,8 +739,8 @@ void draw_engine(euengine::engine_context* ctx)
                 ImGui::Text("Modified: %s", buf);
             }
             
-            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "Path: %s", 
-                               scene::g_lib_path.c_str());
+            auto safe_path = sanitize_utf8(scene::g_lib_path);
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "Path: %s", safe_path.c_str());
             
             ImGui::Spacing();
             
@@ -641,27 +772,19 @@ void draw_stats(euengine::engine_context* ctx)
     // Enhanced floating overlay - bottom right, larger
     float w = 380.0f;
     float h = 280.0f;
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40));
-    ImGui::SetNextWindowSize(ImVec2(w, h));
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.92f);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+    // Use title bar like engine settings - allows built-in close button
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
     
-    if (ImGui::Begin("##perf", nullptr, flags))
+    // Use built-in close button like engine settings window
+    if (ImGui::Begin("Performance Metrics", &g_show_stats, flags))
     {
-        // Header with close button
-        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Performance Metrics");
-        ImGui::SameLine(ImGui::GetWindowWidth() - 28);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        if (ImGui::SmallButton("x"))
-            g_show_stats = false;
-        ImGui::PopStyleColor();
-        
         ImGui::Separator();
         
         // Current stats
@@ -871,6 +994,15 @@ void init()
 
 void draw(euengine::engine_context* ctx)
 {
+    ImGuiIO& io = ImGui::GetIO();
+    
+    // When camera is focused (mouse captured), disable UI mouse interaction
+    // This prevents UI from interfering with camera control
+    if (ctx->input.mouse_captured)
+    {
+        io.WantCaptureMouse = false;
+    }
+    
     draw_menu(ctx);
     draw_scene(ctx);
     draw_inspector();
@@ -880,6 +1012,12 @@ void draw(euengine::engine_context* ctx)
     draw_stats(ctx);
     draw_console();
     draw_statusbar(ctx);
+    
+    // Keep UI from capturing mouse when camera is focused
+    if (ctx->input.mouse_captured)
+    {
+        io.WantCaptureMouse = false;
+    }
 }
 
 } // namespace ui
