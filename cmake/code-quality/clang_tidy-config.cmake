@@ -21,6 +21,8 @@ if(clang_tidy_exe)
         "${CMAKE_SOURCE_DIR}/src/*.cpp"
     )
 
+    # clang-tidy cant work adequately with multiple files tyring to apply all
+    # fixes
     add_custom_target(clang_tidy_all)
 
     foreach(source_file ${all_sources})
