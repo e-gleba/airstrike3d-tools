@@ -6,6 +6,7 @@ Checks: >
   performance-*,
   readability-*,
   cppcoreguidelines-*,
+  clang-analyzer-*,
   -bugprone-easily-swappable-parameters,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
@@ -13,7 +14,6 @@ Checks: >
   -modernize-use-trailing-return-type,
   -readability-identifier-length,
   -readability-magic-numbers,
-  -readability-function-cognitive-complexity
   -readability-uppercase-literal-suffix
 
 CheckOptions:

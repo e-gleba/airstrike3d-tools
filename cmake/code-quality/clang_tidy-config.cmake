@@ -7,12 +7,27 @@ find_program(
 
 if(clang_tidy_exe)
     add_custom_target(
-        clang_tidy
-        COMMAND
-            "${clang_tidy_exe}" "${PROJECT_SOURCE_DIR}/**/*.{cpp,cxx,hpp,hxx}"
+        clang_tidy_verify_config
+        COMMAND "${clang_tidy_exe}" --verify-config
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         VERBATIM
-        COMMENT "running clang-tidy (static analysis and lint) on all sources"
+        COMMENT "verifying .clang-tidy config"
+        USES_TERMINAL
+    )
+
+    file(
+        GLOB_RECURSE all_sources
+        CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/src/*.cpp"
+        "${PROJECT_SOURCE_DIR}/src/*.hpp"
+    )
+
+    add_custom_target(
+        clang_tidy
+        COMMAND "${clang_tidy_exe}" --fix --fix-errors ${all_sources}
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        VERBATIM
+        COMMENT "running clang-tidy with auto-fix on all sources"
         USES_TERMINAL
     )
 else()
