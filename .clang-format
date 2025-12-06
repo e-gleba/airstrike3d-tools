@@ -80,6 +80,7 @@ SortIncludes: CaseSensitive
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeParens: ControlStatements
+SpaceBeforeCpp11BracedList: true
 SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInAngles: false
