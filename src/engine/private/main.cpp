@@ -16,8 +16,9 @@ namespace
 [[nodiscard]] std::filesystem::path get_game_library_path()
 {
     const char* base_path = SDL_GetBasePath();
-    if (!base_path)
+    if (base_path == nullptr) {
         return {};
+}
 
     return std::filesystem::path(base_path) /
            euengine::platform::game_library_name();

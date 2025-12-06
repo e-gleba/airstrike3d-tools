@@ -8,10 +8,10 @@ find_program(
 if(clang_tidy_exe)
     add_custom_target(
         clang_tidy_verify_config
-        COMMAND "${clang_tidy_exe} --verify-config"
+        COMMAND "${clang_tidy_exe}" --verify-config
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         VERBATIM
-        COMMENT "verifying .clang-tidy config"
+        COMMENT "verifying .clang-tidy config in ${CMAKE_SOURCE_DIR}"
         USES_TERMINAL
     )
 
@@ -21,16 +21,23 @@ if(clang_tidy_exe)
         "${CMAKE_SOURCE_DIR}/src/*.cpp"
     )
 
-    add_custom_target(
-        clang_tidy
-        COMMAND
-            "${clang_tidy_exe}" -p "${CMAKE_BINARY_DIR}" --fix --fix-errors
-            ${all_sources}
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        VERBATIM
-        COMMENT "running clang-tidy with auto-fix on all sources"
-        USES_TERMINAL
-    )
+    add_custom_target(clang_tidy_all)
+
+    foreach(source_file ${all_sources})
+        get_filename_component(filename ${source_file} NAME_WE)
+
+        add_custom_command(
+            TARGET clang_tidy_all
+            POST_BUILD
+            COMMAND
+                "${clang_tidy_exe}" -p "${CMAKE_BINARY_DIR}" --fix --fix-errors
+                "${source_file}"
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            COMMENT "clang-tidy --fix --fix-errors ${filename}"
+            VERBATIM
+            USES_TERMINAL
+        )
+    endforeach()
 else()
     message(
         NOTICE
@@ -38,6 +45,3 @@ else()
         "install: sudo dnf install clang-tools-extra | sudo apt install clang-tidy | brew install llvm | choco install llvm"
     )
 endif()
-
-# example to enable globaly:
-# set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,readability-*)

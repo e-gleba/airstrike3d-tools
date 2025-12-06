@@ -14,14 +14,14 @@ namespace
 {
 
 /// Extract buffer data pointer for an accessor
-template <typename T>
-[[nodiscard]] const T* get_accessor_data(const tinygltf::Model&    model,
+template <typename t>
+[[nodiscard]] const t* get_accessor_data(const tinygltf::Model&    model,
                                          const tinygltf::Accessor& accessor)
 {
     const auto& view =
         model.bufferViews[static_cast<std::size_t>(accessor.bufferView)];
     const auto& buffer = model.buffers[static_cast<std::size_t>(view.buffer)];
-    return reinterpret_cast<const T*>(buffer.data.data() + view.byteOffset +
+    return reinterpret_cast<const t*>(buffer.data.data() + view.byteOffset +
                                       accessor.byteOffset);
 }
 
@@ -46,8 +46,9 @@ void process_primitive(const tinygltf::Model&     model,
         vertex_count = accessor.count;
     }
 
-    if (!positions || vertex_count == 0)
+    if ((positions == nullptr) || vertex_count == 0) {
         return;
+}
 
     // Normal accessor
     if (auto it = primitive.attributes.find("NORMAL");
@@ -73,15 +74,17 @@ void process_primitive(const tinygltf::Model&     model,
     {
         model_vertex vert{};
         vert.position = glm::vec3(
-            positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+            positions[i * 3], positions[(i * 3) + 1], positions[(i * 3) + 2]);
         bounds.expand(vert.position);
 
-        if (normals)
+        if (normals != nullptr) {
             vert.normal = glm::vec3(
-                normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+                normals[i * 3], normals[(i * 3) + 1], normals[(i * 3) + 2]);
+}
 
-        if (texcoords)
-            vert.texcoord = glm::vec2(texcoords[i * 2], texcoords[i * 2 + 1]);
+        if (texcoords != nullptr) {
+            vert.texcoord = glm::vec2(texcoords[i * 2], texcoords[(i * 2) + 1]);
+}
 
         mesh.vertices.push_back(vert);
     }
@@ -129,8 +132,9 @@ void process_primitive(const tinygltf::Model&     model,
     {
         // No indices - generate sequential
         mesh.indices.reserve(mesh.indices.size() + vertex_count);
-        for (std::size_t i = 0; i < vertex_count; ++i)
+        for (std::size_t i = 0; i < vertex_count; ++i) {
             mesh.indices.push_back(static_cast<uint16_t>(base_index + i));
+}
     }
 }
 
@@ -138,24 +142,28 @@ void process_primitive(const tinygltf::Model&     model,
 
 load_result GltfLoader::load(const std::filesystem::path& path) const
 {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(path)) {
         return std::unexpected("file not found: " + path.string());
+}
 
     tinygltf::Model    gltf_model;
     tinygltf::TinyGLTF loader;
-    std::string        err, warn;
+    std::string        err;
+    std::string        warn;
 
     const auto ext = path.extension().string();
     bool       ret = false;
 
-    if (ext == ".glb" || ext == ".GLB")
+    if (ext == ".glb" || ext == ".GLB") {
         ret =
             loader.LoadBinaryFromFile(&gltf_model, &err, &warn, path.string());
-    else
+    } else {
         ret = loader.LoadASCIIFromFile(&gltf_model, &err, &warn, path.string());
+}
 
-    if (!ret)
+    if (!ret) {
         return std::unexpected("glTF parse error: " + err);
+}
 
     loaded_model model{};
     model.has_uvs = true;
@@ -167,8 +175,9 @@ load_result GltfLoader::load(const std::filesystem::path& path) const
         if (!img.uri.empty())
         {
             auto tex_path = path.parent_path() / img.uri;
-            if (std::filesystem::exists(tex_path))
+            if (std::filesystem::exists(tex_path)) {
                 model.texture_path = tex_path;
+}
         }
     }
 
@@ -180,17 +189,20 @@ load_result GltfLoader::load(const std::filesystem::path& path) const
 
         for (const auto& primitive : mesh.primitives)
         {
-            if (primitive.mode != TINYGLTF_MODE_TRIANGLES)
+            if (primitive.mode != TINYGLTF_MODE_TRIANGLES) {
                 continue;
+}
             process_primitive(gltf_model, primitive, loaded, model.bounds);
         }
 
-        if (!loaded.vertices.empty() && !loaded.indices.empty())
+        if (!loaded.vertices.empty() && !loaded.indices.empty()) {
             model.meshes.push_back(std::move(loaded));
+}
     }
 
-    if (model.meshes.empty())
+    if (model.meshes.empty()) {
         return std::unexpected("glTF file contains no valid meshes");
+}
 
     return model;
 }

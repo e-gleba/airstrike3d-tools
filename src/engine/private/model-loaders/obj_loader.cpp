@@ -13,13 +13,15 @@ namespace euengine
 
 load_result ObjLoader::load(const std::filesystem::path& path) const
 {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(path)) {
         return std::unexpected("file not found: " + path.string());
+}
 
     tinyobj::attrib_t                attrib;
     std::vector<tinyobj::shape_t>    shapes;
     std::vector<tinyobj::material_t> materials;
-    std::string                      warn, err;
+    std::string                      warn;
+    std::string                      err;
 
     if (!tinyobj::LoadObj(
             &attrib, &shapes, &materials, &warn, &err, path.c_str()))
@@ -63,7 +65,7 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
 
                 // Validate vertex index
                 if (idx.vertex_index < 0 ||
-                    static_cast<std::size_t>(idx.vertex_index * 3 + 2) >=
+                    static_cast<std::size_t>((idx.vertex_index * 3) + 2) >=
                         attrib.vertices.size())
                 {
                     continue;
@@ -71,30 +73,30 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
 
                 model_vertex vert{};
                 const auto   vi = static_cast<std::size_t>(idx.vertex_index);
-                vert.position   = glm::vec3(attrib.vertices[3 * vi + 0],
-                                          attrib.vertices[3 * vi + 1],
-                                          attrib.vertices[3 * vi + 2]);
+                vert.position   = glm::vec3(attrib.vertices[(3 * vi) + 0],
+                                          attrib.vertices[(3 * vi) + 1],
+                                          attrib.vertices[(3 * vi) + 2]);
 
                 // Normal
                 if (idx.normal_index >= 0 &&
-                    static_cast<std::size_t>(idx.normal_index * 3 + 2) <
+                    static_cast<std::size_t>((idx.normal_index * 3) + 2) <
                         attrib.normals.size())
                 {
                     const auto ni = static_cast<std::size_t>(idx.normal_index);
-                    vert.normal   = glm::vec3(attrib.normals[3 * ni + 0],
-                                            attrib.normals[3 * ni + 1],
-                                            attrib.normals[3 * ni + 2]);
+                    vert.normal   = glm::vec3(attrib.normals[(3 * ni) + 0],
+                                            attrib.normals[(3 * ni) + 1],
+                                            attrib.normals[(3 * ni) + 2]);
                 }
 
                 // Texture coordinates
                 if (idx.texcoord_index >= 0 &&
-                    static_cast<std::size_t>(idx.texcoord_index * 2 + 1) <
+                    static_cast<std::size_t>((idx.texcoord_index * 2) + 1) <
                         attrib.texcoords.size())
                 {
                     const auto ti =
                         static_cast<std::size_t>(idx.texcoord_index);
-                    vert.texcoord = glm::vec2(attrib.texcoords[2 * ti + 0],
-                                              attrib.texcoords[2 * ti + 1]);
+                    vert.texcoord = glm::vec2(attrib.texcoords[(2 * ti) + 0],
+                                              attrib.texcoords[(2 * ti) + 1]);
                 }
 
                 mesh.indices.push_back(
@@ -104,12 +106,14 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
             index_offset += 3;
         }
 
-        if (!mesh.vertices.empty() && !mesh.indices.empty())
+        if (!mesh.vertices.empty() && !mesh.indices.empty()) {
             model.meshes.push_back(std::move(mesh));
+}
     }
 
-    if (model.meshes.empty())
+    if (model.meshes.empty()) {
         return std::unexpected("OBJ file contains no valid meshes");
+}
 
     return model;
 }
