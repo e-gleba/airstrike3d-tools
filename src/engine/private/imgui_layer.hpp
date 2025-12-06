@@ -23,10 +23,10 @@ public:
     bool init(SDL_Window* window, SDL_GPUDevice* device);
     void shutdown();
 
-    void process_event(const SDL_Event& event);
+    void process_event(const SDL_Event& event) const;
 
     void begin_frame();
-    void end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target);
+    static void end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target);
 
     void set_input_enabled(bool enabled) { input_enabled_ = enabled; }
     [[nodiscard]] bool input_enabled() const { return input_enabled_; }

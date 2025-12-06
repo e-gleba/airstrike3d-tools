@@ -18,7 +18,7 @@ bool ImGuiLayer::init(SDL_Window* window, SDL_GPUDevice* device)
     device_ = device;
 
     IMGUI_CHECKVERSION();
-    if (!ImGui::CreateContext())
+    if (ImGui::CreateContext() == nullptr)
     {
         spdlog::error("Failed to create ImGui context");
         return false;
@@ -68,10 +68,11 @@ void ImGuiLayer::shutdown()
     }
 }
 
-void ImGuiLayer::process_event(const SDL_Event& event)
+void ImGuiLayer::process_event(const SDL_Event& event) const
 {
-    if (input_enabled_)
+    if (input_enabled_) {
         ImGui_ImplSDL3_ProcessEvent(&event);
+}
 }
 
 void ImGuiLayer::begin_frame()
@@ -80,8 +81,9 @@ void ImGuiLayer::begin_frame()
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    if (draw_callback_)
+    if (draw_callback_) {
         draw_callback_();
+}
 }
 
 void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
@@ -97,7 +99,7 @@ void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
 
     SDL_GPURenderPass* pass =
         SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
-    if (pass)
+    if (pass != nullptr)
     {
         ImGui_ImplSDLGPU3_RenderDrawData(draw_data, cmd, pass);
         SDL_EndGPURenderPass(pass);

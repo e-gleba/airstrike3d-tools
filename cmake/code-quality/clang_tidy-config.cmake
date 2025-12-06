@@ -8,8 +8,8 @@ find_program(
 if(clang_tidy_exe)
     add_custom_target(
         clang_tidy_verify_config
-        COMMAND "${clang_tidy_exe}" --verify-config
-        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        COMMAND "${clang_tidy_exe} --verify-config"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         VERBATIM
         COMMENT "verifying .clang-tidy config"
         USES_TERMINAL
@@ -18,14 +18,15 @@ if(clang_tidy_exe)
     file(
         GLOB_RECURSE all_sources
         CONFIGURE_DEPENDS
-        "${PROJECT_SOURCE_DIR}/src/*.cpp"
-        "${PROJECT_SOURCE_DIR}/src/*.hpp"
+        "${CMAKE_SOURCE_DIR}/src/*.cpp"
     )
 
     add_custom_target(
         clang_tidy
-        COMMAND "${clang_tidy_exe}" --fix --fix-errors ${all_sources}
-        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        COMMAND
+            "${clang_tidy_exe}" -p "${CMAKE_BINARY_DIR}" --fix --fix-errors
+            ${all_sources}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         VERBATIM
         COMMENT "running clang-tidy with auto-fix on all sources"
         USES_TERMINAL

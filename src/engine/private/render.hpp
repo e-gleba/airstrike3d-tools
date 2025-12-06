@@ -185,7 +185,7 @@ private:
         std::span<const vertex_textured> vertices,
         std::span<const uint16_t>        indices);
 
-    [[nodiscard]] std::filesystem::path find_texture_for_model(
+    [[nodiscard]] static std::filesystem::path find_texture_for_model(
         const std::filesystem::path& model_path);
 
     /// Convert loaded model data to GPU model

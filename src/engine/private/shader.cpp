@@ -41,14 +41,14 @@ ShaderProgram& ShaderProgram::operator=(ShaderProgram&& other) noexcept
 
 void ShaderProgram::release() noexcept
 {
-    if (device_)
+    if (device_ != nullptr)
     {
-        if (vertex_shader_)
+        if (vertex_shader_ != nullptr)
         {
             SDL_ReleaseGPUShader(device_, vertex_shader_);
             vertex_shader_ = nullptr;
         }
-        if (fragment_shader_)
+        if (fragment_shader_ != nullptr)
         {
             SDL_ReleaseGPUShader(device_, fragment_shader_);
             fragment_shader_ = nullptr;
@@ -154,7 +154,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
 
     std::size_t spirv_size{};
     void* spirv = SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
-    if (!spirv)
+    if (spirv == nullptr)
     {
         return std::unexpected(
             std::format("Failed to compile SPIRV from '{}': {}",
@@ -172,7 +172,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
     SDL_ShaderCross_GraphicsShaderMetadata* metadata =
         SDL_ShaderCross_ReflectGraphicsSPIRV(
             spirv_info.bytecode, spirv_info.bytecode_size, 0);
-    if (!metadata)
+    if (metadata == nullptr)
     {
         SDL_free(spirv);
         return std::unexpected(
@@ -187,7 +187,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
     SDL_free(metadata);
     SDL_free(spirv);
 
-    if (!shader)
+    if (shader == nullptr)
     {
         return std::unexpected(
             std::format("Failed to create GPU shader from '{}': {}",
@@ -271,10 +271,12 @@ bool ShaderManager::reload_program(ShaderProgram& program)
     }
 
     // Release old shaders
-    if (program.vertex_shader_)
+    if (program.vertex_shader_ != nullptr) {
         SDL_ReleaseGPUShader(device_, program.vertex_shader_);
-    if (program.fragment_shader_)
+}
+    if (program.fragment_shader_ != nullptr) {
         SDL_ReleaseGPUShader(device_, program.fragment_shader_);
+}
 
     // Assign new shaders
     program.vertex_shader_     = *vertex_result;
@@ -288,8 +290,9 @@ bool ShaderManager::reload_program(ShaderProgram& program)
 
 void ShaderManager::check_for_updates()
 {
-    if (!hot_reload_enabled_)
+    if (!hot_reload_enabled_) {
         return;
+}
 
     for (auto& [name, program] : programs_)
     {
@@ -311,8 +314,9 @@ void ShaderManager::check_for_updates()
 
             if (reload_program(program))
             {
-                if (reload_callback_)
+                if (reload_callback_) {
                     reload_callback_(name);
+}
             }
         }
     }
@@ -320,8 +324,9 @@ void ShaderManager::check_for_updates()
 
 void ShaderManager::release_all() noexcept
 {
-    for (auto& [name, program] : programs_)
+    for (auto& [name, program] : programs_) {
         program.release();
+}
     programs_.clear();
 }
 

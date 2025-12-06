@@ -21,20 +21,23 @@ namespace euengine
 // RAII deleters implementation
 void SDLWindowDeleter::operator()(SDL_Window* w) const noexcept
 {
-    if (w)
+    if (w != nullptr) {
         SDL_DestroyWindow(w);
+}
 }
 
 void SDLGPUDeviceDeleter::operator()(SDL_GPUDevice* d) const noexcept
 {
-    if (d)
+    if (d != nullptr) {
         SDL_DestroyGPUDevice(d);
+}
 }
 
 void SDLSharedObjectDeleter::operator()(SDL_SharedObject* o) const noexcept
 {
-    if (o)
+    if (o != nullptr) {
         SDL_UnloadObject(o);
+}
 }
 
 engine::engine() = default;
@@ -58,10 +61,12 @@ bool engine::init(const engine_config& config)
 
     // Build window flags from settings
     SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN;
-    if (config.window.resizable)
+    if (config.window.resizable) {
         window_flags |= SDL_WINDOW_RESIZABLE;
-    if (config.window.high_dpi)
+}
+    if (config.window.high_dpi) {
         window_flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+}
 
     // Apply window mode
     switch (config.window.mode)
@@ -84,7 +89,7 @@ bool engine::init(const engine_config& config)
                                         config.window.width,
                                         config.window.height,
                                         window_flags);
-    if (!raw_window)
+    if (raw_window == nullptr)
     {
         spdlog::error("SDL_CreateWindow: {}", SDL_GetError());
         return false;
@@ -105,7 +110,7 @@ bool engine::init(const engine_config& config)
 
     auto* raw_device = SDL_CreateGPUDevice(
         shader_formats, platform::is_debug_build(), nullptr);
-    if (!raw_device)
+    if (raw_device == nullptr)
     {
         spdlog::error("SDL_CreateGPUDevice: {}", SDL_GetError());
         return false;
@@ -153,8 +158,9 @@ bool engine::init(const engine_config& config)
 
     // Initialize audio subsystem
     audio_ = std::make_unique<audio_manager>();
-    if (!audio_->init())
+    if (!audio_->init()) {
         spdlog::warn("audio init failed, continuing without audio");
+}
 
     // Setup engine context for game
     context_.registry  = &registry_;
@@ -165,8 +171,9 @@ bool engine::init(const engine_config& config)
     context_.imgui_ctx = ImGui::GetCurrentContext();
 
     // Load game library if specified
-    if (!config.game_lib.empty() && !load_game(config.game_lib))
+    if (!config.game_lib.empty() && !load_game(config.game_lib)) {
         spdlog::warn("game load failed, continuing without game");
+}
 
     last_time_ = SDL_GetPerformanceCounter();
     running_   = true;
@@ -175,13 +182,14 @@ bool engine::init(const engine_config& config)
 
 void engine::shutdown() noexcept
 {
-    if (!sdl_initialized_)
+    if (!sdl_initialized_) {
         return;
+}
 
     spdlog::info("=> engine shutdown");
 
     // Shutdown game first
-    if (game_shutdown_)
+    if (game_shutdown_ != nullptr)
     {
         try
         {
@@ -213,8 +221,9 @@ void engine::shutdown() noexcept
         shader_manager_.reset();
     }
 
-    if (window_ && device_)
+    if (window_ && device_) {
         SDL_ReleaseWindowFromGPUDevice(device_.get(), window_.get());
+}
 
     device_.reset();
     window_.reset();
@@ -224,8 +233,9 @@ void engine::shutdown() noexcept
 
 void engine::apply_vsync_mode() noexcept
 {
-    if (!device_ || !window_)
+    if (!device_ || !window_) {
         return;
+}
 
     SDL_GPUPresentMode present_mode{};
     switch (current_vsync_)
@@ -265,22 +275,25 @@ void engine::set_vsync(vsync_mode mode) noexcept
 
 void engine::set_fullscreen(bool fullscreen) noexcept
 {
-    if (!window_)
+    if (!window_) {
         return;
+}
     SDL_SetWindowFullscreen(window_.get(), fullscreen);
 }
 
 bool engine::is_fullscreen() const noexcept
 {
-    if (!window_)
+    if (!window_) {
         return false;
+}
     return (SDL_GetWindowFlags(window_.get()) & SDL_WINDOW_FULLSCREEN) != 0;
 }
 
 std::int32_t engine::get_window_width() const noexcept
 {
-    if (!window_)
+    if (!window_) {
         return 0;
+}
     int w = 0;
     SDL_GetWindowSizeInPixels(window_.get(), &w, nullptr);
     return w;
@@ -288,8 +301,9 @@ std::int32_t engine::get_window_width() const noexcept
 
 std::int32_t engine::get_window_height() const noexcept
 {
-    if (!window_)
+    if (!window_) {
         return 0;
+}
     int h = 0;
     SDL_GetWindowSizeInPixels(window_.get(), nullptr, &h);
     return h;
@@ -361,7 +375,7 @@ bool engine::load_game(const std::filesystem::path& path)
     }
 
     auto* raw_lib = SDL_LoadObject(load_path.c_str());
-    if (!raw_lib)
+    if (raw_lib == nullptr)
     {
         spdlog::error("SDL_LoadObject: {}", SDL_GetError());
         return false;
@@ -381,8 +395,8 @@ bool engine::load_game(const std::filesystem::path& path)
         reinterpret_cast<game_ui_fn>(SDL_LoadFunction(raw_lib, "game_ui"));
 
     // Verify all required exports are present
-    if (!game_init_ || !game_shutdown_ || !game_update_ || !game_render_ ||
-        !game_ui_)
+    if ((game_init_ == nullptr) || (game_shutdown_ == nullptr) || (game_update_ == nullptr) || (game_render_ == nullptr) ||
+        (game_ui_ == nullptr))
     {
         spdlog::error("missing game exports");
         cleanup_game_pointers();
@@ -402,7 +416,7 @@ bool engine::load_game(const std::filesystem::path& path)
 
 void engine::unload_game() noexcept
 {
-    if (game_shutdown_)
+    if (game_shutdown_ != nullptr)
     {
         try
         {
@@ -422,17 +436,19 @@ void engine::unload_game() noexcept
     {
         std::error_code ec;
         std::filesystem::remove(game_temp_path_, ec);
-        if (ec)
+        if (ec) {
             spdlog::debug("=> failed to remove temp game lib: {}",
                           ec.message());
+}
         game_temp_path_.clear();
     }
 }
 
 [[nodiscard]] bool engine::reload_game()
 {
-    if (game_lib_path_.empty())
+    if (game_lib_path_.empty()) {
         return false;
+}
     auto path = game_lib_path_;
     unload_game();
     return load_game(path);
@@ -449,7 +465,8 @@ void engine::cleanup_game_pointers() noexcept
 
 void engine::update_context() noexcept
 {
-    int w = 0, h = 0;
+    int w = 0;
+    int h = 0;
     SDL_GetWindowSizeInPixels(window_.get(), &w, &h);
     context_.display.width  = w;
     context_.display.height = h;
@@ -461,8 +478,9 @@ void engine::update_context() noexcept
 
 void engine::set_mouse_captured(bool captured) noexcept
 {
-    if (!SDL_SetWindowRelativeMouseMode(window_.get(), captured))
+    if (!SDL_SetWindowRelativeMouseMode(window_.get(), captured)) {
         return;
+}
     mouse_captured_ = captured;
 }
 
@@ -483,17 +501,19 @@ void engine::process_events()
                 break;
 
             case SDL_EVENT_KEY_DOWN:
-                if (event.key.key == SDLK_ESCAPE)
+                if (event.key.key == SDLK_ESCAPE) {
                     set_mouse_captured(false);
-                else if (event.key.key == SDLK_F5)
+                } else if (event.key.key == SDLK_F5) {
                     static_cast<void>(reload_game());
-                else if (event.key.key == SDLK_F11)
+                } else if (event.key.key == SDLK_F11) {
                     set_fullscreen(!is_fullscreen());
+}
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (!ImGui::GetIO().WantCaptureMouse)
+                if (!ImGui::GetIO().WantCaptureMouse) {
                     set_mouse_captured(true);
+}
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
@@ -528,25 +548,32 @@ void engine::update()
             const float speed = cam.move_speed * delta_time_;
             if (input_.keyboard != nullptr)
             {
-                if (input_.keyboard[SDL_SCANCODE_W])
+                if (input_.keyboard[SDL_SCANCODE_W]) {
                     cam.position += cam.front() * speed;
-                if (input_.keyboard[SDL_SCANCODE_S])
+}
+                if (input_.keyboard[SDL_SCANCODE_S]) {
                     cam.position -= cam.front() * speed;
-                if (input_.keyboard[SDL_SCANCODE_A])
+}
+                if (input_.keyboard[SDL_SCANCODE_A]) {
                     cam.position -= cam.right() * speed;
-                if (input_.keyboard[SDL_SCANCODE_D])
+}
+                if (input_.keyboard[SDL_SCANCODE_D]) {
                     cam.position += cam.right() * speed;
-                if (input_.keyboard[SDL_SCANCODE_E])
+}
+                if (input_.keyboard[SDL_SCANCODE_E]) {
                     cam.position.y += speed;
-                if (input_.keyboard[SDL_SCANCODE_Q])
+}
+                if (input_.keyboard[SDL_SCANCODE_Q]) {
                     cam.position.y -= speed;
+}
             }
         }
     }
 
     update_context();
-    if (game_update_)
+    if (game_update_ != nullptr) {
         game_update_(&context_);
+}
 }
 
 void engine::render()
@@ -560,8 +587,9 @@ void engine::render()
     }
 
     auto* cmd = SDL_AcquireGPUCommandBuffer(device_.get());
-    if (!cmd)
+    if (cmd == nullptr) {
         return;
+}
 
     SDL_GPUTexture* swapchain   = nullptr;
     Uint32          swapchain_w = 0;
@@ -574,7 +602,7 @@ void engine::render()
         return;
     }
 
-    if (!swapchain)
+    if (swapchain == nullptr)
     {
         SDL_SubmitGPUCommandBuffer(cmd);
         return;
@@ -585,7 +613,7 @@ void engine::render()
     // Setup color target with dark clear color
     SDL_GPUColorTargetInfo color_target{};
     color_target.texture     = swapchain;
-    color_target.clear_color = { 0.08f, 0.08f, 0.12f, 1.0f };
+    color_target.clear_color = { .r=0.08f, .g=0.08f, .b=0.12f, .a=1.0f };
     color_target.load_op     = SDL_GPU_LOADOP_CLEAR;
     color_target.store_op    = SDL_GPU_STOREOP_STORE;
 
@@ -598,7 +626,7 @@ void engine::render()
     depth_target.stencil_load_op  = SDL_GPU_LOADOP_CLEAR;
     depth_target.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
 
-    auto* depth_ptr = depth_target.texture ? &depth_target : nullptr;
+    auto* depth_ptr = (depth_target.texture != nullptr) ? &depth_target : nullptr;
     if (auto* pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, depth_ptr))
     {
         renderer_->begin_frame(cmd, pass);
@@ -613,8 +641,9 @@ void engine::render()
         }
 
         renderer_->bind_pipeline();
-        if (game_render_)
+        if (game_render_ != nullptr) {
             game_render_(&context_);
+}
 
         renderer_->end_frame();
         SDL_EndGPURenderPass(pass);
@@ -622,8 +651,9 @@ void engine::render()
 
     // Render ImGui
     imgui_layer_->begin_frame();
-    if (game_ui_)
+    if (game_ui_ != nullptr) {
         game_ui_(&context_);
+}
     imgui_layer_->end_frame(cmd, swapchain);
 
     SDL_SubmitGPUCommandBuffer(cmd);
