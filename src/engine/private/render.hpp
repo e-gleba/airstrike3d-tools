@@ -127,6 +127,29 @@ public:
     void set_max_anisotropy(float anisotropy) override;
     /// Set texture filter quality
     void set_texture_filter(texture_filter filter) override;
+    
+    /// Post-processing parameters
+    struct postprocess_params
+    {
+        float gamma       = 2.2f;
+        float brightness  = 0.0f;
+        float contrast    = 1.0f;
+        float saturation  = 1.0f;
+        float vignette    = 0.0f;
+        float fxaa_enabled = 0.0f;
+        float res_x       = 1920.0f;
+        float res_y       = 1080.0f;
+    };
+    
+    /// Ensure post-processing render target exists
+    void ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureFormat format);
+    
+    /// Get post-processing color target
+    [[nodiscard]] SDL_GPUTexture* pp_color_target() const noexcept { return pp_color_texture_; }
+    
+    /// Apply post-processing pass
+    void apply_postprocess(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target, 
+                           const postprocess_params& params);
 
     /// Get current depth texture
     [[nodiscard]] SDL_GPUTexture* depth_texture() const noexcept
@@ -195,6 +218,7 @@ public:
 private:
     [[nodiscard]] bool create_wireframe_pipeline();
     [[nodiscard]] bool create_textured_pipeline();
+    [[nodiscard]] bool create_postprocess_pipeline();
 
     void draw_mesh_internal(const gpu_mesh& mesh);
     void draw_textured_mesh_internal(const gpu_textured_mesh& mesh,
@@ -222,6 +246,7 @@ private:
     SDL_GPUGraphicsPipeline* wireframe_pipeline_          = nullptr;
     SDL_GPUGraphicsPipeline* textured_pipeline_           = nullptr;
     SDL_GPUGraphicsPipeline* textured_wireframe_pipeline_ = nullptr;
+    SDL_GPUGraphicsPipeline* postprocess_pipeline_        = nullptr;
 
     // Current frame state
     SDL_GPURenderPass*    current_pass_ = nullptr;
@@ -255,6 +280,12 @@ private:
     SDL_GPUTexture* msaa_resolve_texture_ = nullptr;
     Uint32          msaa_width_           = 0;
     Uint32          msaa_height_          = 0;
+
+    // Post-processing intermediate render target
+    SDL_GPUTexture* pp_color_texture_ = nullptr;
+    SDL_GPUSampler* pp_sampler_       = nullptr;
+    Uint32          pp_width_         = 0;
+    Uint32          pp_height_        = 0;
 
     // Handle generators
     std::uint64_t next_mesh_handle_    = 1;

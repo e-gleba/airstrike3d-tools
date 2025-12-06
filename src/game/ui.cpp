@@ -800,14 +800,12 @@ void draw_engine(euengine::engine_context* ctx)
             ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.30f, 1.0f), "(uses 8x)");
         }
         
-        // FXAA - not implemented yet
-        ImGui::BeginDisabled(true);
+        // FXAA (post-processing)
         bool fxaa = ctx->settings->is_fxaa_enabled();
-        if (ImGui::Checkbox("FXAA (Not Implemented)", &fxaa))
+        if (ImGui::Checkbox("FXAA", &fxaa))
             ctx->settings->set_fxaa_enabled(fxaa);
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("Fast Approximate Anti-Aliasing - requires post-processing shader");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Fast Approximate Anti-Aliasing (post-processing)");
 
         ImGui::Spacing();
 
@@ -869,27 +867,47 @@ void draw_engine(euengine::engine_context* ctx)
 
         ImGui::Spacing();
         
-        // Post-Processing (Not Implemented - requires shader)
-        if (ImGui::CollapsingHeader("Post-Processing (Not Implemented)"))
+        // Post-Processing settings
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Post-Processing");
+        ImGui::Separator();
+        
+        float gamma = ctx->settings->get_gamma();
+        if (ImGui::SliderFloat("Gamma", &gamma, 1.0f, 3.0f, "%.2f"))
+            ctx->settings->set_gamma(gamma);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Display gamma correction (default: 2.2)");
+        
+        float brightness = ctx->settings->get_brightness();
+        if (ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f"))
+            ctx->settings->set_brightness(brightness);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Brightness adjustment (default: 0)");
+        
+        float contrast = ctx->settings->get_contrast();
+        if (ImGui::SliderFloat("Contrast", &contrast, 0.5f, 2.0f, "%.2f"))
+            ctx->settings->set_contrast(contrast);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Contrast adjustment (default: 1.0)");
+        
+        float saturation = ctx->settings->get_saturation();
+        if (ImGui::SliderFloat("Saturation", &saturation, 0.0f, 2.0f, "%.2f"))
+            ctx->settings->set_saturation(saturation);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Color saturation (0.0 = grayscale, 1.0 = normal, 2.0 = vibrant)");
+        
+        float vignette = ctx->settings->get_vignette();
+        if (ImGui::SliderFloat("Vignette", &vignette, 0.0f, 1.0f, "%.2f"))
+            ctx->settings->set_vignette(vignette);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Darken screen edges (0.0 = off, 1.0 = maximum)");
+        
+        if (ImGui::Button("Reset Post-Processing", ImVec2(-1, 0)))
         {
-            ImGui::BeginDisabled(true);
-            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.30f, 1.0f), "Requires post-processing shader");
-            
-            float gamma = ctx->settings->get_gamma();
-            ImGui::SliderFloat("Gamma", &gamma, 1.0f, 3.0f, "%.2f");
-            
-            float brightness = ctx->settings->get_brightness();
-            ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f");
-            
-            float contrast = ctx->settings->get_contrast();
-            ImGui::SliderFloat("Contrast", &contrast, 0.5f, 2.0f, "%.2f");
-            
-            float saturation = ctx->settings->get_saturation();
-            ImGui::SliderFloat("Saturation", &saturation, 0.0f, 2.0f, "%.2f");
-            
-            float vignette = ctx->settings->get_vignette();
-            ImGui::SliderFloat("Vignette", &vignette, 0.0f, 1.0f, "%.2f");
-            ImGui::EndDisabled();
+            ctx->settings->set_gamma(2.2f);
+            ctx->settings->set_brightness(0.0f);
+            ctx->settings->set_contrast(1.0f);
+            ctx->settings->set_saturation(1.0f);
+            ctx->settings->set_vignette(0.0f);
         }
 
         ImGui::Spacing();

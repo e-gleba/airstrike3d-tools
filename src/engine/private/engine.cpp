@@ -468,6 +468,11 @@ void engine::set_vignette(float intensity) noexcept
     vignette_ = std::clamp(intensity, 0.0f, 1.0f);
 }
 
+bool engine::is_postprocess_available() const noexcept
+{
+    return renderer_ != nullptr;
+}
+
 void engine::set_master_volume(float volume) noexcept
 {
     master_volume_ = std::clamp(volume, 0.0f, 1.0f);
@@ -815,8 +820,18 @@ void engine::render()
 
     renderer_->ensure_depth_texture(swapchain_w, swapchain_h);
     
-    // Get swapchain format for MSAA targets
+    // Get swapchain format for MSAA and post-processing targets
     auto swapchain_format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
+    
+    // Check if post-processing is enabled (any non-default value)
+    const bool use_postprocess = (gamma_ != 2.2f || brightness_ != 0.0f || contrast_ != 1.0f ||
+                                  saturation_ != 1.0f || vignette_ > 0.001f || fxaa_enabled_);
+    
+    // Ensure post-processing target if needed
+    if (use_postprocess)
+    {
+        renderer_->ensure_pp_target(swapchain_w, swapchain_h, swapchain_format);
+    }
     
     // Ensure MSAA render targets if MSAA is enabled
     const bool use_msaa = (renderer_->get_msaa_samples() != msaa_samples::none);
@@ -825,14 +840,19 @@ void engine::render()
         renderer_->ensure_msaa_targets(swapchain_w, swapchain_h, swapchain_format);
     }
     
-    // Determine which textures to render to
-    SDL_GPUTexture* color_texture = use_msaa ? renderer_->msaa_color_target() : swapchain;
+    // Determine scene output target:
+    // - With postprocess: output to pp_color_texture
+    // - Without postprocess: output to swapchain
+    SDL_GPUTexture* scene_output = use_postprocess ? renderer_->pp_color_target() : swapchain;
+    
+    // Determine which textures to render to for the scene
+    SDL_GPUTexture* color_texture = use_msaa ? renderer_->msaa_color_target() : scene_output;
     SDL_GPUTexture* depth_texture = use_msaa ? renderer_->msaa_depth_target() : renderer_->depth_texture();
     
     // Fallback if MSAA target creation failed
     if (use_msaa && (color_texture == nullptr || depth_texture == nullptr))
     {
-        color_texture = swapchain;
+        color_texture = scene_output;
         depth_texture = renderer_->depth_texture();
     }
 
@@ -848,10 +868,10 @@ void engine::render()
     color_target.load_op  = SDL_GPU_LOADOP_CLEAR;
     color_target.store_op = SDL_GPU_STOREOP_STORE;
     
-    // For MSAA, we need to resolve to the swapchain
+    // For MSAA, we need to resolve to the scene_output target
     if (use_msaa && renderer_->msaa_color_target() != nullptr)
     {
-        color_target.resolve_texture = swapchain;
+        color_target.resolve_texture = scene_output;
         color_target.store_op = SDL_GPU_STOREOP_RESOLVE;
     }
 
@@ -887,6 +907,22 @@ void engine::render()
 
         renderer_->end_frame();
         SDL_EndGPURenderPass(pass);
+    }
+    
+    // Apply post-processing if enabled
+    if (use_postprocess && renderer_->pp_color_target() != nullptr)
+    {
+        Renderer::postprocess_params pp_params {};
+        pp_params.gamma        = gamma_;
+        pp_params.brightness   = brightness_;
+        pp_params.contrast     = contrast_;
+        pp_params.saturation   = saturation_;
+        pp_params.vignette     = vignette_;
+        pp_params.fxaa_enabled = fxaa_enabled_ ? 1.0f : 0.0f;
+        pp_params.res_x        = static_cast<float>(swapchain_w);
+        pp_params.res_y        = static_cast<float>(swapchain_h);
+        
+        renderer_->apply_postprocess(cmd, swapchain, pp_params);
     }
 
     // Render ImGui

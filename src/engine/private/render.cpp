@@ -91,17 +91,31 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
         return false;
     }
 
+    // Load post-processing shader program
+    const ShaderProgramDesc postprocess_desc {
+        .name     = "postprocess",
+        .vertex   = { .path  = "postprocess.vert.hlsl",
+                      .stage = ShaderStage::Vertex },
+        .fragment = { .path  = "postprocess.frag.hlsl",
+                      .stage = ShaderStage::Fragment },
+    };
+    if (auto result = shaders_->load_program(postprocess_desc); !result)
+    {
+        spdlog::error("=> load postprocess shader: {}", result.error());
+        return false;
+    }
+
     // Setup shader hot-reload callback
     shaders_->set_reload_callback(
         [this](const std::string& name)
         {
-            if (name == "wireframe" || name == "textured")
+            if (name == "wireframe" || name == "textured" || name == "postprocess")
             {
                 pipeline_dirty_ = true;
             }
         });
 
-    if (!create_wireframe_pipeline() || !create_textured_pipeline())
+    if (!create_wireframe_pipeline() || !create_textured_pipeline() || !create_postprocess_pipeline())
     {
         return false;
     }
@@ -217,6 +231,23 @@ void Renderer::shutdown()
     {
         SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
         msaa_resolve_texture_ = nullptr;
+    }
+    
+    // Release post-processing resources
+    if (pp_color_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, pp_color_texture_);
+        pp_color_texture_ = nullptr;
+    }
+    if (pp_sampler_ != nullptr)
+    {
+        SDL_ReleaseGPUSampler(device_, pp_sampler_);
+        pp_sampler_ = nullptr;
+    }
+    if (postprocess_pipeline_ != nullptr)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(device_, postprocess_pipeline_);
+        postprocess_pipeline_ = nullptr;
     }
 }
 
@@ -608,12 +639,164 @@ bool Renderer::create_textured_pipeline()
     return true;
 }
 
+bool Renderer::create_postprocess_pipeline()
+{
+    auto* prog = shaders_->get_program("postprocess");
+    if ((prog == nullptr) || !prog->valid())
+    {
+        spdlog::warn("Postprocess shader not available");
+        return false;
+    }
+
+    // No vertex input - we generate vertices from vertex ID
+    SDL_GPUVertexInputState vertex_input {};
+    vertex_input.vertex_buffer_descriptions = nullptr;
+    vertex_input.num_vertex_buffers         = 0;
+    vertex_input.vertex_attributes          = nullptr;
+    vertex_input.num_vertex_attributes      = 0;
+
+    SDL_GPUColorTargetDescription color_target {};
+    color_target.format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
+    color_target.blend_state.enable_blend = false;
+
+    SDL_GPUGraphicsPipelineTargetInfo target_info {};
+    target_info.color_target_descriptions = &color_target;
+    target_info.num_color_targets         = 1;
+    target_info.has_depth_stencil_target  = false;
+
+    SDL_GPURasterizerState raster_state {};
+    raster_state.fill_mode  = SDL_GPU_FILLMODE_FILL;
+    raster_state.cull_mode  = SDL_GPU_CULLMODE_NONE;
+    raster_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+
+    SDL_GPUMultisampleState ms_state {};
+    ms_state.sample_count = SDL_GPU_SAMPLECOUNT_1;
+
+    SDL_GPUGraphicsPipelineCreateInfo pipeline_info {};
+    pipeline_info.vertex_shader       = prog->vertex_shader();
+    pipeline_info.fragment_shader     = prog->fragment_shader();
+    pipeline_info.vertex_input_state  = vertex_input;
+    pipeline_info.primitive_type      = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    pipeline_info.rasterizer_state    = raster_state;
+    pipeline_info.multisample_state   = ms_state;
+    pipeline_info.target_info         = target_info;
+
+    if (postprocess_pipeline_ != nullptr)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(device_, postprocess_pipeline_);
+    }
+
+    postprocess_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
+    if (postprocess_pipeline_ == nullptr)
+    {
+        spdlog::error("Failed to create postprocess pipeline: {}", SDL_GetError());
+        return false;
+    }
+    
+    spdlog::info("Post-processing pipeline created successfully");
+    return true;
+}
+
+void Renderer::ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureFormat format)
+{
+    // Check if we need to recreate
+    if (pp_color_texture_ != nullptr && pp_width_ == width && pp_height_ == height)
+    {
+        return;
+    }
+    
+    // Release old texture
+    if (pp_color_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, pp_color_texture_);
+        pp_color_texture_ = nullptr;
+    }
+    if (pp_sampler_ != nullptr)
+    {
+        SDL_ReleaseGPUSampler(device_, pp_sampler_);
+        pp_sampler_ = nullptr;
+    }
+    
+    // Create color texture for scene rendering
+    SDL_GPUTextureCreateInfo color_info {};
+    color_info.type                 = SDL_GPU_TEXTURETYPE_2D;
+    color_info.format               = format;
+    color_info.usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    color_info.width                = width;
+    color_info.height               = height;
+    color_info.layer_count_or_depth = 1;
+    color_info.num_levels           = 1;
+    color_info.sample_count         = SDL_GPU_SAMPLECOUNT_1;
+    
+    pp_color_texture_ = SDL_CreateGPUTexture(device_, &color_info);
+    if (pp_color_texture_ == nullptr)
+    {
+        spdlog::error("Failed to create post-process color texture: {}", SDL_GetError());
+        return;
+    }
+    
+    // Create sampler for reading the texture in post-process pass
+    SDL_GPUSamplerCreateInfo samp_info {};
+    samp_info.min_filter     = SDL_GPU_FILTER_LINEAR;
+    samp_info.mag_filter     = SDL_GPU_FILTER_LINEAR;
+    samp_info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
+    samp_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    samp_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    samp_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    
+    pp_sampler_ = SDL_CreateGPUSampler(device_, &samp_info);
+    
+    pp_width_  = width;
+    pp_height_ = height;
+    
+    spdlog::info("Post-processing render target created ({}x{})", width, height);
+}
+
+void Renderer::apply_postprocess(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target,
+                                 const postprocess_params& params)
+{
+    if (postprocess_pipeline_ == nullptr || pp_color_texture_ == nullptr || pp_sampler_ == nullptr)
+    {
+        return;
+    }
+    
+    // Setup render pass to output to final target (swapchain)
+    SDL_GPUColorTargetInfo color_target {};
+    color_target.texture     = target;
+    color_target.load_op     = SDL_GPU_LOADOP_DONT_CARE; // We'll overwrite everything
+    color_target.store_op    = SDL_GPU_STOREOP_STORE;
+    
+    auto* pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
+    if (pass == nullptr)
+    {
+        spdlog::error("Failed to begin postprocess render pass");
+        return;
+    }
+    
+    SDL_BindGPUGraphicsPipeline(pass, postprocess_pipeline_);
+    
+    // Bind the scene texture
+    SDL_GPUTextureSamplerBinding tex_binding {};
+    tex_binding.texture = pp_color_texture_;
+    tex_binding.sampler = pp_sampler_;
+    SDL_BindGPUFragmentSamplers(pass, 0, &tex_binding, 1);
+    
+    // Push post-process parameters
+    SDL_PushGPUFragmentUniformData(cmd, 0, &params, sizeof(params));
+    
+    // Draw fullscreen triangle (3 vertices, generated in shader)
+    SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+    
+    SDL_EndGPURenderPass(pass);
+}
+
 void Renderer::reload_pipelines()
 {
     if (pipeline_dirty_)
     {
         (void)create_wireframe_pipeline();
         (void)create_textured_pipeline();
+        (void)create_postprocess_pipeline();
         pipeline_dirty_ = false;
     }
 }

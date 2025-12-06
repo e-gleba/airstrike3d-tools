@@ -182,6 +182,9 @@ public:
     
     void                set_vignette(float intensity) noexcept override;
     [[nodiscard]] float get_vignette() const noexcept override { return vignette_; }
+    
+    /// Check if post-processing is available
+    [[nodiscard]] bool is_postprocess_available() const noexcept;
 
     void request_quit() noexcept override { running_ = false; }
 
