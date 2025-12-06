@@ -4,7 +4,7 @@
 #include "render.hpp"
 #include "shader.hpp"
 
-#include <camera.hpp>
+#include <core-api/camera.hpp>
 
 #include <imgui.h>
 #include <spdlog/spdlog.h>

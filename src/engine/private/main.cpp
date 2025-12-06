@@ -1,7 +1,7 @@
 #include "engine.hpp"
 
-#include <platform.hpp>
-#include <window_settings.hpp>
+#include <core-api/platform.hpp>
+#include <core-api/window.hpp>
 
 #include <SDL3/SDL_main.h>
 #include <spdlog/spdlog.h>

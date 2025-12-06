@@ -1,5 +1,5 @@
 #include <core-api/camera.hpp>
-#include <core-api/game_api.hpp>
+#include <core-api/game.hpp>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>

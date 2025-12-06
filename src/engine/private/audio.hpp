@@ -3,7 +3,7 @@
 /// @file audio.hpp
 /// @brief Audio manager for music and sound effects using SDL3_mixer
 
-#include <audio_interface.hpp>
+#include <core-api/audio.hpp>
 
 #include <unordered_map>
 

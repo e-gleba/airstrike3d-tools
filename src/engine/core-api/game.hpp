@@ -1,10 +1,10 @@
 #pragma once
 
-#include "audio_interface.hpp"
+#include "audio.hpp"
 #include "camera.hpp"
-#include "engine_settings_interface.hpp"
+#include "engine.hpp"
 #include "platform.hpp"
-#include "renderer_interface.hpp"
+#include "renderer.hpp"
 
 #include <entt/entt.hpp>
 

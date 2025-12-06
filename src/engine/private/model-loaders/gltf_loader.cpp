@@ -1,6 +1,3 @@
-/// @file gltf_loader.cpp
-/// @brief glTF 2.0 model loader implementation
-
 #include "gltf_loader.hpp"
 
 // Don't define TINYGLTF_NO_STB_IMAGE - we need tinygltf's image loading

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "audio_interface.hpp"
-#include "window_settings.hpp"
+#include "audio.hpp"
+#include "window.hpp"
 
 #include <cstdint>
 #include <string_view>
