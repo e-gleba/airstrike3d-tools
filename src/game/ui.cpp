@@ -275,9 +275,10 @@ void draw_menu(euengine::engine_context* ctx)
                                 ctx->settings->get_window_width(),
                                 ctx->settings->get_window_height(),
                                 scene::g_models.size());
-        float w = ImGui::CalcTextSize(info.c_str()).x;
+        auto safe_info = sanitize_utf8(info);
+        float w = ImGui::CalcTextSize(safe_info.c_str()).x;
         ImGui::SetCursorPosX(ImGui::GetWindowWidth() - w - 20);
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", info.c_str());
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", safe_info.c_str());
 
         ImGui::EndMainMenuBar();
     }

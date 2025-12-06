@@ -86,7 +86,9 @@ bool engine::init(const preinit_settings& settings)
             break;
     }
 
-    auto* raw_window = SDL_CreateWindow(settings.window.title.data(),
+    // SDL_CreateWindow requires null-terminated const char*
+    // std::string::c_str() provides that
+    auto* raw_window = SDL_CreateWindow(settings.window.title.c_str(),
                                         settings.window.width,
                                         settings.window.height,
                                         window_flags);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string_view>
+#include <string>
 
 namespace euengine
 {
@@ -32,7 +32,7 @@ enum class msaa_samples : std::uint8_t
 
 struct window_settings final
 {
-    std::string_view title             = "airstrike3d";
+    std::string      title             = "euengine";
     std::int32_t     width             = 1280;
     std::int32_t     height            = 720;
     std::int32_t     min_width         = 640;
