@@ -232,7 +232,7 @@ private:
     std::vector<gpu_mesh> temp_meshes_;
 
     // Per-frame statistics
-    mutable render_stats frame_stats_{};
+    mutable render_stats frame_stats_ {};
 };
 
 } // namespace euengine

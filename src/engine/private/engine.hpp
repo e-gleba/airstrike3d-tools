@@ -150,7 +150,7 @@ private:
 
     // ECS registry shared with game
     entt::registry registry_;
-    engine_context context_{};
+    engine_context context_ {};
 
     // SDL resources
     SDLWindowPtr    window_;
@@ -185,7 +185,7 @@ private:
     vsync_mode  current_vsync_  = vsync_mode::enabled;
     vsync_mode  pending_vsync_  = vsync_mode::enabled;
     bool        vsync_dirty_    = false;
-    input_state input_{};
+    input_state input_ {};
 
     // Audio
     float master_volume_     = 1.0f;

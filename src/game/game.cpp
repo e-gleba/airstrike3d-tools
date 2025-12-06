@@ -33,7 +33,7 @@ constexpr int key_tab    = 43;
 
 euengine::engine_context*          g_ctx = nullptr;
 std::vector<euengine::mesh_handle> g_meshes;
-float                         g_time = 0.0f;
+float                              g_time = 0.0f;
 
 // Camera
 entt::entity g_camera_entity = entt::null;
@@ -43,8 +43,8 @@ bool         g_camera_free   = true;
 struct loaded_model
 {
     euengine::model_handle handle = euengine::invalid_model;
-    std::string       name;
-    std::string       path;
+    std::string            name;
+    std::string            path;
     euengine::transform    transform;
     euengine::bounds       bounds;
 };
@@ -55,8 +55,8 @@ int                       g_selected_model = -1;
 struct music_track
 {
     euengine::music_handle handle = euengine::invalid_music;
-    std::string       name;
-    std::string       path;
+    std::string            name;
+    std::string            path;
 };
 std::vector<music_track> g_music_tracks;
 int                      g_current_track = -1;
@@ -82,15 +82,17 @@ void scan_model_directory(const std::string& dir)
     g_model_files.clear();
     g_browser_selected = -1;
 
-    if (!std::filesystem::exists(dir)) {
+    if (!std::filesystem::exists(dir))
+    {
         return;
-}
+    }
 
     for (const auto& entry : std::filesystem::recursive_directory_iterator(dir))
     {
-        if (!entry.is_regular_file()) {
+        if (!entry.is_regular_file())
+        {
             continue;
-}
+        }
 
         auto ext = entry.path().extension().string();
         if (ext == ".obj" || ext == ".OBJ" || ext == ".glb" || ext == ".GLB" ||
@@ -107,15 +109,17 @@ void scan_model_directory(const std::string& dir)
 void scan_music_directory()
 {
     const std::string dir = "assets/music";
-    if (!std::filesystem::exists(dir)) {
+    if (!std::filesystem::exists(dir))
+    {
         return;
-}
+    }
 
     for (const auto& entry : std::filesystem::directory_iterator(dir))
     {
-        if (!entry.is_regular_file()) {
+        if (!entry.is_regular_file())
+        {
             continue;
-}
+        }
 
         auto ext = entry.path().extension().string();
         if (ext == ".ogg" || ext == ".OGG" || ext == ".mp3" || ext == ".MP3" ||
@@ -167,9 +171,10 @@ void load_model_at(const std::string& path, const glm::vec3& pos)
 
 void update_camera(euengine::engine_context* ctx)
 {
-    if (g_camera_entity == entt::null || !ctx->registry->valid(g_camera_entity)) {
+    if (g_camera_entity == entt::null || !ctx->registry->valid(g_camera_entity))
+    {
         return;
-}
+    }
 
     auto& cam = ctx->registry->get<euengine::camera_component>(g_camera_entity);
 
@@ -190,33 +195,41 @@ void update_camera(euengine::engine_context* ctx)
         glm::vec3 up(0.0f, 1.0f, 0.0f);
 
         // Shift for faster movement
-        if (ctx->input.keyboard[key_lshift]) {
+        if (ctx->input.keyboard[key_lshift])
+        {
             speed *= 3.0f;
-}
+        }
 
-        if (ctx->input.keyboard[key_w]) {
+        if (ctx->input.keyboard[key_w])
+        {
             cam.position += front * speed;
-}
-        if (ctx->input.keyboard[key_s]) {
+        }
+        if (ctx->input.keyboard[key_s])
+        {
             cam.position -= front * speed;
-}
-        if (ctx->input.keyboard[key_a]) {
+        }
+        if (ctx->input.keyboard[key_a])
+        {
             cam.position -= right * speed;
-}
-        if (ctx->input.keyboard[key_d]) {
+        }
+        if (ctx->input.keyboard[key_d])
+        {
             cam.position += right * speed;
-}
-        if (ctx->input.keyboard[key_q]) {
+        }
+        if (ctx->input.keyboard[key_q])
+        {
             cam.position -= up * speed;
-}
-        if (ctx->input.keyboard[key_e]) {
+        }
+        if (ctx->input.keyboard[key_e])
+        {
             cam.position += up * speed;
-}
+        }
 
         // Toggle mouse capture
-        if (ctx->input.keyboard[key_escape]) {
+        if (ctx->input.keyboard[key_escape])
+        {
             ctx->settings->set_mouse_captured(false);
-}
+        }
 
         // Fullscreen toggle (simple debounce)
         static bool f11_was_pressed = false;
@@ -246,7 +259,8 @@ void update_camera(euengine::engine_context* ctx)
 
                 // If shader hot reload is enabled, shaders auto-reload
                 // Just log that we triggered it
-                if ((ctx->shaders != nullptr) && ctx->shaders->hot_reload_enabled())
+                if ((ctx->shaders != nullptr) &&
+                    ctx->shaders->hot_reload_enabled())
                 {
                     spdlog::info("Shader hot reload is enabled - shaders will "
                                  "reload if changed");
@@ -294,12 +308,14 @@ GAME_API bool game_init(euengine::engine_context* ctx)
     g_time = 0.0f;
 
     // Setup camera
-    if (g_camera_entity != entt::null && ctx->registry->valid(g_camera_entity)) {
+    if (g_camera_entity != entt::null && ctx->registry->valid(g_camera_entity))
+    {
         ctx->registry->destroy(g_camera_entity);
-}
+    }
 
     g_camera_entity = ctx->registry->create();
-    auto& cam = ctx->registry->emplace<euengine::camera_component>(g_camera_entity);
+    auto& cam =
+        ctx->registry->emplace<euengine::camera_component>(g_camera_entity);
     cam.position   = { 0.0f, 15.0f, 25.0f };
     cam.pitch      = -25.0f;
     cam.yaw        = -90.0f;
@@ -332,27 +348,33 @@ GAME_API void game_shutdown()
     // Unload models
     for (auto& model : g_models)
     {
-        if (model.handle != euengine::invalid_model && (g_ctx->renderer != nullptr)) {
+        if (model.handle != euengine::invalid_model &&
+            (g_ctx->renderer != nullptr))
+        {
             g_ctx->renderer->unload_model(model.handle);
-}
+        }
     }
     g_models.clear();
 
     // Unload music
     for (auto& track : g_music_tracks)
     {
-        if (track.handle != euengine::invalid_music && (g_ctx->audio != nullptr)) {
+        if (track.handle != euengine::invalid_music &&
+            (g_ctx->audio != nullptr))
+        {
             g_ctx->audio->unload_music(track.handle);
-}
+        }
     }
     g_music_tracks.clear();
 
     // Destroy meshes
-    for (auto h : g_meshes) {
-        if (h != euengine::invalid_mesh && (g_ctx->renderer != nullptr)) {
+    for (auto h : g_meshes)
+    {
+        if (h != euengine::invalid_mesh && (g_ctx->renderer != nullptr))
+        {
             g_ctx->renderer->destroy_mesh(h);
-}
-}
+        }
+    }
     g_meshes.clear();
 
     // Destroy camera
@@ -372,8 +394,9 @@ GAME_API void game_update(euengine::engine_context* ctx)
     g_time += ctx->delta_time;
 
     // Update render mode
-    ctx->renderer->set_render_mode(g_wireframe ? euengine::render_mode::wireframe
-                                               : euengine::render_mode::textured);
+    ctx->renderer->set_render_mode(g_wireframe
+                                       ? euengine::render_mode::wireframe
+                                       : euengine::render_mode::textured);
 
     // Camera
     update_camera(ctx);
@@ -406,9 +429,10 @@ GAME_API void game_update(euengine::engine_context* ctx)
 GAME_API void game_render(euengine::engine_context* ctx)
 {
     // Draw grid
-    for (auto h : g_meshes) {
+    for (auto h : g_meshes)
+    {
         ctx->renderer->draw(h);
-}
+    }
 
     // Draw models
     for (auto& model : g_models)
@@ -434,9 +458,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Quit", "Alt+F4")) {
+            if (ImGui::MenuItem("Quit", "Alt+F4"))
+            {
                 ctx->settings->request_quit();
-}
+            }
             ImGui::EndMenu();
         }
 
@@ -485,8 +510,8 @@ GAME_API void game_ui(euengine::engine_context* ctx)
             if (g_camera_entity != entt::null &&
                 ctx->registry->valid(g_camera_entity))
             {
-                auto& cam =
-                    ctx->registry->get<euengine::camera_component>(g_camera_entity);
+                auto& cam = ctx->registry->get<euengine::camera_component>(
+                    g_camera_entity);
                 ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Camera");
                 ImGui::Separator();
                 ImGui::Text("Pos: %.1f, %.1f, %.1f",
@@ -508,9 +533,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                 auto&      model    = g_models[i];
                 const bool selected = (std::cmp_equal(i, g_selected_model));
 
-                if (ImGui::Selectable(model.name.c_str(), selected)) {
+                if (ImGui::Selectable(model.name.c_str(), selected))
+                {
                     g_selected_model = static_cast<int>(i);
-}
+                }
             }
 
             // Selected model properties
@@ -532,9 +558,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                     "Rotation", &model.transform.rotation.x, 1.0f);
 
                 float scale = model.transform.scale.x;
-                if (ImGui::DragFloat("Scale", &scale, 0.01f, 0.01f, 10.0f)) {
+                if (ImGui::DragFloat("Scale", &scale, 0.01f, 0.01f, 10.0f))
+                {
                     model.transform.scale = glm::vec3(scale);
-}
+                }
 
                 ImGui::Spacing();
                 if (ImGui::Button("Remove"))
@@ -560,13 +587,15 @@ GAME_API void game_ui(euengine::engine_context* ctx)
             // Directory input
             static char dir_buf[256];
             strncpy(dir_buf, g_model_dir.c_str(), sizeof(dir_buf) - 1);
-            if (ImGui::InputText("Dir", dir_buf, sizeof(dir_buf))) {
+            if (ImGui::InputText("Dir", dir_buf, sizeof(dir_buf)))
+            {
                 g_model_dir = dir_buf;
-}
+            }
             ImGui::SameLine();
-            if (ImGui::Button("Scan")) {
+            if (ImGui::Button("Scan"))
+            {
                 scan_model_directory(g_model_dir);
-}
+            }
 
             ImGui::Text("Found %zu models", g_model_files.size());
             ImGui::Separator();
@@ -578,11 +607,11 @@ GAME_API void game_ui(euengine::engine_context* ctx)
             {
                 std::string display =
                     std::filesystem::path(g_model_files[i]).filename().string();
-                if (ImGui::Selectable(
-                        display.c_str(),
-                        std::cmp_equal(i ,g_browser_selected))) {
+                if (ImGui::Selectable(display.c_str(),
+                                      std::cmp_equal(i, g_browser_selected)))
+                {
                     g_browser_selected = static_cast<int>(i);
-}
+                }
             }
             ImGui::EndChild();
 
@@ -617,17 +646,19 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                 bool  playing  = (std::cmp_equal(i, g_current_track));
                 bool  selected = playing;
 
-                if (playing) {
+                if (playing)
+                {
                     ImGui::PushStyleColor(ImGuiCol_Text,
                                           ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
-}
+                }
 
                 if (ImGui::Selectable(track.name.c_str(), selected))
                 {
                     // Load if needed
-                    if (track.handle == euengine::invalid_music) {
+                    if (track.handle == euengine::invalid_music)
+                    {
                         track.handle = ctx->audio->load_music(track.path);
-}
+                    }
 
                     if (track.handle != euengine::invalid_music)
                     {
@@ -636,9 +667,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                     }
                 }
 
-                if (playing) {
+                if (playing)
+                {
                     ImGui::PopStyleColor();
-}
+                }
             }
             ImGui::EndChild();
 
@@ -648,15 +680,17 @@ GAME_API void game_ui(euengine::engine_context* ctx)
 
             if (is_playing && !is_paused)
             {
-                if (ImGui::Button("Pause")) {
+                if (ImGui::Button("Pause"))
+                {
                     ctx->audio->pause_music();
-}
+                }
             }
             else if (is_paused)
             {
-                if (ImGui::Button("Resume")) {
+                if (ImGui::Button("Resume"))
+                {
                     ctx->audio->resume_music();
-}
+                }
             }
 
             ImGui::SameLine();
@@ -668,9 +702,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
 
             // Volume
             float vol = ctx->audio->get_music_volume();
-            if (ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f)) {
+            if (ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f))
+            {
                 ctx->audio->set_music_volume(vol);
-}
+            }
         }
         ImGui::End();
     }
@@ -691,24 +726,28 @@ GAME_API void game_ui(euengine::engine_context* ctx)
             ImGui::Spacing();
 
             bool fullscreen = ctx->settings->is_fullscreen();
-            if (ImGui::Checkbox("Fullscreen (F11)", &fullscreen)) {
+            if (ImGui::Checkbox("Fullscreen (F11)", &fullscreen))
+            {
                 ctx->settings->set_fullscreen(fullscreen);
-}
+            }
 
             ImGui::Spacing();
             ImGui::Text("VSync:");
             int vsync = static_cast<int>(ctx->settings->get_vsync());
-            if (ImGui::RadioButton("Off", &vsync, 0)) {
+            if (ImGui::RadioButton("Off", &vsync, 0))
+            {
                 ctx->settings->set_vsync(euengine::vsync_mode::disabled);
-}
+            }
             ImGui::SameLine();
-            if (ImGui::RadioButton("On", &vsync, 1)) {
+            if (ImGui::RadioButton("On", &vsync, 1))
+            {
                 ctx->settings->set_vsync(euengine::vsync_mode::enabled);
-}
+            }
             ImGui::SameLine();
-            if (ImGui::RadioButton("Adaptive", &vsync, 2)) {
+            if (ImGui::RadioButton("Adaptive", &vsync, 2))
+            {
                 ctx->settings->set_vsync(euengine::vsync_mode::adaptive);
-}
+            }
 
             // Shader hot reload
             if (ctx->shaders != nullptr)
@@ -716,9 +755,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                 ImGui::Spacing();
                 ImGui::Separator();
                 bool hot = ctx->shaders->hot_reload_enabled();
-                if (ImGui::Checkbox("Shader Hot Reload", &hot)) {
+                if (ImGui::Checkbox("Shader Hot Reload", &hot))
+                {
                     ctx->shaders->enable_hot_reload(hot);
-}
+                }
             }
 
             // Audio
@@ -727,9 +767,10 @@ GAME_API void game_ui(euengine::engine_context* ctx)
                 ImGui::Spacing();
                 ImGui::Separator();
                 float sound_vol = ctx->audio->get_sound_volume();
-                if (ImGui::SliderFloat("Sound Vol", &sound_vol, 0.0f, 1.0f)) {
+                if (ImGui::SliderFloat("Sound Vol", &sound_vol, 0.0f, 1.0f))
+                {
                     ctx->audio->set_sound_volume(sound_vol);
-}
+                }
             }
         }
         ImGui::End();

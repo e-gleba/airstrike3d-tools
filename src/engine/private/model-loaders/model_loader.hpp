@@ -18,16 +18,16 @@ namespace euengine
 /// Vertex with position, normal, and texture coordinates
 struct model_vertex final
 {
-    glm::vec3 position{};
-    glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
-    glm::vec2 texcoord{};
+    glm::vec3 position {};
+    glm::vec3 normal { 0.0f, 1.0f, 0.0f };
+    glm::vec2 texcoord {};
 };
 
 /// Axis-aligned bounding box
 struct aabb final
 {
-    glm::vec3 min{ std::numeric_limits<float>::max() };
-    glm::vec3 max{ std::numeric_limits<float>::lowest() };
+    glm::vec3 min { std::numeric_limits<float>::max() };
+    glm::vec3 max { std::numeric_limits<float>::lowest() };
 
     [[nodiscard]] constexpr glm::vec3 center() const noexcept
     {

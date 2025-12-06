@@ -29,8 +29,8 @@ public:
     [[nodiscard]] std::span<const std::string_view> extensions() const override;
 
 private:
-    static constexpr std::array<std::string_view, 2> k_extensions{ ".gltf",
-                                                                   ".glb" };
+    static constexpr std::array<std::string_view, 2> k_extensions { ".gltf",
+                                                                    ".glb" };
 };
 
 } // namespace euengine

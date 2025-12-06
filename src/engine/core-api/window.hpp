@@ -46,7 +46,7 @@ struct window_settings final
     [[nodiscard]] static constexpr window_settings windowed(
         std::int32_t w = 1280, std::int32_t h = 720) noexcept
     {
-        return window_settings{
+        return window_settings {
             .width  = w,
             .height = h,
             .mode   = window_mode::windowed,
@@ -55,14 +55,14 @@ struct window_settings final
 
     [[nodiscard]] static constexpr window_settings fullscreen() noexcept
     {
-        return window_settings{
+        return window_settings {
             .mode = window_mode::fullscreen_desktop,
         };
     }
 
     [[nodiscard]] static constexpr window_settings borderless() noexcept
     {
-        return window_settings{
+        return window_settings {
             .mode = window_mode::borderless,
         };
     }
@@ -80,7 +80,7 @@ struct renderer_settings final
 
     [[nodiscard]] static constexpr renderer_settings defaults() noexcept
     {
-        return renderer_settings{};
+        return renderer_settings {};
     }
 };
 
@@ -93,7 +93,7 @@ struct audio_settings final
 
     [[nodiscard]] static constexpr audio_settings defaults() noexcept
     {
-        return audio_settings{};
+        return audio_settings {};
     }
 };
 

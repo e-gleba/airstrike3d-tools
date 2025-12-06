@@ -6,12 +6,17 @@ find_program(
 )
 
 if(clang_format_exe)
+    file(
+        GLOB_RECURSE all_sources
+        CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_SOURCE_DIR}/src/*.hpp"
+    )
+
     add_custom_target(
         clang_format
-        COMMAND
-            "${clang_format_exe}" -i
-            "${PROJECT_SOURCE_DIR}/**/*.{cpp,cxx,hpp,hxx}"
-        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        COMMAND "${clang_format_exe}" -i ${all_sources}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         VERBATIM
         COMMENT
             "running clang-format (automatic code style formatting) on all sources"

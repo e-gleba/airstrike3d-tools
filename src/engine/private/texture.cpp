@@ -13,13 +13,15 @@ std::expected<texture_data, std::string> load_texture(
     const std::filesystem::path& path,
     bool                         flip_vertical)
 {
-    if (device == nullptr) {
+    if (device == nullptr)
+    {
         return std::unexpected("null device");
-}
-    if (path.empty() || !std::filesystem::exists(path)) {
+    }
+    if (path.empty() || !std::filesystem::exists(path))
+    {
         return std::unexpected(
             std::format("file not found: {}", path.string()));
-}
+    }
 
     std::int32_t w  = 0;
     std::int32_t h  = 0;
@@ -27,13 +29,14 @@ std::expected<texture_data, std::string> load_texture(
 
     stbi_set_flip_vertically_on_load(flip_vertical ? 1 : 0);
     auto* pixels = stbi_load(path.c_str(), &w, &h, &ch, 4);
-    if (pixels == nullptr) {
+    if (pixels == nullptr)
+    {
         return std::unexpected(
             std::format("stbi_load failed: {}", stbi_failure_reason()));
-}
+    }
 
     // Create GPU texture
-    SDL_GPUTextureCreateInfo tex_info{};
+    SDL_GPUTextureCreateInfo tex_info {};
     tex_info.type                 = SDL_GPU_TEXTURETYPE_2D;
     tex_info.format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     tex_info.usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER;
@@ -52,7 +55,7 @@ std::expected<texture_data, std::string> load_texture(
     }
 
     // Create sampler with linear filtering
-    SDL_GPUSamplerCreateInfo samp_info{};
+    SDL_GPUSamplerCreateInfo samp_info {};
     samp_info.min_filter     = SDL_GPU_FILTER_LINEAR;
     samp_info.mag_filter     = SDL_GPU_FILTER_LINEAR;
     samp_info.mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
@@ -64,7 +67,7 @@ std::expected<texture_data, std::string> load_texture(
     const auto data_size = static_cast<Uint32>(w * h * 4);
 
     // Create transfer buffer and upload pixel data
-    SDL_GPUTransferBufferCreateInfo tb_info{};
+    SDL_GPUTransferBufferCreateInfo tb_info {};
     tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     tb_info.size  = data_size;
     auto* tb      = SDL_CreateGPUTransferBuffer(device, &tb_info);
@@ -77,10 +80,10 @@ std::expected<texture_data, std::string> load_texture(
     auto* cmd = SDL_AcquireGPUCommandBuffer(device);
     auto* cp  = SDL_BeginGPUCopyPass(cmd);
 
-    SDL_GPUTextureTransferInfo src{};
+    SDL_GPUTextureTransferInfo src {};
     src.transfer_buffer = tb;
     src.offset          = 0;
-    SDL_GPUTextureRegion dst{};
+    SDL_GPUTextureRegion dst {};
     dst.texture = tex;
     dst.w       = static_cast<Uint32>(w);
     dst.h       = static_cast<Uint32>(h);
@@ -91,19 +94,22 @@ std::expected<texture_data, std::string> load_texture(
     SDL_SubmitGPUCommandBuffer(cmd);
     SDL_ReleaseGPUTransferBuffer(device, tb);
 
-    return texture_data{ .texture=tex, .sampler=samp, .width=w, .height=h };
+    return texture_data {
+        .texture = tex, .sampler = samp, .width = w, .height = h
+    };
 }
 
 std::expected<texture_data, std::string> create_default_texture(
     SDL_GPUDevice* device)
 {
-    if (device == nullptr) {
+    if (device == nullptr)
+    {
         return std::unexpected("null device");
-}
+    }
 
     constexpr std::uint32_t white = 0xFFFFFFFF;
 
-    SDL_GPUTextureCreateInfo tex_info{};
+    SDL_GPUTextureCreateInfo tex_info {};
     tex_info.type                 = SDL_GPU_TEXTURETYPE_2D;
     tex_info.format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     tex_info.usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER;
@@ -114,12 +120,13 @@ std::expected<texture_data, std::string> create_default_texture(
     tex_info.sample_count         = SDL_GPU_SAMPLECOUNT_1;
 
     auto* tex = SDL_CreateGPUTexture(device, &tex_info);
-    if (tex == nullptr) {
+    if (tex == nullptr)
+    {
         return std::unexpected(
             std::format("SDL_CreateGPUTexture: {}", SDL_GetError()));
-}
+    }
 
-    SDL_GPUSamplerCreateInfo samp_info{};
+    SDL_GPUSamplerCreateInfo samp_info {};
     samp_info.min_filter     = SDL_GPU_FILTER_NEAREST;
     samp_info.mag_filter     = SDL_GPU_FILTER_NEAREST;
     samp_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
@@ -128,7 +135,7 @@ std::expected<texture_data, std::string> create_default_texture(
     auto* samp               = SDL_CreateGPUSampler(device, &samp_info);
 
     // Upload single white pixel
-    SDL_GPUTransferBufferCreateInfo tb_info{};
+    SDL_GPUTransferBufferCreateInfo tb_info {};
     tb_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     tb_info.size  = 4;
     auto* tb      = SDL_CreateGPUTransferBuffer(device, &tb_info);
@@ -139,10 +146,10 @@ std::expected<texture_data, std::string> create_default_texture(
     auto* cmd = SDL_AcquireGPUCommandBuffer(device);
     auto* cp  = SDL_BeginGPUCopyPass(cmd);
 
-    SDL_GPUTextureTransferInfo src{};
+    SDL_GPUTextureTransferInfo src {};
     src.transfer_buffer = tb;
     src.offset          = 0;
-    SDL_GPUTextureRegion dst{};
+    SDL_GPUTextureRegion dst {};
     dst.texture = tex;
     dst.w       = 1;
     dst.h       = 1;
@@ -153,17 +160,21 @@ std::expected<texture_data, std::string> create_default_texture(
     SDL_SubmitGPUCommandBuffer(cmd);
     SDL_ReleaseGPUTransferBuffer(device, tb);
 
-    return texture_data{ .texture=tex, .sampler=samp, .width=1, .height=1 };
+    return texture_data {
+        .texture = tex, .sampler = samp, .width = 1, .height = 1
+    };
 }
 
 void release_texture(SDL_GPUDevice* device, texture_data& tex)
 {
-    if (tex.texture != nullptr) {
+    if (tex.texture != nullptr)
+    {
         SDL_ReleaseGPUTexture(device, tex.texture);
-}
-    if (tex.sampler != nullptr) {
+    }
+    if (tex.sampler != nullptr)
+    {
         SDL_ReleaseGPUSampler(device, tex.sampler);
-}
+    }
     tex = {};
 }
 

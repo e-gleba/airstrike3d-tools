@@ -41,7 +41,7 @@ bool ImGuiLayer::init(SDL_Window* window, SDL_GPUDevice* device)
         return false;
     }
 
-    ImGui_ImplSDLGPU3_InitInfo init_info{};
+    ImGui_ImplSDLGPU3_InitInfo init_info {};
     init_info.Device               = device;
     init_info.ColorTargetFormat    = target_format_;
     init_info.MSAASamples          = SDL_GPU_SAMPLECOUNT_1;
@@ -70,9 +70,10 @@ void ImGuiLayer::shutdown()
 
 void ImGuiLayer::process_event(const SDL_Event& event) const
 {
-    if (input_enabled_) {
+    if (input_enabled_)
+    {
         ImGui_ImplSDL3_ProcessEvent(&event);
-}
+    }
 }
 
 void ImGuiLayer::begin_frame()
@@ -81,9 +82,10 @@ void ImGuiLayer::begin_frame()
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    if (draw_callback_) {
+    if (draw_callback_)
+    {
         draw_callback_();
-}
+    }
 }
 
 void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
@@ -92,7 +94,7 @@ void ImGuiLayer::end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
     ImDrawData* draw_data = ImGui::GetDrawData();
     ImGui_ImplSDLGPU3_PrepareDrawData(draw_data, cmd);
 
-    SDL_GPUColorTargetInfo color_target{};
+    SDL_GPUColorTargetInfo color_target {};
     color_target.texture  = target;
     color_target.load_op  = SDL_GPU_LOADOP_LOAD;
     color_target.store_op = SDL_GPU_STOREOP_STORE;

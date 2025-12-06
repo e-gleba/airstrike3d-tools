@@ -13,9 +13,10 @@ namespace euengine
 
 load_result ObjLoader::load(const std::filesystem::path& path) const
 {
-    if (!std::filesystem::exists(path)) {
+    if (!std::filesystem::exists(path))
+    {
         return std::unexpected("file not found: " + path.string());
-}
+    }
 
     tinyobj::attrib_t                attrib;
     std::vector<tinyobj::shape_t>    shapes;
@@ -29,7 +30,7 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
         return std::unexpected("OBJ parse error: " + err);
     }
 
-    loaded_model model{};
+    loaded_model model {};
     model.has_uvs = !attrib.texcoords.empty();
 
     // Calculate bounds from all vertices
@@ -43,7 +44,7 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
     // Process each shape into a mesh
     for (const auto& shape : shapes)
     {
-        loaded_mesh mesh{};
+        loaded_mesh mesh {};
         mesh.material_name = shape.name;
 
         std::size_t index_offset = 0;
@@ -71,7 +72,7 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
                     continue;
                 }
 
-                model_vertex vert{};
+                model_vertex vert {};
                 const auto   vi = static_cast<std::size_t>(idx.vertex_index);
                 vert.position   = glm::vec3(attrib.vertices[(3 * vi) + 0],
                                           attrib.vertices[(3 * vi) + 1],
@@ -106,14 +107,16 @@ load_result ObjLoader::load(const std::filesystem::path& path) const
             index_offset += 3;
         }
 
-        if (!mesh.vertices.empty() && !mesh.indices.empty()) {
+        if (!mesh.vertices.empty() && !mesh.indices.empty())
+        {
             model.meshes.push_back(std::move(mesh));
-}
+        }
     }
 
-    if (model.meshes.empty()) {
+    if (model.meshes.empty())
+    {
         return std::unexpected("OBJ file contains no valid meshes");
-}
+    }
 
     return model;
 }

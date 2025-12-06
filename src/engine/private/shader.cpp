@@ -113,7 +113,7 @@ SDL_Time ShaderManager::get_mod_time(
         full_path = shader_dir_ / path;
     }
 
-    SDL_PathInfo info{};
+    SDL_PathInfo info {};
     if (SDL_GetPathInfo(full_path.c_str(), &info))
     {
         return info.modify_time;
@@ -143,7 +143,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
 
     const std::string include_dir_str = include_dir.string();
 
-    SDL_ShaderCross_HLSL_Info hlsl_info{};
+    SDL_ShaderCross_HLSL_Info hlsl_info {};
     hlsl_info.source     = content_result->c_str();
     hlsl_info.entrypoint = source.entry_point.c_str();
     hlsl_info.include_dir =
@@ -152,7 +152,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
     hlsl_info.shader_stage = stage;
     hlsl_info.props        = 0;
 
-    std::size_t spirv_size{};
+    std::size_t spirv_size {};
     void* spirv = SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
     if (spirv == nullptr)
     {
@@ -162,7 +162,7 @@ std::expected<SDL_GPUShader*, std::string> ShaderManager::compile_shader(
                         SDL_GetError()));
     }
 
-    SDL_ShaderCross_SPIRV_Info spirv_info{};
+    SDL_ShaderCross_SPIRV_Info spirv_info {};
     spirv_info.bytecode      = static_cast<Uint8*>(spirv);
     spirv_info.bytecode_size = spirv_size;
     spirv_info.entrypoint    = source.entry_point.c_str();
@@ -271,12 +271,14 @@ bool ShaderManager::reload_program(ShaderProgram& program)
     }
 
     // Release old shaders
-    if (program.vertex_shader_ != nullptr) {
+    if (program.vertex_shader_ != nullptr)
+    {
         SDL_ReleaseGPUShader(device_, program.vertex_shader_);
-}
-    if (program.fragment_shader_ != nullptr) {
+    }
+    if (program.fragment_shader_ != nullptr)
+    {
         SDL_ReleaseGPUShader(device_, program.fragment_shader_);
-}
+    }
 
     // Assign new shaders
     program.vertex_shader_     = *vertex_result;
@@ -290,9 +292,10 @@ bool ShaderManager::reload_program(ShaderProgram& program)
 
 void ShaderManager::check_for_updates()
 {
-    if (!hot_reload_enabled_) {
+    if (!hot_reload_enabled_)
+    {
         return;
-}
+    }
 
     for (auto& [name, program] : programs_)
     {
@@ -314,9 +317,10 @@ void ShaderManager::check_for_updates()
 
             if (reload_program(program))
             {
-                if (reload_callback_) {
+                if (reload_callback_)
+                {
                     reload_callback_(name);
-}
+                }
             }
         }
     }
@@ -324,9 +328,10 @@ void ShaderManager::check_for_updates()
 
 void ShaderManager::release_all() noexcept
 {
-    for (auto& [name, program] : programs_) {
+    for (auto& [name, program] : programs_)
+    {
         program.release();
-}
+    }
     programs_.clear();
 }
 

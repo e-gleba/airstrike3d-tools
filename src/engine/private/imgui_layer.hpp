@@ -25,7 +25,7 @@ public:
 
     void process_event(const SDL_Event& event) const;
 
-    void begin_frame();
+    void        begin_frame();
     static void end_frame(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target);
 
     void set_input_enabled(bool enabled) { input_enabled_ = enabled; }

@@ -29,7 +29,7 @@ public:
     [[nodiscard]] std::span<const std::string_view> extensions() const override;
 
 private:
-    static constexpr std::array<std::string_view, 1> k_extensions{ ".obj" };
+    static constexpr std::array<std::string_view, 1> k_extensions { ".obj" };
 };
 
 } // namespace euengine
