@@ -59,8 +59,12 @@ inline std::size_t g_lib_size = 0;
 // Stats
 inline int    g_draw_calls = 0;
 inline int    g_triangles = 0;
-inline float  g_frame_times[120] = {};
+inline float  g_frame_times[300] = {};  // Extended for better history
+inline float  g_fps_history[300] = {};  // FPS tracking
 inline int    g_frame_idx = 0;
+inline float  g_min_fps = 999.0f;
+inline float  g_max_fps = 0.0f;
+inline float  g_avg_fps = 0.0f;
 
 void init(euengine::engine_context* ctx);
 void shutdown();

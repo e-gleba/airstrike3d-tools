@@ -197,8 +197,8 @@ void draw_scene(euengine::engine_context* ctx)
 
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(16, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 450), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(220, 200), ImVec2(450, io.DisplaySize.y - 60));
+    ImGui::SetNextWindowSize(ImVec2(320, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(280, 300), ImVec2(500, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Scene", &g_show_hierarchy))
     {
@@ -242,18 +242,43 @@ void draw_scene(euengine::engine_context* ctx)
             ImGui::Text("%s", std::format("{} items", scene::g_models.size()).c_str());
             ImGui::PopStyleColor();
             
-            ImGui::BeginChild("##objs", ImVec2(0, 0), true);
+            // Filter/search for objects
+            static char obj_filter[128] = {};
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputTextWithHint("##obj_filter", "Search objects...", obj_filter, sizeof(obj_filter));
+            
+            ImGui::Spacing();
+            ImGui::BeginChild("##objs", ImVec2(0, -1), true);
+            
             for (std::size_t i = 0; i < scene::g_models.size(); ++i)
             {
                 auto& m = scene::g_models[i];
+                
+                // Apply filter
+                if (obj_filter[0] != '\0' && 
+                    m.name.find(obj_filter) == std::string::npos)
+                    continue;
+                
                 bool sel = (static_cast<int>(i) == scene::g_selected);
 
-                // Type indicators
+                // Type indicators with icons
                 ImVec4 col = ImVec4(0.55f, 0.55f, 0.58f, 1.0f);
-                if (m.hover)
+                const char* icon = "";
+                if (m.moving)
+                {
+                    col = ImVec4(0.40f, 0.80f, 0.50f, 1.0f);
+                    icon = "> ";
+                }
+                else if (m.hover)
+                {
                     col = ImVec4(0.40f, 0.80f, 0.95f, 1.0f);
+                    icon = "^ ";
+                }
                 else if (m.animate)
+                {
                     col = ImVec4(0.95f, 0.75f, 0.30f, 1.0f);
+                    icon = "~ ";
+                }
 
                 if (sel)
                 {
@@ -266,10 +291,22 @@ void draw_scene(euengine::engine_context* ctx)
                     ImGui::PushStyleColor(ImGuiCol_Text, col);
                 }
 
-                if (ImGui::Selectable(m.name.c_str(), sel))
+                auto label = std::format("{}{}", icon, m.name);
+                if (ImGui::Selectable(label.c_str(), sel))
                     scene::g_selected = static_cast<int>(i);
 
                 ImGui::PopStyleColor(2);
+
+                // Tooltip with position info
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Position: %.1f, %.1f, %.1f", 
+                                m.transform.position.x,
+                                m.transform.position.y,
+                                m.transform.position.z);
+                    ImGui::EndTooltip();
+                }
 
                 // Double-click to focus
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) &&
@@ -600,12 +637,12 @@ void draw_stats(euengine::engine_context* ctx)
 
     ImGuiIO& io = ImGui::GetIO();
     
-    // Floating overlay - bottom right
-    float w = 200.0f;
-    float h = 130.0f;
+    // Enhanced floating overlay - bottom right, larger
+    float w = 380.0f;
+    float h = 280.0f;
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - w - 16, io.DisplaySize.y - h - 40));
     ImGui::SetNextWindowSize(ImVec2(w, h));
-    ImGui::SetNextWindowBgAlpha(0.85f);
+    ImGui::SetNextWindowBgAlpha(0.92f);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
@@ -617,29 +654,73 @@ void draw_stats(euengine::engine_context* ctx)
     if (ImGui::Begin("##perf", nullptr, flags))
     {
         // Header with close button
-        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Performance");
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Performance Metrics");
         ImGui::SameLine(ImGui::GetWindowWidth() - 28);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        if (ImGui::SmallButton("×"))
+        if (ImGui::SmallButton("x"))
             g_show_stats = false;
         ImGui::PopStyleColor();
         
         ImGui::Separator();
         
-        // Stats
+        // Current stats
         auto perf_text = std::format("{:.2f} ms  |  {:.0f} FPS", 
                                       ctx->time.delta * 1000.0f, ctx->time.fps);
         ImGui::Text("%s", perf_text.c_str());
+        
+        // FPS stats
+        if (scene::g_max_fps > 0.0f)
+        {
+            auto fps_stats = std::format("FPS: Min {:.0f} | Avg {:.0f} | Max {:.0f}",
+                                          scene::g_min_fps, scene::g_avg_fps, scene::g_max_fps);
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", fps_stats.c_str());
+        }
         
         auto frame_text = std::format("Frame {}  |  {:.1f}s elapsed",
                                        ctx->time.frame_count, ctx->time.elapsed);
         ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", frame_text.c_str());
         
+        // Render stats
+        auto render_text = std::format("Draw Calls: {}  |  Triangles: ~{}",
+                                        scene::g_draw_calls, scene::g_triangles);
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.58f, 1.0f), "%s", render_text.c_str());
+        
+        ImGui::Spacing();
+        
+        // Performance graphs using ImGui PlotLines
+        constexpr int size = 300;
+        int idx = scene::g_frame_idx;
+        float reordered_times[300];
+        float reordered_fps[300];
+        
+        // Reorder circular buffers for plotting
+        for (int i = 0; i < size; ++i)
+        {
+            int src_idx = (idx + i) % size;
+            if (src_idx >= 0 && src_idx < size)
+            {
+                reordered_times[i] = scene::g_frame_times[src_idx];
+                reordered_fps[i] = scene::g_fps_history[src_idx];
+            }
+            else
+            {
+                reordered_times[i] = 0.0f;
+                reordered_fps[i] = 0.0f;
+            }
+        }
+        
         // Frame time graph
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.38f, 0.68f, 0.93f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
-        ImGui::PlotLines("##ft", scene::g_frame_times, 120, scene::g_frame_idx, 
-                         nullptr, 0.0f, 33.3f, ImVec2(-1, 40));
+        ImGui::PlotLines("Frame Time (ms)", reordered_times, size, 0, nullptr, 0.0f, 33.3f, ImVec2(-1, 60));
+        ImGui::PopStyleColor(2);
+        
+        ImGui::Spacing();
+        
+        // FPS history graph
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.40f, 0.80f, 0.50f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.067f, 0.067f, 0.075f, 1.0f));
+        ImGui::PlotLines("FPS History", reordered_fps, size, 0, nullptr, 0.0f, 120.0f, ImVec2(-1, 60));
         ImGui::PopStyleColor(2);
     }
     ImGui::End();

@@ -32,58 +32,60 @@ void setup_scene()
 {
     rebuild_grid();
 
-    // Organized showcase layout - all animations disabled by default
-    // Front row: vehicles (smaller scale)
-    add_model("assets/models/tanks/t72/t72_base.obj",         { -8, 0, 6 }, 0.06f);
-    add_model("assets/models/tanks/sherman/sherman_base.obj", { -4, 0, 6 }, 0.06f);
-    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 4, 0, 6 },  0.06f);
-    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 8, 0, 6 }, 0.08f);
+    // Organized showcase layout - spread out for better visibility
+    // All animations disabled by default
+    
+    // Front row: vehicles - wider spacing
+    add_model("assets/models/tanks/t72/t72_base.obj",         { -12, 0, 8 }, 0.07f);
+    add_model("assets/models/tanks/sherman/sherman_base.obj", { -6, 0, 8 }, 0.07f);
+    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 6, 0, 8 },  0.07f);
+    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 12, 0, 8 }, 0.09f);
 
-    // Moving jeep - rides in a loop
-    if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -10, 0, 6 }, 0.06f))
+    // Moving jeep - rides in a wider loop
+    if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -15, 0, 8 }, 0.07f))
     {
         m->moving = true;
-        m->move_speed = 0.5f; // Speed along path (0-1 range per second)
-        m->move_dir = 1.0f;   // Start moving forward
-        m->move_start = { -10, 0, 6 };
-        m->move_end = { 10, 0, 6 };
-        m->transform.rotation.y = 90.0f; // Face forward
+        m->move_speed = 0.4f;
+        m->move_dir = 1.0f;
+        m->move_start = { -15, 0, 8 };
+        m->move_end = { 15, 0, 8 };
+        m->transform.rotation.y = 90.0f;
     }
 
-    // Middle row: aircraft (hovering, no rotation by default)
-    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -5, 1.2f, 0 }, 0.06f))
-    {
-        m->hover = true;
-        m->hover_base = 1.2f;
-        m->hover_range = 0.10f;
-    }
-    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.4f, 0 }, 0.06f))
-    {
-        m->hover = true;
-        m->hover_base = 1.4f;
-        m->hover_speed = 1.2f;
-        m->hover_range = 0.12f;
-    }
-    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 5, 1.3f, 0 }, 0.06f))
+    // Middle row: aircraft - wider spacing, different heights
+    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -8, 1.3f, 2 }, 0.07f))
     {
         m->hover = true;
         m->hover_base = 1.3f;
+        m->hover_range = 0.12f;
+    }
+    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.6f, 2 }, 0.07f))
+    {
+        m->hover = true;
+        m->hover_base = 1.6f;
+        m->hover_speed = 1.2f;
+        m->hover_range = 0.14f;
+    }
+    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 8, 1.4f, 2 }, 0.07f))
+    {
+        m->hover = true;
+        m->hover_base = 1.4f;
         m->hover_speed = 1.5f;
-        m->hover_range = 0.08f;
+        m->hover_range = 0.10f;
     }
 
-    // Back row: structures (smaller)
-    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -7, 0, -6 }, 0.08f);
-    add_model("assets/models/mapobjects/houses/temple.obj", { -2, 0, -6 }, 0.07f);
-    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 3, 0, -6 }, 0.06f);
-    add_model("assets/models/mapobjects/radar/radar.obj", { 8, 0, -6 }, 0.08f);
+    // Back row: structures - wider spacing
+    add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -10, 0, -8 }, 0.09f);
+    add_model("assets/models/mapobjects/houses/temple.obj", { -3, 0, -8 }, 0.08f);
+    add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 4, 0, -8 }, 0.07f);
+    add_model("assets/models/mapobjects/radar/radar.obj", { 11, 0, -8 }, 0.09f);
 
-    // Sides: ships (smaller)
-    add_model("assets/models/ships/lodka/lodka.obj", { -12, 0, 0 }, 0.05f);
-    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 12, 0, 0 }, 0.04f);
+    // Sides: ships - further out
+    add_model("assets/models/ships/lodka/lodka.obj", { -18, 0, -2 }, 0.06f);
+    add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 18, 0, -2 }, 0.05f);
 
-    // Center: featured duck (smaller)
-    add_model("assets/models/samples/duck.glb", { 0, 0.1f, 9 }, 0.10f);
+    // Center: featured duck - more prominent
+    add_model("assets/models/samples/duck.glb", { 0, 0.15f, 12 }, 0.12f);
 }
 
 void process_input()
@@ -259,8 +261,26 @@ void shutdown()
 void update(euengine::engine_context* ctx)
 {
     // Stats
+    constexpr int history_size = 300;
     g_frame_times[g_frame_idx] = ctx->time.delta * 1000.0f;
-    g_frame_idx = (g_frame_idx + 1) % 120;
+    g_fps_history[g_frame_idx] = ctx->time.fps;
+    g_frame_idx = (g_frame_idx + 1) % history_size;
+    
+    // Calculate FPS stats
+    g_min_fps = 999.0f;
+    g_max_fps = 0.0f;
+    float fps_sum = 0.0f;
+    for (int i = 0; i < history_size; ++i)
+    {
+        if (g_fps_history[i] > 0.0f)
+        {
+            g_min_fps = std::min(g_min_fps, g_fps_history[i]);
+            g_max_fps = std::max(g_max_fps, g_fps_history[i]);
+            fps_sum += g_fps_history[i];
+        }
+    }
+    g_avg_fps = fps_sum / history_size;
+    
     g_draw_calls = static_cast<int>(g_models.size() + g_grids.size());
     g_triangles = static_cast<int>(g_models.size()) * 500; // estimate
 
