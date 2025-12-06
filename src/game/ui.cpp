@@ -337,15 +337,6 @@ void draw_scene(euengine::engine_context* ctx)
                 scene::rebuild_grid();
             
             ImGui::Checkbox("Origin Axis", &scene::g_show_origin);
-            
-            ImGui::Spacing();
-            ImGui::Checkbox("Grid Snap", &g_grid_snap);
-            if (g_grid_snap)
-            {
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(80);
-                ImGui::DragFloat("##snap", &g_snap_size, 0.1f, 0.1f, 10.0f, "%.1f");
-            }
         }
 
         // Objects list
@@ -719,13 +710,13 @@ void draw_engine(euengine::engine_context* ctx)
     if (!g_show_engine) return;
 
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 300, 40), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(284, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 250), ImVec2(450, io.DisplaySize.y - 60));
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 420, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, io.DisplaySize.y - 80), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(350, 400), ImVec2(600, io.DisplaySize.y - 60));
 
     if (ImGui::Begin("Engine Settings", &g_show_engine))
     {
-        // Renderer
+        // Renderer Info
         ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Renderer");
         ImGui::Separator();
         
@@ -737,6 +728,8 @@ void draw_engine(euengine::engine_context* ctx)
         bool fs = ctx->settings->is_fullscreen();
         if (ImGui::Checkbox("Fullscreen (F11)", &fs))
             ctx->settings->set_fullscreen(fs);
+
+        ImGui::Spacing();
 
         // VSync
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
@@ -755,10 +748,16 @@ void draw_engine(euengine::engine_context* ctx)
             ctx->settings->set_vsync(euengine::vsync_mode::enabled);
 
         ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
 
+        // Anti-Aliasing Section
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Anti-Aliasing");
+        ImGui::Separator();
+        
         // MSAA
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
-        ImGui::Text("MSAA (Multi-Sample Anti-Aliasing)");
+        ImGui::Text("MSAA");
         ImGui::PopStyleColor();
         
         int msaa = static_cast<int>(ctx->settings->get_msaa());
@@ -803,21 +802,29 @@ void draw_engine(euengine::engine_context* ctx)
         
         // FXAA (post-processing)
         bool fxaa = ctx->settings->is_fxaa_enabled();
-        if (ImGui::Checkbox("FXAA", &fxaa))
+        if (ImGui::Checkbox("FXAA (Post-Process)", &fxaa))
             ctx->settings->set_fxaa_enabled(fxaa);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Fast Approximate Anti-Aliasing (post-processing)");
 
         ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Quality Settings
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Quality");
+        ImGui::Separator();
 
         // Render Scale
         float render_scale = ctx->settings->get_render_scale();
         if (ImGui::SliderFloat("Render Scale", &render_scale, 0.25f, 4.0f, "%.2fx"))
             ctx->settings->set_render_scale(render_scale);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Internal resolution multiplier (0.25x = quarter, 1.0x = native, 4.0x = supersampling)");
 
-        // Texture Quality (applies to newly loaded textures)
+        // Texture Quality
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
-        ImGui::Text("Texture Quality (new textures only)");
+        ImGui::Text("Texture Filtering");
         ImGui::PopStyleColor();
         
         int tex_filter = static_cast<int>(ctx->settings->get_texture_filter());
@@ -838,12 +845,18 @@ void draw_engine(euengine::engine_context* ctx)
         
         // Max Anisotropy
         float max_aniso = ctx->settings->get_max_anisotropy();
-        if (ImGui::SliderFloat("Anisotropic Filter", &max_aniso, 1.0f, 16.0f, "%.0fx"))
+        if (ImGui::SliderFloat("Anisotropic Filtering", &max_aniso, 1.0f, 16.0f, "%.0fx"))
             ctx->settings->set_max_anisotropy(max_aniso);
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Improves texture quality at angles - applies to newly loaded textures");
+            ImGui::SetTooltip("Improves texture quality at oblique angles (1x-16x)");
         
         ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        
+        // Performance Settings
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Performance");
+        ImGui::Separator();
         
         // Frame Buffering
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
@@ -865,8 +878,6 @@ void draw_engine(euengine::engine_context* ctx)
             ctx->settings->set_frames_in_flight(3);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Smoothest, higher latency");
-
-        ImGui::Spacing();
         
         // Render Distance
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
