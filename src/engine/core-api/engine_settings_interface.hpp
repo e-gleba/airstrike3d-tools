@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file engine_settings_interface.hpp
-/// @brief Interface for runtime engine settings accessible from game code
-
 #include "audio_interface.hpp"
 #include "window_settings.hpp"
 

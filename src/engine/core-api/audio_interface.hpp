@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file audio_interface.hpp
-/// @brief Abstract audio interface for sound and music playback
-
 #include <cstdint>
 #include <filesystem>
 

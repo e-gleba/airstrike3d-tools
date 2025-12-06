@@ -1,9 +1,5 @@
 #pragma once
 
-/// @file platform.hpp
-/// @brief Constexpr platform detection without macros
-/// Modern C++23 approach to platform-specific code
-
 #include <string_view>
 
 namespace as3::platform

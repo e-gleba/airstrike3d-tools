@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file window_settings.hpp
-/// @brief Window and display configuration structures
-
 #include <cstdint>
 #include <string_view>
 

@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file game_api.hpp
-/// @brief Engine-game interface definitions for dynamic library loading
-
 #include "audio_interface.hpp"
 #include "camera.hpp"
 #include "engine_settings_interface.hpp"

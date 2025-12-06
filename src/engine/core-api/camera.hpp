@@ -6,7 +6,6 @@
 namespace as3
 {
 
-// Camera component for ECS
 struct CameraComponent final
 {
     glm::vec3 position   = glm::vec3(0.0f, 5.0f, 10.0f);
