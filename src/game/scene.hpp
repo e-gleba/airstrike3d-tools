@@ -1,0 +1,71 @@
+#pragma once
+
+#include <core-api/game.hpp>
+#include <string>
+#include <vector>
+
+namespace scene
+{
+
+struct model_instance
+{
+    euengine::model_handle handle = euengine::invalid_model;
+    std::string            name;
+    std::string            path;
+    euengine::transform    transform;
+    euengine::bounds       bounds;
+    bool                   animate      = false;
+    float                  anim_speed   = 25.0f;
+    bool                   hover        = false;
+    float                  hover_base   = 0.0f;
+    float                  hover_speed  = 1.5f;
+    float                  hover_range  = 0.2f;
+};
+
+struct audio_file
+{
+    euengine::music_handle handle = euengine::invalid_music;
+    std::string            name;
+    std::string            path;
+    bool                   is_sfx = false;
+    float                  duration = 0.0f;
+};
+
+// State
+inline euengine::engine_context*          g_ctx = nullptr;
+inline std::vector<euengine::mesh_handle> g_grids;
+inline entt::entity                       g_camera = entt::null;
+
+inline std::vector<model_instance> g_models;
+inline int                         g_selected = -1;
+
+inline std::vector<audio_file>     g_audio;
+inline int                         g_playing = -1;
+
+// Browser
+inline std::vector<std::string>    g_model_files;
+inline int                         g_browser_sel = -1;
+
+// Info
+inline std::string g_lib_path;
+inline std::size_t g_lib_size = 0;
+
+// Stats
+inline int    g_draw_calls = 0;
+inline int    g_triangles = 0;
+inline float  g_frame_times[120] = {};
+inline int    g_frame_idx = 0;
+
+void init(euengine::engine_context* ctx);
+void shutdown();
+void update(euengine::engine_context* ctx);
+void render(euengine::engine_context* ctx);
+
+void scan_models();
+void scan_audio();
+model_instance* add_model(const std::string& path, const glm::vec3& pos, float scale = 0.1f);
+void remove_model(int idx);
+void apply_sky();
+void rebuild_grid();
+
+} // namespace scene
