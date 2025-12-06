@@ -6,7 +6,6 @@
 namespace as3
 {
 
-/// VSync mode enumeration
 enum class vsync_mode : std::uint8_t
 {
     disabled = 0, ///< No VSync - uncapped framerate
@@ -14,7 +13,6 @@ enum class vsync_mode : std::uint8_t
     adaptive = 2, ///< Adaptive VSync - allow tearing when below refresh
 };
 
-/// Window mode enumeration
 enum class window_mode : std::uint8_t
 {
     windowed,           ///< Normal windowed mode
@@ -23,7 +21,6 @@ enum class window_mode : std::uint8_t
     fullscreen_desktop, ///< Fullscreen at desktop resolution
 };
 
-/// MSAA sample count
 enum class msaa_samples : std::uint8_t
 {
     none = 1,
@@ -32,7 +29,6 @@ enum class msaa_samples : std::uint8_t
     x8   = 8,
 };
 
-/// Window configuration settings
 struct window_settings final
 {
     std::string_view title             = "airstrike3d";
@@ -47,7 +43,6 @@ struct window_settings final
     bool             high_dpi          = true;
     bool             allow_screensaver = false;
 
-    /// Create settings for windowed mode
     [[nodiscard]] static constexpr window_settings windowed(
         std::int32_t w = 1280, std::int32_t h = 720) noexcept
     {
@@ -58,7 +53,6 @@ struct window_settings final
         };
     }
 
-    /// Create settings for fullscreen mode
     [[nodiscard]] static constexpr window_settings fullscreen() noexcept
     {
         return window_settings{
@@ -66,7 +60,6 @@ struct window_settings final
         };
     }
 
-    /// Create settings for borderless window
     [[nodiscard]] static constexpr window_settings borderless() noexcept
     {
         return window_settings{
@@ -75,7 +68,6 @@ struct window_settings final
     }
 };
 
-/// Renderer configuration
 struct renderer_settings final
 {
     bool  wireframe_mode  = false;
@@ -92,7 +84,6 @@ struct renderer_settings final
     }
 };
 
-/// Audio configuration
 struct audio_settings final
 {
     float music_volume  = 0.7f;

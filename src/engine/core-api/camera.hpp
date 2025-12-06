@@ -6,7 +6,7 @@
 namespace as3
 {
 
-struct CameraComponent final
+struct camera_component final
 {
     glm::vec3 position   = glm::vec3(0.0f, 5.0f, 10.0f);
     float     yaw        = -90.0f;

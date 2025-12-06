@@ -58,7 +58,7 @@ using SDLSharedObjectPtr =
 
 /// Main engine class - manages window, GPU, subsystems and game loop
 /// Also implements IEngineSettings for game access to runtime settings
-class engine final : public IEngineSettings
+class engine final : public i_engine_settings
 {
 public:
     engine();

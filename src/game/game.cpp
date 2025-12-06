@@ -165,7 +165,7 @@ void update_camera(as3::engine_context* ctx)
     if (g_camera_entity == entt::null || !ctx->registry->valid(g_camera_entity))
         return;
 
-    auto& cam = ctx->registry->get<as3::CameraComponent>(g_camera_entity);
+    auto& cam = ctx->registry->get<as3::camera_component>(g_camera_entity);
 
     // Mouse look (when captured)
     if (ctx->input.mouse_captured)
@@ -284,7 +284,7 @@ GAME_API bool game_init(as3::engine_context* ctx)
         ctx->registry->destroy(g_camera_entity);
 
     g_camera_entity = ctx->registry->create();
-    auto& cam = ctx->registry->emplace<as3::CameraComponent>(g_camera_entity);
+    auto& cam = ctx->registry->emplace<as3::camera_component>(g_camera_entity);
     cam.position   = { 0.0f, 15.0f, 25.0f };
     cam.pitch      = -25.0f;
     cam.yaw        = -90.0f;
@@ -465,7 +465,7 @@ GAME_API void game_ui(as3::engine_context* ctx)
                 ctx->registry->valid(g_camera_entity))
             {
                 auto& cam =
-                    ctx->registry->get<as3::CameraComponent>(g_camera_entity);
+                    ctx->registry->get<as3::camera_component>(g_camera_entity);
                 ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "Camera");
                 ImGui::Separator();
                 ImGui::Text("Pos: %.1f, %.1f, %.1f",

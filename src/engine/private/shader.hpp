@@ -71,7 +71,7 @@ private:
     void           release() noexcept;
 };
 
-class ShaderManager final : public IShaderManager
+class ShaderManager final : public i_shader_manager
 {
 public:
     using ReloadCallback = std::function<void(const std::string&)>;

@@ -79,7 +79,7 @@ struct uniform_mvp final
 };
 
 /// Main renderer class implementing IRenderer interface
-class Renderer final : public IRenderer
+class Renderer final : public i_renderer
 {
 public:
     Renderer() = default;

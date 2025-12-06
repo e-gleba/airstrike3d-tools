@@ -12,14 +12,11 @@ using sound_handle = std::uint64_t;
 constexpr music_handle invalid_music = 0;
 constexpr sound_handle invalid_sound = 0;
 
-/// Abstract audio interface
-/// Engine provides implementation, game uses interface
-class IAudio
+class i_audio
 {
 public:
-    virtual ~IAudio() = default;
+    virtual ~i_audio() = default;
 
-    // Music (streaming, one at a time)
     [[nodiscard]] virtual music_handle load_music(
         const std::filesystem::path& path)                        = 0;
     virtual void unload_music(music_handle music)                 = 0;
@@ -33,7 +30,6 @@ public:
     [[nodiscard]] virtual bool         is_music_paused() const    = 0;
     [[nodiscard]] virtual music_handle current_music() const      = 0;
 
-    // Sound effects (multiple can play simultaneously)
     [[nodiscard]] virtual sound_handle load_sound(
         const std::filesystem::path& path)                           = 0;
     virtual void unload_sound(sound_handle sound)                    = 0;

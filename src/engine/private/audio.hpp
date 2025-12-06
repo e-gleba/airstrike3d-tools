@@ -16,7 +16,7 @@ namespace as3
 {
 
 /// Audio manager implementing IAudio interface
-class AudioManager final : public IAudio
+class AudioManager final : public i_audio
 {
 public:
     AudioManager() = default;

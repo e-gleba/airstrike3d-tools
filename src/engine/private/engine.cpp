@@ -516,7 +516,7 @@ void engine::process_events()
 void engine::update()
 {
     // Update camera components using ranges
-    auto camera_view = registry_.view<CameraComponent>();
+    auto camera_view = registry_.view<camera_component>();
     for (auto&& [entity, cam] : camera_view.each())
     {
         if (mouse_captured_)
@@ -604,7 +604,7 @@ void engine::render()
         renderer_->begin_frame(cmd, pass);
 
         // Set view projection from first camera
-        auto camera_view = registry_.view<CameraComponent>();
+        auto camera_view = registry_.view<camera_component>();
         for (auto&& [entity, cam] : camera_view.each())
         {
             renderer_->set_view_projection(
