@@ -105,6 +105,21 @@ public:
 
     /// Ensure depth texture matches given dimensions
     void ensure_depth_texture(Uint32 width, Uint32 height);
+    
+    /// Ensure MSAA render targets match dimensions and sample count
+    void ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFormat format);
+    
+    /// Get MSAA color target (or nullptr if MSAA disabled)
+    [[nodiscard]] SDL_GPUTexture* msaa_color_target() const noexcept { return msaa_color_texture_; }
+    
+    /// Get MSAA depth target (or nullptr if MSAA disabled)
+    [[nodiscard]] SDL_GPUTexture* msaa_depth_target() const noexcept { return msaa_depth_texture_; }
+    
+    /// Get current MSAA sample count
+    [[nodiscard]] msaa_samples get_msaa_samples() const noexcept { return msaa_samples_; }
+    
+    /// Resolve MSAA to target texture (call after render pass)
+    void resolve_msaa(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target);
 
     /// Set MSAA samples (requires pipeline recreation)
     void set_msaa_samples(msaa_samples samples) override;
@@ -230,6 +245,13 @@ private:
     SDL_GPUTexture* depth_texture_ = nullptr;
     Uint32          depth_width_   = 0;
     Uint32          depth_height_  = 0;
+
+    // MSAA render targets (when MSAA > 1)
+    SDL_GPUTexture* msaa_color_texture_   = nullptr;
+    SDL_GPUTexture* msaa_depth_texture_   = nullptr;
+    SDL_GPUTexture* msaa_resolve_texture_ = nullptr;
+    Uint32          msaa_width_           = 0;
+    Uint32          msaa_height_          = 0;
 
     // Handle generators
     std::uint64_t next_mesh_handle_    = 1;

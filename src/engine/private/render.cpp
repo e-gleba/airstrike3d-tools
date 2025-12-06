@@ -201,6 +201,23 @@ void Renderer::shutdown()
         SDL_ReleaseGPUTexture(device_, depth_texture_);
         depth_texture_ = nullptr;
     }
+    
+    // Release MSAA render targets
+    if (msaa_color_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_color_texture_);
+        msaa_color_texture_ = nullptr;
+    }
+    if (msaa_depth_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_depth_texture_);
+        msaa_depth_texture_ = nullptr;
+    }
+    if (msaa_resolve_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
+        msaa_resolve_texture_ = nullptr;
+    }
 }
 
 void Renderer::ensure_depth_texture(Uint32 width, Uint32 height)
@@ -241,6 +258,143 @@ void Renderer::ensure_depth_texture(Uint32 width, Uint32 height)
     {
         spdlog::error("== depth texture: {}", SDL_GetError());
     }
+}
+
+void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFormat format)
+{
+    // Skip if MSAA is disabled
+    if (msaa_samples_ == msaa_samples::none)
+    {
+        // Release existing MSAA textures if any
+        if (msaa_color_texture_ != nullptr)
+        {
+            SDL_ReleaseGPUTexture(device_, msaa_color_texture_);
+            msaa_color_texture_ = nullptr;
+        }
+        if (msaa_depth_texture_ != nullptr)
+        {
+            SDL_ReleaseGPUTexture(device_, msaa_depth_texture_);
+            msaa_depth_texture_ = nullptr;
+        }
+        if (msaa_resolve_texture_ != nullptr)
+        {
+            SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
+            msaa_resolve_texture_ = nullptr;
+        }
+        msaa_width_ = 0;
+        msaa_height_ = 0;
+        return;
+    }
+    
+    // Check if we need to recreate
+    if (msaa_color_texture_ != nullptr && msaa_width_ == width && msaa_height_ == height)
+    {
+        return; // Already have correct size
+    }
+    
+    // Release old textures
+    if (msaa_color_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_color_texture_);
+        msaa_color_texture_ = nullptr;
+    }
+    if (msaa_depth_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_depth_texture_);
+        msaa_depth_texture_ = nullptr;
+    }
+    if (msaa_resolve_texture_ != nullptr)
+    {
+        SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
+        msaa_resolve_texture_ = nullptr;
+    }
+    
+    // Determine sample count
+    SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+    switch (msaa_samples_)
+    {
+        case msaa_samples::none: sample_count = SDL_GPU_SAMPLECOUNT_1; break;
+        case msaa_samples::x2:   sample_count = SDL_GPU_SAMPLECOUNT_2; break;
+        case msaa_samples::x4:   sample_count = SDL_GPU_SAMPLECOUNT_4; break;
+        case msaa_samples::x8:   sample_count = SDL_GPU_SAMPLECOUNT_8; break;
+    }
+    
+    // Check if this sample count is supported
+    if (!SDL_GPUTextureSupportsSampleCount(device_, format, sample_count))
+    {
+        spdlog::warn("MSAA {}x not supported for this format, falling back to 1x", 
+                     static_cast<int>(sample_count));
+        msaa_samples_ = msaa_samples::none;
+        pipeline_dirty_ = true;
+        return;
+    }
+    
+    spdlog::info("Creating MSAA {}x render targets ({}x{})", 
+                 static_cast<int>(sample_count), width, height);
+    
+    // Create MSAA color texture
+    SDL_GPUTextureCreateInfo color_info {};
+    color_info.type                 = SDL_GPU_TEXTURETYPE_2D;
+    color_info.format               = format;
+    color_info.usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+    color_info.width                = width;
+    color_info.height               = height;
+    color_info.layer_count_or_depth = 1;
+    color_info.num_levels           = 1;
+    color_info.sample_count         = sample_count;
+    
+    msaa_color_texture_ = SDL_CreateGPUTexture(device_, &color_info);
+    if (msaa_color_texture_ == nullptr)
+    {
+        spdlog::error("Failed to create MSAA color texture: {}", SDL_GetError());
+        return;
+    }
+    
+    // Create MSAA depth texture
+    SDL_GPUTextureCreateInfo depth_info {};
+    depth_info.type                 = SDL_GPU_TEXTURETYPE_2D;
+    depth_info.format               = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    depth_info.usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+    depth_info.width                = width;
+    depth_info.height               = height;
+    depth_info.layer_count_or_depth = 1;
+    depth_info.num_levels           = 1;
+    depth_info.sample_count         = sample_count;
+    
+    msaa_depth_texture_ = SDL_CreateGPUTexture(device_, &depth_info);
+    if (msaa_depth_texture_ == nullptr)
+    {
+        spdlog::error("Failed to create MSAA depth texture: {}", SDL_GetError());
+        SDL_ReleaseGPUTexture(device_, msaa_color_texture_);
+        msaa_color_texture_ = nullptr;
+        return;
+    }
+    
+    msaa_width_ = width;
+    msaa_height_ = height;
+    
+    spdlog::info("MSAA render targets created successfully");
+}
+
+void Renderer::resolve_msaa(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
+{
+    if (msaa_samples_ == msaa_samples::none || msaa_color_texture_ == nullptr)
+    {
+        return; // Nothing to resolve
+    }
+    
+    // Blit from MSAA texture to swapchain (this resolves the MSAA)
+    SDL_GPUBlitInfo blit_info {};
+    blit_info.source.texture = msaa_color_texture_;
+    blit_info.source.w = msaa_width_;
+    blit_info.source.h = msaa_height_;
+    blit_info.destination.texture = target;
+    blit_info.destination.w = msaa_width_;
+    blit_info.destination.h = msaa_height_;
+    blit_info.load_op = SDL_GPU_LOADOP_DONT_CARE;
+    blit_info.filter = SDL_GPU_FILTER_LINEAR;
+    
+    SDL_BlitGPUTexture(cmd, &blit_info);
 }
 
 bool Renderer::create_wireframe_pipeline()

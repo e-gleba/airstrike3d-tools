@@ -156,6 +156,11 @@ bool engine::init(const preinit_settings& settings)
     // Apply initial rendering settings to renderer
     renderer_->set_msaa_samples(current_msaa_);
     renderer_->set_max_anisotropy(max_anisotropy_);
+    
+    // Set frame buffering (default: 2 = double buffering)
+    SDL_SetGPUAllowedFramesInFlight(device_.get(), frames_in_flight_);
+    spdlog::info("Frames in flight: {}", frames_in_flight_);
+    
     renderer_->ensure_depth_texture(
         static_cast<Uint32>(settings.window.width),
         static_cast<Uint32>(settings.window.height));
@@ -378,6 +383,50 @@ void engine::set_max_anisotropy(float anisotropy) noexcept
     {
         renderer_->set_max_anisotropy(max_anisotropy_);
     }
+}
+
+void engine::set_frames_in_flight(std::uint32_t frames) noexcept
+{
+    frames_in_flight_ = std::clamp(frames, 1u, 3u);
+    // Note: SDL_SetGPUAllowedFramesInFlight should only be called before rendering starts
+    // or between frames. Changing it during rendering can cause crashes.
+    // We'll apply it at the start of the next frame via a dirty flag.
+    frames_in_flight_dirty_ = true;
+    spdlog::info("Frames in flight will be set to: {}", frames_in_flight_);
+}
+
+bool engine::is_msaa_supported(msaa_samples samples) const noexcept
+{
+    if (!device_)
+        return false;
+    
+    SDL_GPUSampleCount count = SDL_GPU_SAMPLECOUNT_1;
+    switch (samples)
+    {
+        case msaa_samples::none: count = SDL_GPU_SAMPLECOUNT_1; break;
+        case msaa_samples::x2:   count = SDL_GPU_SAMPLECOUNT_2; break;
+        case msaa_samples::x4:   count = SDL_GPU_SAMPLECOUNT_4; break;
+        case msaa_samples::x8:   count = SDL_GPU_SAMPLECOUNT_8; break;
+    }
+    
+    // Check if this sample count is supported for the swapchain format
+    auto format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
+    return SDL_GPUTextureSupportsSampleCount(device_.get(), format, count);
+}
+
+void engine::set_gamma(float gamma) noexcept
+{
+    gamma_ = std::clamp(gamma, 1.0f, 3.0f);
+}
+
+void engine::set_brightness(float brightness) noexcept
+{
+    brightness_ = std::clamp(brightness, -1.0f, 1.0f);
+}
+
+void engine::set_contrast(float contrast) noexcept
+{
+    contrast_ = std::clamp(contrast, 0.5f, 2.0f);
 }
 
 void engine::set_master_volume(float volume) noexcept
@@ -691,6 +740,16 @@ void engine::render()
         apply_vsync_mode();
         vsync_dirty_ = false;
     }
+    
+    // Apply deferred frames in flight change
+    if (frames_in_flight_dirty_)
+    {
+        // Wait for GPU to be idle before changing this
+        SDL_WaitForGPUIdle(device_.get());
+        SDL_SetGPUAllowedFramesInFlight(device_.get(), frames_in_flight_);
+        frames_in_flight_dirty_ = false;
+        spdlog::info("Frames in flight applied: {}", frames_in_flight_);
+    }
 
     auto* cmd = SDL_AcquireGPUCommandBuffer(device_.get());
     if (cmd == nullptr)
@@ -716,10 +775,31 @@ void engine::render()
     }
 
     renderer_->ensure_depth_texture(swapchain_w, swapchain_h);
+    
+    // Get swapchain format for MSAA targets
+    auto swapchain_format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
+    
+    // Ensure MSAA render targets if MSAA is enabled
+    const bool use_msaa = (renderer_->get_msaa_samples() != msaa_samples::none);
+    if (use_msaa)
+    {
+        renderer_->ensure_msaa_targets(swapchain_w, swapchain_h, swapchain_format);
+    }
+    
+    // Determine which textures to render to
+    SDL_GPUTexture* color_texture = use_msaa ? renderer_->msaa_color_target() : swapchain;
+    SDL_GPUTexture* depth_texture = use_msaa ? renderer_->msaa_depth_target() : renderer_->depth_texture();
+    
+    // Fallback if MSAA target creation failed
+    if (use_msaa && (color_texture == nullptr || depth_texture == nullptr))
+    {
+        color_texture = swapchain;
+        depth_texture = renderer_->depth_texture();
+    }
 
     // Setup color target with game-controlled clear color
     SDL_GPUColorTargetInfo color_target {};
-    color_target.texture     = swapchain;
+    color_target.texture     = color_texture;
     color_target.clear_color = {
         .r = background_.r,
         .g = background_.g,
@@ -728,10 +808,17 @@ void engine::render()
     };
     color_target.load_op  = SDL_GPU_LOADOP_CLEAR;
     color_target.store_op = SDL_GPU_STOREOP_STORE;
+    
+    // For MSAA, we need to resolve to the swapchain
+    if (use_msaa && renderer_->msaa_color_target() != nullptr)
+    {
+        color_target.resolve_texture = swapchain;
+        color_target.store_op = SDL_GPU_STOREOP_RESOLVE;
+    }
 
     // Setup depth target
     SDL_GPUDepthStencilTargetInfo depth_target {};
-    depth_target.texture          = renderer_->depth_texture();
+    depth_target.texture          = depth_texture;
     depth_target.clear_depth      = 1.0f;
     depth_target.load_op          = SDL_GPU_LOADOP_CLEAR;
     depth_target.store_op         = SDL_GPU_STOREOP_STORE;

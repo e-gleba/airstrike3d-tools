@@ -728,10 +728,10 @@ void draw_engine(euengine::engine_context* ctx)
         ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Renderer");
         ImGui::Separator();
         
-        ImGui::Text("%s", std::format("GPU: {}", ctx->settings->get_gpu_driver()).c_str());
-        ImGui::Text("%s", std::format("Resolution: {} x {}",
-                                       ctx->settings->get_window_width(),
-                                       ctx->settings->get_window_height()).c_str());
+        ImGui::Text("GPU: %s", sanitize_utf8(std::string(ctx->settings->get_gpu_driver())).c_str());
+        ImGui::Text("Resolution: %d x %d",
+                    ctx->settings->get_window_width(),
+                    ctx->settings->get_window_height());
 
         bool fs = ctx->settings->is_fullscreen();
         if (ImGui::Checkbox("Fullscreen (F11)", &fs))
@@ -757,28 +757,36 @@ void draw_engine(euengine::engine_context* ctx)
 
         // MSAA
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
-        ImGui::Text("MSAA (Limited - requires render target)");
+        ImGui::Text("MSAA (Anti-Aliasing)");
         ImGui::PopStyleColor();
         
         int msaa = static_cast<int>(ctx->settings->get_msaa());
+        
+        // Check GPU support for each MSAA level
+        bool msaa2_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x2);
+        bool msaa4_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x4);
+        bool msaa8_ok = ctx->settings->is_msaa_supported(euengine::msaa_samples::x8);
+        
         if (ImGui::RadioButton("Off", msaa == 1))
             ctx->settings->set_msaa(euengine::msaa_samples::none);
         ImGui::SameLine();
+        
+        ImGui::BeginDisabled(!msaa2_ok);
         if (ImGui::RadioButton("2x", msaa == 2))
             ctx->settings->set_msaa(euengine::msaa_samples::x2);
+        ImGui::EndDisabled();
         ImGui::SameLine();
+        
+        ImGui::BeginDisabled(!msaa4_ok);
         if (ImGui::RadioButton("4x", msaa == 4))
             ctx->settings->set_msaa(euengine::msaa_samples::x4);
+        ImGui::EndDisabled();
         ImGui::SameLine();
+        
+        ImGui::BeginDisabled(!msaa8_ok);
         if (ImGui::RadioButton("8x", msaa == 8))
             ctx->settings->set_msaa(euengine::msaa_samples::x8);
-        
-        if (msaa != 1)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
-            ImGui::TextWrapped("Note: MSAA requires render target implementation for full effect.");
-            ImGui::PopStyleColor();
-        }
+        ImGui::EndDisabled();
 
         ImGui::Spacing();
 
@@ -789,8 +797,62 @@ void draw_engine(euengine::engine_context* ctx)
 
         // Max Anisotropy
         float max_aniso = ctx->settings->get_max_anisotropy();
-        if (ImGui::SliderFloat("Max Anisotropy", &max_aniso, 1.0f, 16.0f, "%.0f"))
+        if (ImGui::SliderFloat("Anisotropic Filter", &max_aniso, 1.0f, 16.0f, "%.0fx"))
             ctx->settings->set_max_anisotropy(max_aniso);
+        
+        ImGui::Spacing();
+        
+        // Frame Buffering
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+        ImGui::Text("Frame Buffering");
+        ImGui::PopStyleColor();
+        
+        int frames = static_cast<int>(ctx->settings->get_frames_in_flight());
+        if (ImGui::RadioButton("Single (1)", frames == 1))
+            ctx->settings->set_frames_in_flight(1);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Lowest latency, may cause stuttering");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Double (2)", frames == 2))
+            ctx->settings->set_frames_in_flight(2);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Balanced latency and smoothness (default)");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Triple (3)", frames == 3))
+            ctx->settings->set_frames_in_flight(3);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Smoothest, higher latency");
+
+        ImGui::Spacing();
+        
+        // Display Settings
+        ImGui::TextColored(ImVec4(0.38f, 0.68f, 0.93f, 1.0f), "Display");
+        ImGui::Separator();
+        
+        float gamma = ctx->settings->get_gamma();
+        if (ImGui::SliderFloat("Gamma", &gamma, 1.0f, 3.0f, "%.2f"))
+            ctx->settings->set_gamma(gamma);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Display gamma correction (default: 2.2)");
+        
+        float brightness = ctx->settings->get_brightness();
+        if (ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f"))
+            ctx->settings->set_brightness(brightness);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Brightness adjustment (default: 0)");
+        
+        float contrast = ctx->settings->get_contrast();
+        if (ImGui::SliderFloat("Contrast", &contrast, 0.5f, 2.0f, "%.2f"))
+            ctx->settings->set_contrast(contrast);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Contrast adjustment (default: 1.0)");
+        
+        if (ImGui::Button("Reset Display", ImVec2(-1, 0)))
+        {
+            ctx->settings->set_gamma(2.2f);
+            ctx->settings->set_brightness(0.0f);
+            ctx->settings->set_contrast(1.0f);
+        }
 
         ImGui::Spacing();
 

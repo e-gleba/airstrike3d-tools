@@ -155,6 +155,21 @@ public:
     {
         return max_anisotropy_;
     }
+    void                    set_frames_in_flight(std::uint32_t frames) noexcept override;
+    [[nodiscard]] std::uint32_t get_frames_in_flight() const noexcept override
+    {
+        return frames_in_flight_;
+    }
+    [[nodiscard]] bool is_msaa_supported(msaa_samples samples) const noexcept override;
+    
+    void                set_gamma(float gamma) noexcept override;
+    [[nodiscard]] float get_gamma() const noexcept override { return gamma_; }
+    
+    void                set_brightness(float brightness) noexcept override;
+    [[nodiscard]] float get_brightness() const noexcept override { return brightness_; }
+    
+    void                set_contrast(float contrast) noexcept override;
+    [[nodiscard]] float get_contrast() const noexcept override { return contrast_; }
 
     void request_quit() noexcept override { running_ = false; }
 
@@ -211,9 +226,14 @@ private:
     clear_color background_ = clear_color::dark();
 
     // Rendering settings
-    msaa_samples current_msaa_   = msaa_samples::none;
-    float        render_scale_   = 1.0f;
-    float        max_anisotropy_ = 16.0f;
+    msaa_samples  current_msaa_          = msaa_samples::none;
+    float         render_scale_          = 1.0f;
+    float         max_anisotropy_        = 16.0f;
+    std::uint32_t frames_in_flight_      = 2; // Default double buffering
+    bool          frames_in_flight_dirty_ = false;
+    float         gamma_                  = 2.2f;
+    float         brightness_             = 0.0f;
+    float         contrast_               = 1.0f;
 
     // Audio
     float master_volume_     = 1.0f;

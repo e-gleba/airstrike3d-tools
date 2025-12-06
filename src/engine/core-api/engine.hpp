@@ -43,6 +43,25 @@ public:
     virtual void                set_max_anisotropy(float anisotropy) noexcept = 0;
     [[nodiscard]] virtual float get_max_anisotropy() const noexcept          = 0;
 
+    /// Frame buffering (1-3, lower = less latency, higher = smoother)
+    virtual void                    set_frames_in_flight(std::uint32_t frames) noexcept = 0;
+    [[nodiscard]] virtual std::uint32_t get_frames_in_flight() const noexcept          = 0;
+
+    /// Check if MSAA sample count is supported by GPU
+    [[nodiscard]] virtual bool is_msaa_supported(msaa_samples samples) const noexcept = 0;
+    
+    /// Gamma correction (1.0-3.0, default 2.2)
+    virtual void                set_gamma(float gamma) noexcept = 0;
+    [[nodiscard]] virtual float get_gamma() const noexcept     = 0;
+    
+    /// Brightness adjustment (-1.0 to 1.0, default 0.0)
+    virtual void                set_brightness(float brightness) noexcept = 0;
+    [[nodiscard]] virtual float get_brightness() const noexcept           = 0;
+    
+    /// Contrast adjustment (0.5 to 2.0, default 1.0)
+    virtual void                set_contrast(float contrast) noexcept = 0;
+    [[nodiscard]] virtual float get_contrast() const noexcept         = 0;
+
     virtual void request_quit() noexcept = 0;
 
     virtual void stop() noexcept = 0;
