@@ -1,13 +1,13 @@
 add_executable(engine)
 
 file(
-    GLOB_RECURSE ENGINE_SRC
+    GLOB_RECURSE engine_src
     CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
-target_sources(engine PRIVATE ${ENGINE_SRC})
+target_sources(engine PRIVATE ${engine_src})
 
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(engine PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 set_target_properties(
     engine
@@ -33,7 +33,7 @@ target_link_libraries(
         tinygltf
         pybind11::embed
         model-loaders
-    PUBLIC engine_interface
+        engine_interface
 )
 
 add_custom_command(
