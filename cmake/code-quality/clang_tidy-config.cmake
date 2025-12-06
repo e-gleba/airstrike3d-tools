@@ -22,3 +22,6 @@ else()
         "install: sudo dnf install clang-tools-extra | sudo apt install clang-tidy | brew install llvm | choco install llvm"
     )
 endif()
+
+# example to enable globaly:
+# set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,readability-*)

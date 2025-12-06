@@ -1,6 +1,5 @@
 #include "camera.hpp"
 #include "game_api.hpp"
-#include "scripting.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
@@ -17,7 +16,6 @@ as3::engine_context*          g_ctx = nullptr;
 std::vector<as3::mesh_handle> g_meshes;
 
 // Scripting
-as3::ScriptManager                g_scripts;
 std::vector<as3::compound_object> g_objects;
 std::size_t                       g_selected_object = SIZE_MAX;
 

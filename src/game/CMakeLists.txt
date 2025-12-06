@@ -3,11 +3,7 @@ add_library(game SHARED)
 file(GLOB_RECURSE GAME_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 target_sources(game PRIVATE ${GAME_SRC})
 
-target_include_directories(
-    game
-    PUBLIC ${SHARED_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-)
+target_include_directories(game PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 set_target_properties(
     game
@@ -19,13 +15,6 @@ set_target_properties(
         RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:engine>
 )
 
-# Find Lua using sol2's cmake module path
-list(APPEND CMAKE_MODULE_PATH "${sol2_SOURCE_DIR}/cmake/Packages")
-list(APPEND CMAKE_MODULE_PATH "${sol2_SOURCE_DIR}/cmake/Modules")
-set(SOL2_LUA_VERSION "5.4.4")
-set(SOL2_BUILD_LUA TRUE)
-find_package(LuaBuild REQUIRED COMPONENTS 5.4.4)
-
 target_link_libraries(
     game
     PRIVATE
@@ -35,10 +24,7 @@ target_link_libraries(
         spdlog
         imgui
         yaml-cpp
-        sol2
         Recast
         Detour
-        ${LUA_LIBRARIES}
+        engine_interface
 )
-
-target_include_directories(game PRIVATE ${LUA_INCLUDE_DIR})

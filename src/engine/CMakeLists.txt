@@ -7,11 +7,7 @@ file(
 )
 target_sources(engine PRIVATE ${ENGINE_SRC})
 
-target_include_directories(
-    engine
-    PUBLIC ${SHARED_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-)
+target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_target_properties(
     engine
@@ -36,10 +32,10 @@ target_link_libraries(
         tinyobjloader
         tinygltf
         pybind11::embed
+        engine_interface
         model-loaders
 )
 
-# Symlinks for runtime assets
 add_custom_command(
     TARGET engine
     POST_BUILD
