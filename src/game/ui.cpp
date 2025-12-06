@@ -1,8 +1,10 @@
 #include "ui.hpp"
 #include "scene.hpp"
+#include "godot_scene.hpp"
 
 #include <core-api/camera.hpp>
 #include <imgui.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstring>
@@ -215,10 +217,25 @@ void draw_menu(euengine::engine_context* ctx)
                 }
             }
             ImGui::Separator();
+            if (ImGui::MenuItem("Load Godot Scene..."))
+            {
+                g_show_file_dialog = true;
+            }
+            if (ImGui::MenuItem("Clear Scene"))
+            {
+                // Remove all models except keep camera
+                while (!scene::g_models.empty())
+                {
+                    scene::remove_model(0);
+                }
+                log(2, "Scene cleared");
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Rescan Assets"))
             {
                 scene::scan_models();
                 scene::scan_audio();
+                scene::scan_tscn();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Alt+F4"))
@@ -317,6 +334,8 @@ void draw_scene(euengine::engine_context* ctx)
                 scene::apply_sky();
             if (ImGui::ColorEdit3("Grid", g_grid_color))
                 scene::rebuild_grid();
+            
+            ImGui::Checkbox("Origin Axis", &scene::g_show_origin);
             
             ImGui::Spacing();
             ImGui::Checkbox("Grid Snap", &g_grid_snap);
@@ -499,7 +518,7 @@ void draw_inspector()
             {
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(100);
-                ImGui::SliderFloat("##speed", &m.anim_speed, 0.0f, 100.0f, "%.0f°/s");
+                ImGui::SliderFloat("##speed", &m.anim_speed, 0.0f, 100.0f, "%.0f deg/s");
             }
             ImGui::Checkbox("Hover", &m.hover);
 
@@ -1065,6 +1084,7 @@ void draw(euengine::engine_context* ctx)
     draw_engine(ctx);
     draw_stats(ctx);
     draw_console();
+    draw_file_dialog();
     draw_statusbar(ctx);
     
     // Keep UI from capturing mouse when camera is focused
@@ -1072,6 +1092,277 @@ void draw(euengine::engine_context* ctx)
     {
         io.WantCaptureMouse = false;
     }
+}
+
+void draw_file_dialog()
+{
+    if (!g_show_file_dialog) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(650, 450), ImGuiCond_Appearing);
+    
+    if (ImGui::Begin("Load Godot Scene File", &g_show_file_dialog, ImGuiWindowFlags_NoCollapse))
+    {
+        // Current path display with copy button
+        ImGui::Text("Path:");
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.9f, 1.0f, 1.0f));
+        ImGui::TextWrapped("%s", sanitize_utf8(g_file_dialog_current_path.string()).c_str());
+        ImGui::PopStyleColor();
+        
+        ImGui::Separator();
+        
+        // Navigation buttons
+        if (ImGui::Button("Up", ImVec2(60, 0)))
+        {
+            if (g_file_dialog_current_path.has_parent_path())
+            {
+                g_file_dialog_current_path = g_file_dialog_current_path.parent_path();
+                g_file_dialog_selected_file.clear();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Home", ImVec2(60, 0)))
+        {
+            g_file_dialog_current_path = std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : ".");
+            g_file_dialog_selected_file.clear();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Current", ImVec2(70, 0)))
+        {
+            g_file_dialog_current_path = std::filesystem::current_path();
+            g_file_dialog_selected_file.clear();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Assets", ImVec2(70, 0)))
+        {
+            g_file_dialog_current_path = std::filesystem::path("assets");
+            g_file_dialog_selected_file.clear();
+        }
+        
+        ImGui::Separator();
+        
+        // File list
+        ImGui::BeginChild("##file_list", ImVec2(0, -80), true, ImGuiWindowFlags_HorizontalScrollbar);
+        
+        try
+        {
+            // Show parent directory
+            if (g_file_dialog_current_path.has_parent_path())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 1.0f, 1.0f));
+                bool is_selected = false;
+                if (ImGui::Selectable("[..]", is_selected, 0, ImVec2(0, 22)))
+                {
+                    g_file_dialog_current_path = g_file_dialog_current_path.parent_path();
+                    g_file_dialog_selected_file.clear();
+                }
+                ImGui::PopStyleColor();
+            }
+            
+            // List directories and .tscn files
+            std::vector<std::filesystem::path> entries;
+            for (const auto& entry : std::filesystem::directory_iterator(g_file_dialog_current_path))
+            {
+                entries.push_back(entry.path());
+            }
+            std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+                bool a_is_dir = std::filesystem::is_directory(a);
+                bool b_is_dir = std::filesystem::is_directory(b);
+                if (a_is_dir != b_is_dir)
+                    return a_is_dir > b_is_dir; // Directories first
+                return a.filename().string() < b.filename().string();
+            });
+            
+            for (const auto& entry : entries)
+            {
+                bool is_dir = std::filesystem::is_directory(entry);
+                bool is_tscn = !is_dir && (entry.extension() == ".tscn" || entry.extension() == ".TSCN");
+                
+                if (!is_dir && !is_tscn) continue; // Skip non-tscn files
+                
+                std::string name = sanitize_utf8(entry.filename().string());
+                // Compare normalized paths for selection
+                bool is_selected = false;
+                if (!g_file_dialog_selected_file.empty())
+                {
+                    try
+                    {
+                        auto normalized_entry = std::filesystem::canonical(entry);
+                        is_selected = (g_file_dialog_selected_file == normalized_entry);
+                    }
+                    catch (...)
+                    {
+                        try
+                        {
+                            auto abs_entry = std::filesystem::absolute(entry).lexically_normal();
+                            auto abs_selected = std::filesystem::absolute(g_file_dialog_selected_file).lexically_normal();
+                            is_selected = (abs_selected == abs_entry);
+                        }
+                        catch (...)
+                        {
+                            is_selected = (g_file_dialog_selected_file == entry);
+                        }
+                    }
+                }
+                
+                if (is_dir)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.8f, 0.5f, 1.0f));
+                    std::string dir_label = "[DIR] " + name;
+                    if (ImGui::Selectable(dir_label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0, 22)))
+                    {
+                        if (ImGui::IsMouseDoubleClicked(0))
+                        {
+                            g_file_dialog_current_path = entry;
+                            g_file_dialog_selected_file.clear();
+                        }
+                    }
+                    ImGui::PopStyleColor();
+                }
+                else if (is_tscn)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.9f, 0.5f, 1.0f));
+                    if (ImGui::Selectable(name.c_str(), is_selected, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0, 22)))
+                    {
+                        // Always update selection on click - normalize path
+                        try
+                        {
+                            g_file_dialog_selected_file = std::filesystem::canonical(entry);
+                            spdlog::debug("Selected file (canonical): {}", g_file_dialog_selected_file.string());
+                        }
+                        catch (const std::exception& e)
+                        {
+                            try
+                            {
+                                g_file_dialog_selected_file = std::filesystem::absolute(entry).lexically_normal();
+                                spdlog::debug("Selected file (absolute): {}", g_file_dialog_selected_file.string());
+                            }
+                            catch (const std::exception& e2)
+                            {
+                                g_file_dialog_selected_file = entry;
+                                spdlog::warn("Could not normalize path, using raw: {}, error: {}", 
+                                           entry.string(), e2.what());
+                            }
+                        }
+                        log(2, "Selected file: " + sanitize_utf8(g_file_dialog_selected_file.string()));
+                        
+                        // Double-click to load immediately
+                        if (ImGui::IsMouseDoubleClicked(0))
+                        {
+                            std::string path = g_file_dialog_selected_file.string();
+                            log(2, "Double-click: loading " + sanitize_utf8(path));
+                            if (godot_scene::load_tscn(path))
+                            {
+                                log(2, "Loaded TSCN: " + sanitize_utf8(name));
+                                g_show_file_dialog = false;
+                                g_file_dialog_selected_file.clear();
+                            }
+                            else
+                            {
+                                log(4, "Failed to load TSCN: " + sanitize_utf8(name));
+                            }
+                        }
+                    }
+                    ImGui::PopStyleColor();
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::string error_msg = sanitize_utf8(e.what());
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Error: %s", error_msg.c_str());
+        }
+        
+        ImGui::EndChild();
+        
+        ImGui::Separator();
+        
+        // Selected file display and action buttons
+        ImGui::Text("Selected:");
+        ImGui::SameLine();
+        if (!g_file_dialog_selected_file.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.9f, 0.5f, 1.0f));
+            std::string filename = g_file_dialog_selected_file.filename().string();
+            ImGui::Text("%s", sanitize_utf8(filename).c_str());
+            ImGui::PopStyleColor();
+        }
+        else
+        {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "None");
+        }
+        
+        ImGui::Spacing();
+        
+        // Action buttons
+        bool has_selection = false;
+        if (!g_file_dialog_selected_file.empty())
+        {
+            try
+            {
+                has_selection = std::filesystem::exists(g_file_dialog_selected_file) && 
+                               std::filesystem::is_regular_file(g_file_dialog_selected_file);
+            }
+            catch (...)
+            {
+                has_selection = false;
+            }
+        }
+        
+        // Debug info
+        if (!g_file_dialog_selected_file.empty() && !has_selection)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "File not found or invalid");
+        }
+        
+        ImGui::BeginDisabled(!has_selection);
+        if (ImGui::Button("Open", ImVec2(100, 30)))
+        {
+            if (has_selection && !g_file_dialog_selected_file.empty())
+            {
+                try
+                {
+                    std::string path = g_file_dialog_selected_file.string();
+                    log(2, "Open button clicked - attempting to load: " + sanitize_utf8(path));
+                    
+                    if (godot_scene::load_tscn(path))
+                    {
+                        std::string filename = sanitize_utf8(g_file_dialog_selected_file.filename().string());
+                        log(2, "Loaded TSCN: " + filename);
+                        g_show_file_dialog = false;
+                        g_file_dialog_selected_file.clear();
+                    }
+                    else
+                    {
+                        std::string filename = sanitize_utf8(g_file_dialog_selected_file.filename().string());
+                        log(4, "Failed to load TSCN: " + filename);
+                    }
+                }
+                catch (const std::exception& e)
+                {
+                    log(4, "Error loading file: " + sanitize_utf8(e.what()));
+                }
+            }
+            else
+            {
+                log(4, "Open button clicked but no valid selection");
+            }
+        }
+        ImGui::EndDisabled();
+        
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(100, 30)))
+        {
+            g_show_file_dialog = false;
+            g_file_dialog_selected_file.clear();
+        }
+        
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Double-click to open");
+    }
+    ImGui::End();
 }
 
 } // namespace ui

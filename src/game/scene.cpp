@@ -237,6 +237,7 @@ void init(euengine::engine_context* ctx)
     setup_scene();
     scan_models();
     scan_audio();
+    scan_tscn();
 
     ctx->renderer->set_render_mode(euengine::render_mode::textured);
     apply_sky();
@@ -260,6 +261,10 @@ void shutdown()
         if (h != euengine::invalid_mesh && g_ctx->renderer)
             g_ctx->renderer->destroy_mesh(h);
     g_grids.clear();
+    
+    if (g_origin_axis != euengine::invalid_mesh && g_ctx->renderer)
+        g_ctx->renderer->destroy_mesh(g_origin_axis);
+    g_origin_axis = euengine::invalid_mesh;
 
     if (g_camera != entt::null && g_ctx->registry && g_ctx->registry->valid(g_camera))
     {
@@ -309,6 +314,10 @@ void render(euengine::engine_context* ctx)
 {
     for (auto h : g_grids)
         ctx->renderer->draw(h);
+    
+    // Draw origin axis gizmo
+    if (g_show_origin && g_origin_axis != euengine::invalid_mesh)
+        ctx->renderer->draw(g_origin_axis);
 
     for (auto& m : g_models)
     {
@@ -336,6 +345,24 @@ void scan_models()
     }
     std::sort(g_model_files.begin(), g_model_files.end());
     ui::log(2, "Models: " + std::to_string(g_model_files.size()));
+}
+
+void scan_tscn()
+{
+    g_tscn_files.clear();
+    
+    const std::string dir = "assets";
+    if (!std::filesystem::exists(dir)) return;
+    
+    for (const auto& e : std::filesystem::recursive_directory_iterator(dir))
+    {
+        if (!e.is_regular_file()) continue;
+        auto ext = e.path().extension().string();
+        if (ext == ".tscn" || ext == ".TSCN")
+            g_tscn_files.push_back(e.path().string());
+    }
+    std::sort(g_tscn_files.begin(), g_tscn_files.end());
+    ui::log(2, "TSCN files: " + std::to_string(g_tscn_files.size()));
 }
 
 void scan_audio()
@@ -501,6 +528,25 @@ void rebuild_grid()
     // Main grid - lighter color
     g_grids.push_back(g_ctx->renderer->create_wireframe_grid(
         200.0f, 200, { ui::g_grid_color[0], ui::g_grid_color[1], ui::g_grid_color[2] }));
+    
+    // Create origin axis gizmo (RGB = XYZ like Godot)
+    if (g_origin_axis != euengine::invalid_mesh)
+        g_ctx->renderer->destroy_mesh(g_origin_axis);
+    
+    const float axis_len = 5.0f;
+    std::vector<euengine::vertex> axis_verts = {
+        // X axis - Red
+        {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{axis_len, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        // Y axis - Green
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{0.0f, axis_len, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        // Z axis - Blue
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{0.0f, 0.0f, axis_len}, {0.0f, 0.0f, 1.0f}},
+    };
+    std::vector<uint16_t> axis_indices = {0, 1, 2, 3, 4, 5};
+    g_origin_axis = g_ctx->renderer->create_mesh(axis_verts, axis_indices, euengine::primitive_type::lines);
 }
 
 } // namespace scene

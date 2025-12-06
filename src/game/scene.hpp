@@ -41,6 +41,8 @@ struct audio_file
 // State
 inline euengine::engine_context*          g_ctx = nullptr;
 inline std::vector<euengine::mesh_handle> g_grids;
+inline euengine::mesh_handle              g_origin_axis = euengine::invalid_mesh;
+inline bool                               g_show_origin = true;
 inline entt::entity                       g_camera = entt::null;
 
 inline std::vector<model_instance> g_models;
@@ -52,6 +54,7 @@ inline int                         g_playing = -1;
 // Browser
 inline std::vector<std::string>    g_model_files;
 inline int                         g_browser_sel = -1;
+inline std::vector<std::string>    g_tscn_files;
 
 // Info
 inline std::string g_lib_path;
@@ -74,6 +77,7 @@ void render(euengine::engine_context* ctx);
 
 void scan_models();
 void scan_audio();
+void scan_tscn();
 model_instance* add_model(const std::string& path, const glm::vec3& pos, float scale = 0.1f);
 void remove_model(int idx);
 model_instance* duplicate_model(int idx);

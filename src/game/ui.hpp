@@ -22,6 +22,8 @@ inline float                 g_time = 0.0f;
 inline std::string           g_console_filter;
 inline std::string           g_browser_filter;
 inline std::string           g_audio_filter;
+inline std::filesystem::path g_file_dialog_current_path = std::filesystem::current_path();
+inline std::filesystem::path g_file_dialog_selected_file;
 
 // Panels
 inline bool g_show_hierarchy  = true;
@@ -31,6 +33,7 @@ inline bool g_show_audio      = false;
 inline bool g_show_engine     = true;
 inline bool g_show_console    = false;
 inline bool g_show_stats      = true;
+inline bool g_show_file_dialog = false;
 
 // Scene
 inline bool  g_wireframe   = false;
@@ -48,6 +51,7 @@ void log(int level, const std::string& msg);
 void log_clear();
 
 void init();
+void draw_file_dialog();
 void draw(euengine::engine_context* ctx);
 
 } // namespace ui
