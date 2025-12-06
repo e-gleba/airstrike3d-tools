@@ -1,5 +1,5 @@
-#include "camera.hpp"
-#include "game_api.hpp"
+#include <core-api/camera.hpp>
+#include <core-api/game_api.hpp>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
@@ -162,8 +162,7 @@ void load_model_at(const std::string& path, const glm::vec3& pos)
 
 void update_camera(as3::engine_context* ctx)
 {
-    if (g_camera_entity == entt::null ||
-        !ctx->registry->valid(g_camera_entity))
+    if (g_camera_entity == entt::null || !ctx->registry->valid(g_camera_entity))
         return;
 
     auto& cam = ctx->registry->get<as3::CameraComponent>(g_camera_entity);
@@ -253,7 +252,7 @@ void update_camera(as3::engine_context* ctx)
         {
             if (!tab_was_pressed)
             {
-                g_wireframe    = !g_wireframe;
+                g_wireframe     = !g_wireframe;
                 tab_was_pressed = true;
             }
         }
@@ -281,8 +280,7 @@ GAME_API bool game_init(as3::engine_context* ctx)
     g_time = 0.0f;
 
     // Setup camera
-    if (g_camera_entity != entt::null &&
-        ctx->registry->valid(g_camera_entity))
+    if (g_camera_entity != entt::null && ctx->registry->valid(g_camera_entity))
         ctx->registry->destroy(g_camera_entity);
 
     g_camera_entity = ctx->registry->create();
@@ -302,7 +300,8 @@ GAME_API bool game_init(as3::engine_context* ctx)
     scan_music_directory();
 
     // Load some default models for demo
-    load_model_at("assets/models/tanks/t72/t72_base.obj", { -8.0f, 0.0f, 0.0f });
+    load_model_at("assets/models/tanks/t72/t72_base.obj",
+                  { -8.0f, 0.0f, 0.0f });
     load_model_at("assets/models/helics/kamov/kamov.obj", { 0.0f, 3.0f, 0.0f });
     load_model_at("assets/models/samples/duck.glb", { 8.0f, 0.0f, 0.0f });
 
@@ -380,8 +379,7 @@ GAME_API void game_update(as3::engine_context* ctx)
             model.name.find("helic") != std::string::npos ||
             model.name.find("mi_24") != std::string::npos)
         {
-            model.transform.position.y =
-                3.0f + std::sin(g_time * 1.5f) * 0.3f;
+            model.transform.position.y = 3.0f + std::sin(g_time * 1.5f) * 0.3f;
         }
     }
 }
@@ -487,8 +485,7 @@ GAME_API void game_ui(as3::engine_context* ctx)
             for (std::size_t i = 0; i < g_models.size(); ++i)
             {
                 auto&      model    = g_models[i];
-                const bool selected =
-                    (static_cast<int>(i) == g_selected_model);
+                const bool selected = (static_cast<int>(i) == g_selected_model);
 
                 if (ImGui::Selectable(model.name.c_str(), selected))
                     g_selected_model = static_cast<int>(i);
@@ -498,16 +495,19 @@ GAME_API void game_ui(as3::engine_context* ctx)
             if (g_selected_model >= 0 &&
                 static_cast<std::size_t>(g_selected_model) < g_models.size())
             {
-                auto& model = g_models[static_cast<std::size_t>(g_selected_model)];
+                auto& model =
+                    g_models[static_cast<std::size_t>(g_selected_model)];
 
                 ImGui::Spacing();
-                ImGui::TextColored(
-                    ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "Selected: %s", model.name.c_str());
+                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f),
+                                   "Selected: %s",
+                                   model.name.c_str());
                 ImGui::Separator();
 
                 ImGui::DragFloat3(
                     "Position", &model.transform.position.x, 0.1f);
-                ImGui::DragFloat3("Rotation", &model.transform.rotation.x, 1.0f);
+                ImGui::DragFloat3(
+                    "Rotation", &model.transform.rotation.x, 1.0f);
 
                 float scale = model.transform.scale.x;
                 if (ImGui::DragFloat("Scale", &scale, 0.01f, 0.01f, 10.0f))
@@ -553,15 +553,17 @@ GAME_API void game_ui(as3::engine_context* ctx)
             {
                 std::string display =
                     std::filesystem::path(g_model_files[i]).filename().string();
-                if (ImGui::Selectable(display.c_str(),
-                                      i == static_cast<std::size_t>(g_browser_selected)))
+                if (ImGui::Selectable(
+                        display.c_str(),
+                        i == static_cast<std::size_t>(g_browser_selected)))
                     g_browser_selected = static_cast<int>(i);
             }
             ImGui::EndChild();
 
             // Load button
             if (ImGui::Button("Load Selected") && g_browser_selected >= 0 &&
-                static_cast<std::size_t>(g_browser_selected) < g_model_files.size())
+                static_cast<std::size_t>(g_browser_selected) <
+                    g_model_files.size())
             {
                 load_model_at(
                     g_model_files[static_cast<std::size_t>(g_browser_selected)],
@@ -717,4 +719,3 @@ GAME_API void game_ui(as3::engine_context* ctx)
     ImGui::End();
     ImGui::PopStyleVar();
 }
-

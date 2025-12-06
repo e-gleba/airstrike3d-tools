@@ -1,8 +1,13 @@
 add_library(engine_interface INTERFACE)
 
-target_include_directories(engine_interface INTERFACE ${CMAKE_CURRENT_LIST_DIR})
-
 target_link_libraries(engine_interface INTERFACE glm)
+
+target_include_directories(
+    engine_interface
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/..>
+        $<INSTALL_INTERFACE:include>
+)
 
 set_target_properties(
     engine_interface
