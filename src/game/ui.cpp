@@ -295,6 +295,14 @@ void draw_scene(euengine::engine_context* ctx)
                 ImGui::PopStyleColor();
                 ImGui::SliderFloat("Speed", &cam.move_speed, 1.0f, 50.0f);
                 ImGui::SliderFloat("FOV", &cam.fov, 30.0f, 120.0f);
+                
+                ImGui::Spacing();
+                if (ImGui::Button("Reset Camera", ImVec2(-1, 28)))
+                {
+                    cam.position = {0.0f, 10.0f, 25.0f};
+                    cam.pitch = -15.0f;
+                    cam.yaw = 0.0f;
+                }
             }
         }
 
@@ -309,6 +317,15 @@ void draw_scene(euengine::engine_context* ctx)
                 scene::apply_sky();
             if (ImGui::ColorEdit3("Grid", g_grid_color))
                 scene::rebuild_grid();
+            
+            ImGui::Spacing();
+            ImGui::Checkbox("Grid Snap", &g_grid_snap);
+            if (g_grid_snap)
+            {
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(80);
+                ImGui::DragFloat("##snap", &g_snap_size, 0.1f, 0.1f, 10.0f, "%.1f");
+            }
         }
 
         // Objects list
@@ -322,6 +339,14 @@ void draw_scene(euengine::engine_context* ctx)
             static char obj_filter[128] = {};
             ImGui::SetNextItemWidth(-1);
             ImGui::InputTextWithHint("##obj_filter", "Search objects...", obj_filter, sizeof(obj_filter));
+            
+            // Clear selection button
+            if (scene::g_selected >= 0)
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Clear"))
+                    scene::g_selected = -1;
+            }
             
             ImGui::Spacing();
             ImGui::BeginChild("##objs", ImVec2(0, -1), true);
@@ -430,7 +455,16 @@ void draw_inspector()
             ImGui::Text("Transform");
             ImGui::PopStyleColor();
             
-            ImGui::DragFloat3("Position", &m.transform.position.x, 0.05f);
+            if (ImGui::DragFloat3("Position", &m.transform.position.x, 0.05f))
+            {
+                // Apply grid snapping if enabled
+                if (g_grid_snap && g_snap_size > 0.0f)
+                {
+                    m.transform.position.x = std::round(m.transform.position.x / g_snap_size) * g_snap_size;
+                    m.transform.position.y = std::round(m.transform.position.y / g_snap_size) * g_snap_size;
+                    m.transform.position.z = std::round(m.transform.position.z / g_snap_size) * g_snap_size;
+                }
+            }
             ImGui::DragFloat3("Rotation", &m.transform.rotation.x, 0.5f);
             
             float sc = m.transform.scale.x;
@@ -469,9 +503,22 @@ void draw_inspector()
             }
             ImGui::Checkbox("Hover", &m.hover);
 
+            ImGui::Separator();
+            
+            // Actions
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.58f, 1.0f));
+            ImGui::Text("Actions");
+            ImGui::PopStyleColor();
+            
+            // Duplicate button
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.80f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.35f, 0.65f, 0.90f, 1.0f));
+            if (ImGui::Button("Duplicate", ImVec2(-1, 28)))
+                scene::duplicate_model(scene::g_selected);
+            ImGui::PopStyleColor(2);
+            
             ImGui::Spacing();
-            ImGui::Spacing();
-
+            
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.70f, 0.25f, 0.25f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
             if (ImGui::Button("Delete Object", ImVec2(-1, 32)))
@@ -748,10 +795,16 @@ void draw_engine(euengine::engine_context* ctx)
             if (ImGui::Button("Hot Reload Module (F5)", ImVec2(-1, 32)))
             {
                 log(2, "Game module hot reload triggered");
-                if (ctx->shaders)
+                if (ctx->settings)
                 {
-                    ctx->shaders->enable_hot_reload(false);
-                    ctx->shaders->enable_hot_reload(true);
+                    if (ctx->settings->reload_game())
+                    {
+                        log(2, "Game module reloaded successfully");
+                    }
+                    else
+                    {
+                        log(4, "Failed to reload game module");
+                    }
                 }
             }
         }
@@ -928,7 +981,8 @@ void draw_console()
 
             ImGui::TextColored(col, "[%s]", tag);
             ImGui::SameLine();
-            ImGui::TextWrapped("%s", e.message.c_str());
+            auto safe_msg = sanitize_utf8(e.message);
+            ImGui::TextWrapped("%s", safe_msg.c_str());
             
             should_scroll = true;
         }

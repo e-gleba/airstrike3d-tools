@@ -37,6 +37,9 @@ public:
     virtual void request_quit() noexcept = 0;
 
     virtual void stop() noexcept = 0;
+
+    /// Reload the game module (hot-reload)
+    [[nodiscard]] virtual bool reload_game() noexcept = 0;
 };
 
 } // namespace euengine

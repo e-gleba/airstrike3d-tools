@@ -11,6 +11,82 @@
 namespace
 {
 
+// Sanitize UTF-8 string to avoid Pango warnings
+std::string sanitize_utf8(const std::string& str)
+{
+    std::string result;
+    result.reserve(str.size());
+    
+    for (std::size_t i = 0; i < str.size(); ++i)
+    {
+        unsigned char c = static_cast<unsigned char>(str[i]);
+        
+        // Valid ASCII
+        if (c < 0x80)
+        {
+            result += static_cast<char>(c);
+        }
+        // Valid UTF-8 continuation or start
+        else if ((c & 0xE0) == 0xC0 && i + 1 < str.size())
+        {
+            // 2-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            if ((c2 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                ++i;
+            }
+            else
+            {
+                result += '?'; // Invalid, replace
+            }
+        }
+        else if ((c & 0xF0) == 0xE0 && i + 2 < str.size())
+        {
+            // 3-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(str[i + 2]);
+            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                result += static_cast<char>(c3);
+                i += 2;
+            }
+            else
+            {
+                result += '?';
+            }
+        }
+        else if ((c & 0xF8) == 0xF0 && i + 3 < str.size())
+        {
+            // 4-byte sequence
+            unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(str[i + 2]);
+            unsigned char c4 = static_cast<unsigned char>(str[i + 3]);
+            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80 && (c4 & 0xC0) == 0x80)
+            {
+                result += static_cast<char>(c);
+                result += static_cast<char>(c2);
+                result += static_cast<char>(c3);
+                result += static_cast<char>(c4);
+                i += 3;
+            }
+            else
+            {
+                result += '?';
+            }
+        }
+        else
+        {
+            result += '?'; // Invalid byte, replace with ?
+        }
+    }
+    
+    return result;
+}
+
 // Custom spdlog sink -> UI console
 class ui_sink : public spdlog::sinks::base_sink<std::mutex>
 {
@@ -28,7 +104,9 @@ protected:
             case spdlog::level::critical: lvl = 4; break;
             default: break;
         }
-        ui::log(lvl, std::string(msg.payload.data(), msg.payload.size()));
+        // Sanitize UTF-8 before logging to avoid Pango warnings
+        std::string payload(msg.payload.data(), msg.payload.size());
+        ui::log(lvl, sanitize_utf8(payload));
     }
     void flush_() override {}
 };
@@ -42,7 +120,7 @@ GAME_API euengine::preinit_result game_preinit(euengine::preinit_settings* s)
     s->window.title     = "euengine";
     s->window.width     = 1600;
     s->window.height    = 900;
-    s->window.vsync     = euengine::vsync_mode::adaptive;
+    s->window.vsync     = euengine::vsync_mode::enabled;
     s->window.resizable = true;
     s->window.high_dpi  = true;
 

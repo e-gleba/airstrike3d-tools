@@ -35,6 +35,8 @@ inline bool g_show_stats      = true;
 // Scene
 inline bool  g_wireframe   = false;
 inline bool  g_auto_rotate = true;
+inline bool  g_grid_snap   = false;
+inline float g_snap_size   = 1.0f;
 inline float g_sky_color[3] = { 0.12f, 0.14f, 0.18f };
 inline float g_grid_color[3] = { 0.22f, 0.24f, 0.22f };
 

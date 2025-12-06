@@ -91,7 +91,7 @@ public:
     void unload_game() noexcept;
 
     /// Reload game library from same path (for hot-reload)
-    [[nodiscard]] bool reload_game();
+    [[nodiscard]] bool reload_game() noexcept override;
 
     // Direct accessors (for engine internal use)
     [[nodiscard]] entt::registry& registry() noexcept { return registry_; }

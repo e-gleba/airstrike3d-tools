@@ -35,48 +35,51 @@ void setup_scene()
     // Organized showcase layout - spread out for better visibility
     // All animations disabled by default
     
-    // Front row: vehicles - moved further forward so jeep doesn't go through them
-    add_model("assets/models/tanks/t72/t72_base.obj",         { -12, 0, 12 }, 0.07f);
-    add_model("assets/models/tanks/sherman/sherman_base.obj", { -6, 0, 12 }, 0.07f);
-    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 6, 0, 12 },  0.07f);
-    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 12, 0, 12 }, 0.09f);
+    // Front row: vehicles - moved further back and to sides to not block duck
+    add_model("assets/models/tanks/t72/t72_base.obj",         { -15, 0, 15 }, 0.07f);
+    add_model("assets/models/tanks/sherman/sherman_base.obj", { -8, 0, 15 }, 0.07f);
+    add_model("assets/models/btrs/btr_rocket/btr_rocket.obj", { 8, 0, 15 },  0.07f);
+    add_model("assets/models/cannons/aagunvulcan/aagunvulcan_base.obj", { 15, 0, 15 }, 0.09f);
 
-    // Moving jeep - rides in a wider loop (behind tanks)
-    if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -15, 0, 8 }, 0.07f))
+    // Moving jeep - rides in a wider loop (behind tanks, away from duck)
+    if (auto* m = add_model("assets/models/jeeps/uaz/uaz.obj", { -18, 0, 10 }, 0.07f))
     {
         m->moving = true;
         m->move_speed = 0.4f;
         m->move_dir = 1.0f;
-        m->move_start = { -15, 0, 8 };
-        m->move_end = { 15, 0, 8 };
+        m->move_start = { -18, 0, 10 };
+        m->move_end = { 18, 0, 10 };
         m->transform.rotation.y = 90.0f;
     }
 
-    // Middle row: aircraft - wider spacing, different heights
-    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -8, 1.3f, 2 }, 0.07f))
-    {
-        m->hover = true;
-        m->hover_base = 1.3f;
-        m->hover_range = 0.12f;
-    }
-    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.6f, 2 }, 0.07f))
+    // Middle row: aircraft - moved further back, higher up, wider spacing
+    if (auto* m = add_model("assets/models/helics/kamov/kamov.obj", { -10, 1.6f, 0 }, 0.07f))
     {
         m->hover = true;
         m->hover_base = 1.6f;
+        m->hover_range = 0.12f;
+    }
+    if (auto* m = add_model("assets/models/helics/mi_24/mi_24.obj", { 0, 1.9f, 0 }, 0.07f))
+    {
+        m->hover = true;
+        m->hover_base = 1.9f;
         m->hover_speed = 1.2f;
         m->hover_range = 0.14f;
     }
-    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 8, 1.4f, 2 }, 0.07f))
+    if (auto* m = add_model("assets/models/helics/cobra/cobra.obj", { 10, 1.7f, 0 }, 0.07f))
     {
         m->hover = true;
-        m->hover_base = 1.4f;
+        m->hover_base = 1.7f;
         m->hover_speed = 1.5f;
         m->hover_range = 0.10f;
     }
 
     // Back row: structures - much wider spacing to avoid overlap
     add_model("assets/models/mapobjects/cisterns/cisterna01.obj", { -26, 0, -16 }, 0.09f);
-    add_model("assets/models/mapobjects/houses/temple.obj", { -9, 0, -16 }, 0.08f);
+    if (auto* temple = add_model("assets/models/mapobjects/houses/temple.obj", { -9, 0, -16 }, 0.08f))
+    {
+        temple->transform.rotation.y = 180.0f; // Rotate 180 degrees
+    }
     add_model("assets/models/mapobjects/factory/oil_refinery/oil_refinery.obj", { 9, 0, -16 }, 0.07f);
     add_model("assets/models/mapobjects/radar/radar.obj", { 26, 0, -16 }, 0.09f);
 
@@ -84,8 +87,11 @@ void setup_scene()
     add_model("assets/models/ships/lodka/lodka.obj", { -20, 0, -4 }, 0.06f);
     add_model("assets/models/ships/rocket_boat/rocket_boat.obj", { 20, 0, -4 }, 0.05f);
 
-    // Center: featured duck - forward from machines, smaller
-    add_model("assets/models/samples/duck.glb", { 0, 0.06f, 15 }, 0.03f);
+    // Center: featured duck - very close to camera, static, smaller
+    if (auto* m = add_model("assets/models/samples/duck.glb", { 0, 0.1f, 22 }, 0.025f))
+    {
+        m->transform.rotation.y = 180.0f; // Face camera initially, but static (no rotation)
+    }
 }
 
 void process_input()
@@ -161,6 +167,7 @@ void animate(float t, float dt)
 {
     for (auto& m : g_models)
     {
+        // Animate rotation (duck is static, won't animate)
         if (m.animate && ui::g_auto_rotate)
         {
             m.transform.rotation.y += m.anim_speed * dt;
@@ -394,6 +401,83 @@ void remove_model(int idx)
     g_ctx->renderer->unload_model(g_models[static_cast<std::size_t>(idx)].handle);
     g_models.erase(g_models.begin() + idx);
     g_selected = -1;
+}
+
+model_instance* duplicate_model(int idx)
+{
+    if (idx < 0 || static_cast<std::size_t>(idx) >= g_models.size()) return nullptr;
+    
+    const auto& src = g_models[static_cast<std::size_t>(idx)];
+    
+    // Create duplicate with offset position
+    glm::vec3 new_pos = src.transform.position + glm::vec3(2.0f, 0.0f, 2.0f);
+    
+    model_instance m;
+    m.handle = g_ctx->renderer->load_model(src.path);
+    m.path = src.path;
+    m.name = src.name + "_copy";
+    m.bounds = g_ctx->renderer->get_bounds(m.handle);
+    m.transform = src.transform;
+    m.transform.position = new_pos;
+    m.animate = src.animate;
+    m.anim_speed = src.anim_speed;
+    m.hover = src.hover;
+    m.hover_base = new_pos.y;
+    m.hover_speed = src.hover_speed;
+    m.hover_range = src.hover_range;
+    m.moving = src.moving;
+    m.move_speed = src.move_speed;
+    m.move_start = src.move_start + glm::vec3(2.0f, 0.0f, 2.0f);
+    m.move_end = src.move_end + glm::vec3(2.0f, 0.0f, 2.0f);
+    m.color_tint = src.color_tint;
+    
+    g_models.push_back(std::move(m));
+    g_selected = static_cast<int>(g_models.size()) - 1;
+    ui::log(2, "Duplicated: " + src.name);
+    return &g_models.back();
+}
+
+void focus_camera_on_object(int idx)
+{
+    if (idx < 0 || static_cast<std::size_t>(idx) >= g_models.size()) return;
+    if (g_camera == entt::null || !g_ctx->registry->valid(g_camera)) return;
+    
+    const auto& obj = g_models[static_cast<std::size_t>(idx)];
+    auto& cam = g_ctx->registry->get<euengine::camera_component>(g_camera);
+    
+    // Get object position and size
+    glm::vec3 obj_pos = obj.transform.position;
+    glm::vec3 obj_size = obj.bounds.max - obj.bounds.min;
+    float max_dim = std::max({obj_size.x, obj_size.y, obj_size.z});
+    
+    // Calculate viewing distance - closer to object
+    float view_dist = std::max(max_dim * 3.0f, 6.0f);
+    view_dist = std::min(view_dist, 10.0f); // Cap at reasonable distance
+    
+    // Position camera behind and above the object, closer to it
+    // Camera should be at object's X, slightly above, and behind (higher Z)
+    cam.position = glm::vec3(
+        obj_pos.x,                    // Same X as object
+        obj_pos.y + view_dist * 0.6f, // Above object
+        obj_pos.z + view_dist         // Behind object (further from origin)
+    );
+    
+    // Clamp camera Z to reasonable range (15-30)
+    cam.position.z = std::max(cam.position.z, 15.0f);
+    cam.position.z = std::min(cam.position.z, 30.0f);
+    
+    // Calculate direction from camera to object
+    glm::vec3 to_obj = obj_pos - cam.position;
+    float dist_horizontal = std::sqrt(to_obj.x * to_obj.x + to_obj.z * to_obj.z);
+    
+    // Calculate yaw: horizontal angle (0 = looking along +Z)
+    cam.yaw = std::atan2(to_obj.x, to_obj.z) * 180.0f / 3.14159f;
+    
+    // Calculate pitch: vertical angle (negative = looking down)
+    cam.pitch = std::atan2(-to_obj.y, dist_horizontal) * 180.0f / 3.14159f;
+    cam.pitch = glm::clamp(cam.pitch, -89.0f, 89.0f);
+    
+    ui::log(2, "Focused camera on: " + obj.name);
 }
 
 void apply_sky()

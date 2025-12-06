@@ -76,6 +76,8 @@ void scan_models();
 void scan_audio();
 model_instance* add_model(const std::string& path, const glm::vec3& pos, float scale = 0.1f);
 void remove_model(int idx);
+model_instance* duplicate_model(int idx);
+void focus_camera_on_object(int idx);
 void apply_sky();
 void rebuild_grid();
 

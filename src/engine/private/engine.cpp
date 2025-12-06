@@ -471,7 +471,7 @@ void engine::unload_game() noexcept
     }
 }
 
-[[nodiscard]] bool engine::reload_game()
+[[nodiscard]] bool engine::reload_game() noexcept
 {
     if (game_lib_path_.empty())
     {
