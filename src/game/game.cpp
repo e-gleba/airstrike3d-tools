@@ -303,6 +303,33 @@ void update_camera(euengine::engine_context* ctx)
 // Game API implementation
 // ============================================================================
 
+/// Pre-initialization callback - configure engine settings before SDL init
+/// This is called BEFORE the engine is initialized
+GAME_API euengine::preinit_result game_preinit(euengine::preinit_settings* settings)
+{
+    spdlog::info("=> game_preinit");
+
+    // Configure window settings
+    settings->window.title     = "airstrike3d preview";
+    settings->window.width     = 1600;
+    settings->window.height    = 900;
+    settings->window.mode      = euengine::window_mode::windowed;
+    settings->window.vsync     = euengine::vsync_mode::enabled;
+    settings->window.resizable = true;
+    settings->window.high_dpi  = true;
+
+    // Configure renderer settings
+    settings->renderer.wireframe_mode  = false;
+    settings->renderer.show_debug_info = false;
+
+    // Configure audio settings
+    settings->audio.master_volume = 0.8f;
+    settings->audio.music_volume  = 0.5f;
+    settings->audio.sound_volume  = 1.0f;
+
+    return euengine::preinit_result::ok;
+}
+
 GAME_API bool game_init(euengine::engine_context* ctx)
 {
     g_ctx  = ctx;

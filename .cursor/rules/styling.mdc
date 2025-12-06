@@ -7,7 +7,7 @@
 - [boost development best practices](https://www.boost.org/doc/contributor-guide/best-practices.html)
 - c++ core guidelines (when boost doesn't conflict)
 - Clang/LLVM infra source as best practice
-- userver yandex
+(but do not use _ after members, like in boost, just pure snake_case)
 
 ---
 
@@ -18,11 +18,10 @@ dir-name/            # kebab-case for dirs (no spaces, camelcase, underscores)
   file_name.cpp      # snake_case for files (unix style)
   file_name.hpp      # snake_case for headers
   readme.md
-  cmakelists.txt     # always lowercase
+  CMakeLists.txt     # leave default
 .cache/              # always ignore
 .idea/ .vscode/      # ignore editor configs
 build*/              # ignore build outputs
-cmake-build*/        # ignore cmake build dirs
 ```
 
 ---
@@ -49,25 +48,8 @@ void log_error(std::string_view msg) noexcept; // snake_case, explicit noexcept
 
 ## cmake (targets only, never global flags)
 
-```
-cmake_minimum_required(VERSION 3.21)
-project(any_project LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-add_library(core STATIC src/core.cpp)
-target_include_directories(core PUBLIC include)
-target_compile_features(core PUBLIC cxx_std_20)
-target_compile_options(core PRIVATE -Wall -Wextra -Wpedantic)
-
-add_executable(app src/main.cpp)
-target_link_libraries(app PRIVATE core)
-```
-
 - use targets for all settings (include, options, compile features)
-- never set global flags (CMAKE_CXX_FLAGS)
+- avoid setting global flags (CMAKE_CXX_FLAGS)
 - structure must allow simple disabling/enabling of tests, tools, options
 
 ---
@@ -85,7 +67,7 @@ target_link_libraries(app PRIVATE core)
 ## logging
 
 - ascii only, no utf or emoji
-- log format: lowercase, std::quoted() for strings, `=>` for actions, `==` for errors
+- log format: lowercase, std::quoted()-like for strings
 
 ```
 std::cout << "=> load: " << std::quoted(filename) << '\n';

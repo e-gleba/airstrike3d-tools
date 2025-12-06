@@ -25,39 +25,32 @@ class ImGuiLayer;
 class Renderer;
 class audio_manager;
 
-/// Engine configuration combining window and game settings
-struct engine_config final
-{
-    window_settings       window   = {};
-    std::filesystem::path game_lib = {};
-};
-
 /// RAII deleter for SDL_Window
-struct SDLWindowDeleter final
+struct sdl_window_deleter final
 {
     void operator()(SDL_Window* w) const noexcept;
 };
 
 /// RAII deleter for SDL_GPUDevice
-struct SDLGPUDeviceDeleter final
+struct sdl_gpu_device_deleter final
 {
     void operator()(SDL_GPUDevice* d) const noexcept;
 };
 
 /// RAII deleter for SDL_SharedObject (dynamic libraries)
-struct SDLSharedObjectDeleter final
+struct sdl_shared_object_deleter final
 {
     void operator()(SDL_SharedObject* o) const noexcept;
 };
 
 // Smart pointer type aliases
-using SDLWindowPtr    = std::unique_ptr<SDL_Window, SDLWindowDeleter>;
-using SDLGPUDevicePtr = std::unique_ptr<SDL_GPUDevice, SDLGPUDeviceDeleter>;
-using SDLSharedObjectPtr =
-    std::unique_ptr<SDL_SharedObject, SDLSharedObjectDeleter>;
+using sdl_window_ptr        = std::unique_ptr<SDL_Window, sdl_window_deleter>;
+using sdl_gpu_device_ptr    = std::unique_ptr<SDL_GPUDevice, sdl_gpu_device_deleter>;
+using sdl_shared_object_ptr = std::unique_ptr<SDL_SharedObject, sdl_shared_object_deleter>;
 
 /// Main engine class - manages window, GPU, subsystems and game loop
-/// Also implements IEngineSettings for game access to runtime settings
+/// Also implements i_engine_settings for game access to runtime settings
+/// Designed for SDL3 callback architecture
 class engine final : public i_engine_settings
 {
 public:
@@ -70,17 +63,24 @@ public:
     engine(engine&&)                 = delete;
     engine& operator=(engine&&)      = delete;
 
-    /// Initialize all engine subsystems
-    [[nodiscard]] bool init(const engine_config& config);
+    /// Initialize all engine subsystems with preinit settings
+    [[nodiscard]] bool init(const preinit_settings& settings);
 
     /// Shutdown all subsystems (also called by destructor)
     void shutdown() noexcept;
 
-    /// Run the main game loop
-    void run();
+    /// Process a single SDL event (for callback architecture)
+    /// Returns false if quit was requested
+    [[nodiscard]] bool process_event(const SDL_Event& event);
+
+    /// Run single iteration of game loop (for callback architecture)
+    void iterate();
 
     /// Signal the engine to stop
     void stop() noexcept override { running_ = false; }
+
+    /// Check if engine should continue running
+    [[nodiscard]] bool is_running() const noexcept { return running_; }
 
     /// Hot-load a game library
     [[nodiscard]] bool load_game(const std::filesystem::path& path);
@@ -93,22 +93,12 @@ public:
 
     // Direct accessors (for engine internal use)
     [[nodiscard]] entt::registry& registry() noexcept { return registry_; }
-    [[nodiscard]] SDL_GPUDevice*  device() const noexcept
-    {
-        return device_.get();
-    }
-    [[nodiscard]] SDL_Window* window() const noexcept { return window_.get(); }
-    [[nodiscard]] ShaderManager* shaders() const noexcept
-    {
-        return shader_manager_.get();
-    }
-    [[nodiscard]] Renderer* renderer() const noexcept
-    {
-        return renderer_.get();
-    }
-    [[nodiscard]] bool is_running() const noexcept { return running_; }
+    [[nodiscard]] SDL_GPUDevice*  device() const noexcept { return device_.get(); }
+    [[nodiscard]] SDL_Window*     window() const noexcept { return window_.get(); }
+    [[nodiscard]] ShaderManager*  shaders() const noexcept { return shader_manager_.get(); }
+    [[nodiscard]] Renderer*       renderer() const noexcept { return renderer_.get(); }
 
-    // IEngineSettings implementation
+    // i_engine_settings implementation
     void                     set_vsync(vsync_mode mode) noexcept override;
     [[nodiscard]] vsync_mode get_vsync() const noexcept override
     {
@@ -119,29 +109,19 @@ public:
     [[nodiscard]] std::int32_t     get_window_width() const noexcept override;
     [[nodiscard]] std::int32_t     get_window_height() const noexcept override;
     [[nodiscard]] std::string_view get_gpu_driver() const noexcept override;
-    [[nodiscard]] float            get_target_fps() const noexcept override
-    {
-        return target_fps_;
-    }
-    void               set_target_fps(float fps) noexcept override;
-    void               set_mouse_captured(bool captured) noexcept override;
-    [[nodiscard]] bool is_mouse_captured() const noexcept override
-    {
-        return mouse_captured_;
-    }
+    [[nodiscard]] float            get_target_fps() const noexcept override { return target_fps_; }
+    void                           set_target_fps(float fps) noexcept override;
+    void                           set_mouse_captured(bool captured) noexcept override;
+    [[nodiscard]] bool             is_mouse_captured() const noexcept override { return mouse_captured_; }
 
     // Audio control
     void                set_master_volume(float volume) noexcept override;
     [[nodiscard]] float get_master_volume() const noexcept override;
-    [[nodiscard]] bool  is_audio_available() const noexcept override
-    {
-        return audio_ != nullptr;
-    }
+    [[nodiscard]] bool  is_audio_available() const noexcept override { return audio_ != nullptr; }
 
     void request_quit() noexcept override { running_ = false; }
 
 private:
-    void process_events();
     void update();
     void render();
     void update_context() noexcept;
@@ -153,10 +133,10 @@ private:
     engine_context context_ {};
 
     // SDL resources
-    SDLWindowPtr    window_;
-    SDLGPUDevicePtr device_;
-    bool            sdl_initialized_ = false;
-    std::string     gpu_driver_name_;
+    sdl_window_ptr     window_;
+    sdl_gpu_device_ptr device_;
+    bool               sdl_initialized_ = false;
+    std::string        gpu_driver_name_;
 
     // Subsystems
     std::unique_ptr<ShaderManager> shader_manager_;
@@ -165,9 +145,10 @@ private:
     std::unique_ptr<audio_manager> audio_;
 
     // Game library hot-loading
-    SDLSharedObjectPtr    game_lib_;
+    sdl_shared_object_ptr game_lib_;
     std::filesystem::path game_lib_path_;
     std::filesystem::path game_temp_path_; // Temp copy for hot-reload
+    game_preinit_fn       game_preinit_  = nullptr;
     game_init_fn          game_init_     = nullptr;
     game_shutdown_fn      game_shutdown_ = nullptr;
     game_update_fn        game_update_   = nullptr;

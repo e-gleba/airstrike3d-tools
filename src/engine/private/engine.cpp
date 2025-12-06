@@ -19,7 +19,7 @@ namespace euengine
 {
 
 // RAII deleters implementation
-void SDLWindowDeleter::operator()(SDL_Window* w) const noexcept
+void sdl_window_deleter::operator()(SDL_Window* w) const noexcept
 {
     if (w != nullptr)
     {
@@ -27,7 +27,7 @@ void SDLWindowDeleter::operator()(SDL_Window* w) const noexcept
     }
 }
 
-void SDLGPUDeviceDeleter::operator()(SDL_GPUDevice* d) const noexcept
+void sdl_gpu_device_deleter::operator()(SDL_GPUDevice* d) const noexcept
 {
     if (d != nullptr)
     {
@@ -35,7 +35,7 @@ void SDLGPUDeviceDeleter::operator()(SDL_GPUDevice* d) const noexcept
     }
 }
 
-void SDLSharedObjectDeleter::operator()(SDL_SharedObject* o) const noexcept
+void sdl_shared_object_deleter::operator()(SDL_SharedObject* o) const noexcept
 {
     if (o != nullptr)
     {
@@ -50,31 +50,27 @@ engine::~engine()
     shutdown();
 }
 
-bool engine::init(const engine_config& config)
+bool engine::init(const preinit_settings& settings)
 {
     spdlog::info("=> engine init");
 
-    // Initialize SDL with video and events
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
-    {
-        spdlog::error("SDL_Init: {}", SDL_GetError());
-        return false;
-    }
+    // Note: SDL should already be initialized by the callback system
+    // We just mark it as initialized for our tracking
     sdl_initialized_ = true;
 
     // Build window flags from settings
     SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN;
-    if (config.window.resizable)
+    if (settings.window.resizable)
     {
         window_flags |= SDL_WINDOW_RESIZABLE;
     }
-    if (config.window.high_dpi)
+    if (settings.window.high_dpi)
     {
         window_flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     }
 
     // Apply window mode
-    switch (config.window.mode)
+    switch (settings.window.mode)
     {
         case window_mode::borderless:
             window_flags |= SDL_WINDOW_BORDERLESS;
@@ -90,9 +86,9 @@ bool engine::init(const engine_config& config)
             break;
     }
 
-    auto* raw_window = SDL_CreateWindow(config.window.title.data(),
-                                        config.window.width,
-                                        config.window.height,
+    auto* raw_window = SDL_CreateWindow(settings.window.title.data(),
+                                        settings.window.width,
+                                        settings.window.height,
                                         window_flags);
     if (raw_window == nullptr)
     {
@@ -102,10 +98,10 @@ bool engine::init(const engine_config& config)
     window_.reset(raw_window);
 
     // Set minimum window size if specified
-    if (config.window.min_width > 0 && config.window.min_height > 0)
+    if (settings.window.min_width > 0 && settings.window.min_height > 0)
     {
         SDL_SetWindowMinimumSize(
-            window_.get(), config.window.min_width, config.window.min_height);
+            window_.get(), settings.window.min_width, settings.window.min_height);
     }
 
     // Create GPU device with multi-format support
@@ -136,7 +132,7 @@ bool engine::init(const engine_config& config)
     }
 
     // Apply VSync setting
-    current_vsync_ = config.window.vsync;
+    current_vsync_ = settings.window.vsync;
     apply_vsync_mode();
 
     // Initialize shader manager
@@ -150,8 +146,8 @@ bool engine::init(const engine_config& config)
         spdlog::error("renderer init failed");
         return false;
     }
-    renderer_->ensure_depth_texture(static_cast<Uint32>(config.window.width),
-                                    static_cast<Uint32>(config.window.height));
+    renderer_->ensure_depth_texture(static_cast<Uint32>(settings.window.width),
+                                    static_cast<Uint32>(settings.window.height));
 
     // Initialize ImGui layer
     imgui_layer_ = std::make_unique<ImGuiLayer>();
@@ -168,19 +164,23 @@ bool engine::init(const engine_config& config)
         spdlog::warn("audio init failed, continuing without audio");
     }
 
+    // Apply audio settings
+    if (audio_)
+    {
+        master_volume_     = settings.audio.master_volume;
+        music_volume_mult_ = settings.audio.music_volume;
+        sfx_volume_mult_   = settings.audio.sound_volume;
+        audio_->set_music_volume(master_volume_ * music_volume_mult_);
+        audio_->set_sound_volume(master_volume_ * sfx_volume_mult_);
+    }
+
     // Setup engine context for game
     context_.registry  = &registry_;
     context_.renderer  = renderer_.get();
     context_.shaders   = shader_manager_.get();
     context_.audio     = audio_.get();
-    context_.settings  = this; // Engine implements IEngineSettings
+    context_.settings  = this; // Engine implements i_engine_settings
     context_.imgui_ctx = ImGui::GetCurrentContext();
-
-    // Load game library if specified
-    if (!config.game_lib.empty() && !load_game(config.game_lib))
-    {
-        spdlog::warn("game load failed, continuing without game");
-    }
 
     last_time_ = SDL_GetPerformanceCounter();
     running_   = true;
@@ -236,7 +236,8 @@ void engine::shutdown() noexcept
 
     device_.reset();
     window_.reset();
-    SDL_Quit();
+    
+    // Note: SDL_Quit is called by the callback system, not here
     sdl_initialized_ = false;
 }
 
@@ -396,7 +397,9 @@ bool engine::load_game(const std::filesystem::path& path)
     }
     game_lib_.reset(raw_lib);
 
-    // Load function pointers
+    // Load function pointers (preinit is optional for hot-reload)
+    game_preinit_ = reinterpret_cast<game_preinit_fn>(
+        SDL_LoadFunction(raw_lib, "game_preinit"));
     game_init_ =
         reinterpret_cast<game_init_fn>(SDL_LoadFunction(raw_lib, "game_init"));
     game_shutdown_ = reinterpret_cast<game_shutdown_fn>(
@@ -408,7 +411,7 @@ bool engine::load_game(const std::filesystem::path& path)
     game_ui_ =
         reinterpret_cast<game_ui_fn>(SDL_LoadFunction(raw_lib, "game_ui"));
 
-    // Verify all required exports are present
+    // Verify all required exports are present (preinit is optional)
     if ((game_init_ == nullptr) || (game_shutdown_ == nullptr) ||
         (game_update_ == nullptr) || (game_render_ == nullptr) ||
         (game_ui_ == nullptr))
@@ -473,6 +476,7 @@ void engine::unload_game() noexcept
 
 void engine::cleanup_game_pointers() noexcept
 {
+    game_preinit_  = nullptr;
     game_init_     = nullptr;
     game_shutdown_ = nullptr;
     game_update_   = nullptr;
@@ -502,59 +506,51 @@ void engine::set_mouse_captured(bool captured) noexcept
     mouse_captured_ = captured;
 }
 
-void engine::process_events()
+bool engine::process_event(const SDL_Event& event)
 {
-    input_.mouse_xrel = 0.0f;
-    input_.mouse_yrel = 0.0f;
+    imgui_layer_->process_event(event);
 
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
+    switch (event.type)
     {
-        imgui_layer_->process_event(event);
+        case SDL_EVENT_QUIT:
+            running_ = false;
+            return false;
 
-        switch (event.type)
-        {
-            case SDL_EVENT_QUIT:
-                running_ = false;
-                break;
+        case SDL_EVENT_KEY_DOWN:
+            if (event.key.key == SDLK_ESCAPE)
+            {
+                set_mouse_captured(false);
+            }
+            else if (event.key.key == SDLK_F5)
+            {
+                static_cast<void>(reload_game());
+            }
+            else if (event.key.key == SDLK_F11)
+            {
+                set_fullscreen(!is_fullscreen());
+            }
+            break;
 
-            case SDL_EVENT_KEY_DOWN:
-                if (event.key.key == SDLK_ESCAPE)
-                {
-                    set_mouse_captured(false);
-                }
-                else if (event.key.key == SDLK_F5)
-                {
-                    static_cast<void>(reload_game());
-                }
-                else if (event.key.key == SDLK_F11)
-                {
-                    set_fullscreen(!is_fullscreen());
-                }
-                break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (!ImGui::GetIO().WantCaptureMouse)
+            {
+                set_mouse_captured(true);
+            }
+            break;
 
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (!ImGui::GetIO().WantCaptureMouse)
-                {
-                    set_mouse_captured(true);
-                }
-                break;
+        case SDL_EVENT_MOUSE_MOTION:
+            if (mouse_captured_)
+            {
+                input_.mouse_xrel += event.motion.xrel;
+                input_.mouse_yrel += event.motion.yrel;
+            }
+            break;
 
-            case SDL_EVENT_MOUSE_MOTION:
-                if (mouse_captured_)
-                {
-                    input_.mouse_xrel = event.motion.xrel;
-                    input_.mouse_yrel = event.motion.yrel;
-                }
-                break;
-
-            default:
-                break;
-        }
+        default:
+            break;
     }
 
-    input_.keyboard       = SDL_GetKeyboardState(nullptr);
-    input_.mouse_captured = mouse_captured_;
+    return true;
 }
 
 void engine::update()
@@ -697,24 +693,32 @@ void engine::render()
     shader_manager_->check_for_updates();
 }
 
-void engine::run()
+void engine::iterate()
 {
     const Uint64 freq = SDL_GetPerformanceFrequency();
+    const Uint64 now  = SDL_GetPerformanceCounter();
+    
+    delta_time_ = static_cast<float>(now - last_time_) / static_cast<float>(freq);
+    last_time_  = now;
 
-    while (running_)
-    {
-        const Uint64 now = SDL_GetPerformanceCounter();
-        delta_time_ =
-            static_cast<float>(now - last_time_) / static_cast<float>(freq);
-        last_time_ = now;
+    // Clamp delta time to avoid spiral of death
+    delta_time_ = std::min(delta_time_, k_max_delta_time);
 
-        // Clamp delta time to avoid spiral of death
-        delta_time_ = std::min(delta_time_, k_max_delta_time);
+    // Reset mouse relative motion for this frame
+    input_.mouse_xrel     = 0.0f;
+    input_.mouse_yrel     = 0.0f;
+    input_.keyboard       = SDL_GetKeyboardState(nullptr);
+    input_.mouse_captured = mouse_captured_;
 
-        process_events();
-        update();
-        render();
-    }
+    // Note: Events are processed via process_event() called by SDL callbacks
+    // We accumulate mouse motion there
+
+    update();
+    render();
+
+    // Reset accumulated mouse motion after processing
+    input_.mouse_xrel = 0.0f;
+    input_.mouse_yrel = 0.0f;
 }
 
 } // namespace euengine
