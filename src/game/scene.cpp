@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <ranges>
 
 namespace scene
 {
@@ -268,7 +269,7 @@ void init(euengine::engine_context* ctx)
     setup_scene();
     scan_models();
     scan_audio();
-    scan_tscn();
+    scan_scenes();
 
     ctx->renderer->set_render_mode(euengine::render_mode::textured);
     apply_sky();
@@ -387,9 +388,9 @@ void scan_models()
     ui::log(2, "Models: " + std::to_string(g_model_files.size()));
 }
 
-void scan_tscn()
+void scan_scenes()
 {
-    g_tscn_files.clear();
+    g_scene_files.clear();
 
     const std::string dir = "assets";
     if (!std::filesystem::exists(dir))
@@ -400,11 +401,12 @@ void scan_tscn()
         if (!e.is_regular_file())
             continue;
         auto ext = e.path().extension().string();
-        if (ext == ".tscn" || ext == ".TSCN")
-            g_tscn_files.push_back(e.path().string());
+        std::ranges::transform(ext, ext.begin(), ::tolower);
+        if (ext == ".gltf" || ext == ".glb")
+            g_scene_files.push_back(e.path().string());
     }
-    std::sort(g_tscn_files.begin(), g_tscn_files.end());
-    ui::log(2, "TSCN files: " + std::to_string(g_tscn_files.size()));
+    std::sort(g_scene_files.begin(), g_scene_files.end());
+    ui::log(2, "Scene files: " + std::to_string(g_scene_files.size()));
 }
 
 void scan_audio()

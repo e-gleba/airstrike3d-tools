@@ -1,5 +1,5 @@
 #include "ui.hpp"
-#include "godot_scene.hpp"
+#include "gltf_scene.hpp"
 #include "scene.hpp"
 
 #include <core-api/camera.hpp>
@@ -97,6 +97,75 @@ std::string sanitize_utf8(const std::string& str)
 }
 
 // Modern Steam 2024+ inspired theme - clean, flat, professional
+// Load a glTF/GLB scene file
+void load_gltf_scene(const std::filesystem::path& path)
+{
+    std::string filename = sanitize_utf8(path.filename().string());
+    log(2, "Loading glTF scene: " + filename);
+
+    gltf_scene::load_options opts;
+    opts.convert_coordinate_system = true;
+    opts.global_scale              = 1.0f;
+
+    auto result = gltf_scene::load(path, opts);
+
+    if (!result)
+    {
+        log(4, "Failed to load: " + sanitize_utf8(result.error));
+        return;
+    }
+
+    // Log warnings
+    for (const auto& warn : result.warnings)
+    {
+        log(3, "Warning: " + sanitize_utf8(warn));
+    }
+
+    const auto& loaded = *result.scene;
+    int         loaded_count = 0;
+
+    // Add nodes with meshes to the scene
+    for (const auto& node : loaded.nodes)
+    {
+        if (node.mesh_index < 0)
+            continue;
+
+        // Extract position from world matrix
+        glm::vec3 pos = glm::vec3(node.world_matrix[3]);
+
+        // Extract scale (approximate - take average of axis lengths)
+        float scale_x = glm::length(glm::vec3(node.world_matrix[0]));
+        float scale_y = glm::length(glm::vec3(node.world_matrix[1]));
+        float scale_z = glm::length(glm::vec3(node.world_matrix[2]));
+        float avg_scale = (scale_x + scale_y + scale_z) / 3.0f;
+
+        // For now, load the original glTF file as a model
+        // In future, we could extract individual meshes
+        if (auto* m = scene::add_model(path.string(), pos, avg_scale))
+        {
+            m->name = node.name.empty() ? loaded.name : node.name;
+            loaded_count++;
+            break; // Only load once for now (whole file)
+        }
+    }
+
+    if (loaded_count > 0)
+    {
+        log(2,
+            std::format("Loaded scene: {} ({} nodes, {} meshes, {} materials)",
+                        filename,
+                        loaded.nodes.size(),
+                        loaded.meshes.size(),
+                        loaded.materials.size()));
+        g_show_file_dialog = false;
+        g_file_dialog_selected_file.clear();
+    }
+    else
+    {
+        log(4, "No meshes found in scene: " + filename);
+    }
+}
+
 void apply_theme()
 {
     ImGuiStyle& s = ImGui::GetStyle();
@@ -243,7 +312,7 @@ void draw_menu(euengine::engine_context* ctx)
             {
                 scene::scan_models();
                 scene::scan_audio();
-                scene::scan_tscn();
+                scene::scan_scenes();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Alt+F4"))
@@ -1607,7 +1676,7 @@ void draw_file_dialog()
                 ImGui::PopStyleColor();
             }
 
-            // List directories and .tscn files
+            // List directories and glTF/GLB files (Godot export format)
             std::vector<std::filesystem::path> entries;
             for (const auto& entry : std::filesystem::directory_iterator(
                      g_file_dialog_current_path))
@@ -1627,12 +1696,13 @@ void draw_file_dialog()
 
             for (const auto& entry : entries)
             {
-                bool is_dir  = std::filesystem::is_directory(entry);
-                bool is_tscn = !is_dir && (entry.extension() == ".tscn" ||
-                                           entry.extension() == ".TSCN");
+                bool is_dir = std::filesystem::is_directory(entry);
+                auto ext    = entry.extension().string();
+                std::ranges::transform(ext, ext.begin(), ::tolower);
+                bool is_gltf = !is_dir && (ext == ".gltf" || ext == ".glb");
 
-                if (!is_dir && !is_tscn)
-                    continue; // Skip non-tscn files
+                if (!is_dir && !is_gltf)
+                    continue; // Skip non-glTF files
 
                 std::string name = sanitize_utf8(entry.filename().string());
                 // Compare normalized paths for selection
@@ -1683,7 +1753,7 @@ void draw_file_dialog()
                     }
                     ImGui::PopStyleColor();
                 }
-                else if (is_tscn)
+                else if (is_gltf)
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text,
                                           ImVec4(1.0f, 0.9f, 0.5f, 1.0f));
@@ -1700,7 +1770,7 @@ void draw_file_dialog()
                             spdlog::debug("Selected file (canonical): {}",
                                           g_file_dialog_selected_file.string());
                         }
-                        catch (const std::exception& e)
+                        catch (const std::exception&)
                         {
                             try
                             {
@@ -1728,22 +1798,7 @@ void draw_file_dialog()
                         // Double-click to load immediately
                         if (ImGui::IsMouseDoubleClicked(0))
                         {
-                            std::string path =
-                                g_file_dialog_selected_file.string();
-                            log(2,
-                                "Double-click: loading " + sanitize_utf8(path));
-                            if (godot_scene::load_tscn(path))
-                            {
-                                log(2, "Loaded TSCN: " + sanitize_utf8(name));
-                                g_show_file_dialog = false;
-                                g_file_dialog_selected_file.clear();
-                            }
-                            else
-                            {
-                                log(4,
-                                    "Failed to load TSCN: " +
-                                        sanitize_utf8(name));
-                            }
+                            load_gltf_scene(g_file_dialog_selected_file);
                         }
                     }
                     ImGui::PopStyleColor();
@@ -1809,32 +1864,7 @@ void draw_file_dialog()
         {
             if (has_selection && !g_file_dialog_selected_file.empty())
             {
-                try
-                {
-                    std::string path = g_file_dialog_selected_file.string();
-                    log(2,
-                        "Open button clicked - attempting to load: " +
-                            sanitize_utf8(path));
-
-                    if (godot_scene::load_tscn(path))
-                    {
-                        std::string filename = sanitize_utf8(
-                            g_file_dialog_selected_file.filename().string());
-                        log(2, "Loaded TSCN: " + filename);
-                        g_show_file_dialog = false;
-                        g_file_dialog_selected_file.clear();
-                    }
-                    else
-                    {
-                        std::string filename = sanitize_utf8(
-                            g_file_dialog_selected_file.filename().string());
-                        log(4, "Failed to load TSCN: " + filename);
-                    }
-                }
-                catch (const std::exception& e)
-                {
-                    log(4, "Error loading file: " + sanitize_utf8(e.what()));
-                }
+                load_gltf_scene(g_file_dialog_selected_file);
             }
             else
             {

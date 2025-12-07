@@ -54,7 +54,7 @@ inline int                     g_playing = -1;
 // Browser
 inline std::vector<std::string> g_model_files;
 inline int                      g_browser_sel = -1;
-inline std::vector<std::string> g_tscn_files;
+inline std::vector<std::string> g_scene_files;
 
 // Info
 inline std::string g_lib_path;
@@ -77,7 +77,7 @@ void render(euengine::engine_context* ctx);
 
 void            scan_models();
 void            scan_audio();
-void            scan_tscn();
+void            scan_scenes();
 model_instance* add_model(const std::string& path,
                           const glm::vec3&   pos,
                           float              scale = 0.1f);
