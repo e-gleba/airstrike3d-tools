@@ -1,5 +1,4 @@
 #include "ui.hpp"
-#include "gltf_scene.hpp"
 #include "scene.hpp"
 
 #include <core-api/camera.hpp>
@@ -101,68 +100,20 @@ std::string sanitize_utf8(const std::string& str)
 void load_gltf_scene(const std::filesystem::path& path)
 {
     std::string filename = sanitize_utf8(path.filename().string());
-    log(2, "Loading glTF scene: " + filename);
+    log(2, "Loading glTF: " + filename);
 
-    gltf_scene::load_options opts;
-    opts.convert_coordinate_system = true;
-    opts.global_scale              = 1.0f;
-
-    auto result = gltf_scene::load(path, opts);
-
-    if (!result)
+    // Load model at origin with default scale
+    // Engine's glTF loader handles hierarchy and transforms internally
+    if (auto* m = scene::add_model(path.string(), { 0.0f, 0.0f, 0.0f }, 1.0f))
     {
-        log(4, "Failed to load: " + sanitize_utf8(result.error));
-        return;
-    }
-
-    // Log warnings
-    for (const auto& warn : result.warnings)
-    {
-        log(3, "Warning: " + sanitize_utf8(warn));
-    }
-
-    const auto& loaded = *result.scene;
-    int         loaded_count = 0;
-
-    // Add nodes with meshes to the scene
-    for (const auto& node : loaded.nodes)
-    {
-        if (node.mesh_index < 0)
-            continue;
-
-        // Extract position from world matrix
-        glm::vec3 pos = glm::vec3(node.world_matrix[3]);
-
-        // Extract scale (approximate - take average of axis lengths)
-        float scale_x = glm::length(glm::vec3(node.world_matrix[0]));
-        float scale_y = glm::length(glm::vec3(node.world_matrix[1]));
-        float scale_z = glm::length(glm::vec3(node.world_matrix[2]));
-        float avg_scale = (scale_x + scale_y + scale_z) / 3.0f;
-
-        // For now, load the original glTF file as a model
-        // In future, we could extract individual meshes
-        if (auto* m = scene::add_model(path.string(), pos, avg_scale))
-        {
-            m->name = node.name.empty() ? loaded.name : node.name;
-            loaded_count++;
-            break; // Only load once for now (whole file)
-        }
-    }
-
-    if (loaded_count > 0)
-    {
-        log(2,
-            std::format("Loaded scene: {} ({} nodes, {} meshes, {} materials)",
-                        filename,
-                        loaded.nodes.size(),
-                        loaded.meshes.size(),
-                        loaded.materials.size()));
+        m->name = path.stem().string();
+        log(2, "Loaded: " + filename);
         g_show_file_dialog = false;
         g_file_dialog_selected_file.clear();
     }
     else
     {
-        log(4, "No meshes found in scene: " + filename);
+        log(4, "Failed to load: " + filename);
     }
 }
 

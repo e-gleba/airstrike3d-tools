@@ -136,13 +136,6 @@ template <typename T>
     t.position *= opts.global_scale;
     t.scale *= opts.global_scale;
 
-    // Convert coordinate system (Godot: Y-up, -Z forward -> Engine: Y-up, +Z forward)
-    if (opts.convert_coordinate_system)
-    {
-        t.position.x = -t.position.x;
-        t.position.z = -t.position.z;
-    }
-
     return t;
 }
 
@@ -264,13 +257,7 @@ template <typename T>
         
         for (const auto& p : data)
         {
-            glm::vec3 pos = p * opts.global_scale;
-            if (opts.convert_coordinate_system)
-            {
-                pos.x = -pos.x;
-                pos.z = -pos.z;
-            }
-            result.positions.push_back(pos);
+            result.positions.push_back(p * opts.global_scale);
         }
     }
 
@@ -280,18 +267,7 @@ template <typename T>
         const auto& accessor =
             model.accessors[static_cast<size_t>(it->second)];
         auto data = get_accessor_data<glm::vec3>(model, accessor);
-        result.normals.reserve(data.size());
-        
-        for (const auto& n : data)
-        {
-            glm::vec3 normal = n;
-            if (opts.convert_coordinate_system)
-            {
-                normal.x = -normal.x;
-                normal.z = -normal.z;
-            }
-            result.normals.push_back(glm::normalize(normal));
-        }
+        result.normals.assign(data.begin(), data.end());
     }
 
     // Texture coordinates
