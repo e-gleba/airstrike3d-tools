@@ -32,17 +32,17 @@ enum class msaa_samples : std::uint8_t
 
 struct window_settings final
 {
-    std::string      title             = "euengine";
-    std::int32_t     width             = 1280;
-    std::int32_t     height            = 720;
-    std::int32_t     min_width         = 640;
-    std::int32_t     min_height        = 480;
-    window_mode      mode              = window_mode::windowed;
-    vsync_mode       vsync             = vsync_mode::enabled;
-    msaa_samples     msaa              = msaa_samples::none;
-    bool             resizable         = true;
-    bool             high_dpi          = true;
-    bool             allow_screensaver = false;
+    std::string  title             = "euengine";
+    std::int32_t width             = 1280;
+    std::int32_t height            = 720;
+    std::int32_t min_width         = 640;
+    std::int32_t min_height        = 480;
+    window_mode  mode              = window_mode::windowed;
+    vsync_mode   vsync             = vsync_mode::enabled;
+    msaa_samples msaa              = msaa_samples::none;
+    bool         resizable         = true;
+    bool         high_dpi          = true;
+    bool         allow_screensaver = false;
 
     [[nodiscard]] static constexpr window_settings windowed(
         std::int32_t w = 1280, std::int32_t h = 720) noexcept

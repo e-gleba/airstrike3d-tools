@@ -140,7 +140,7 @@ public:
     }
 
     // Rendering settings
-    void                    set_msaa(msaa_samples samples) noexcept override;
+    void                       set_msaa(msaa_samples samples) noexcept override;
     [[nodiscard]] msaa_samples get_msaa() const noexcept override
     {
         return current_msaa_;
@@ -155,37 +155,59 @@ public:
     {
         return max_anisotropy_;
     }
-    void                    set_frames_in_flight(std::uint32_t frames) noexcept override;
+    void set_frames_in_flight(std::uint32_t frames) noexcept override;
     [[nodiscard]] std::uint32_t get_frames_in_flight() const noexcept override
     {
         return frames_in_flight_;
     }
-    [[nodiscard]] bool is_msaa_supported(msaa_samples samples) const noexcept override;
-    
+    [[nodiscard]] bool is_msaa_supported(
+        msaa_samples samples) const noexcept override;
+
     void               set_fxaa_enabled(bool enabled) noexcept override;
-    [[nodiscard]] bool is_fxaa_enabled() const noexcept override { return fxaa_enabled_; }
-    
-    void                    set_texture_filter(texture_filter filter) noexcept override;
-    [[nodiscard]] texture_filter get_texture_filter() const noexcept override { return texture_filter_; }
-    
+    [[nodiscard]] bool is_fxaa_enabled() const noexcept override
+    {
+        return fxaa_enabled_;
+    }
+
+    void set_texture_filter(texture_filter filter) noexcept override;
+    [[nodiscard]] texture_filter get_texture_filter() const noexcept override
+    {
+        return texture_filter_;
+    }
+
     void                set_gamma(float gamma) noexcept override;
     [[nodiscard]] float get_gamma() const noexcept override { return gamma_; }
-    
+
     void                set_brightness(float brightness) noexcept override;
-    [[nodiscard]] float get_brightness() const noexcept override { return brightness_; }
-    
+    [[nodiscard]] float get_brightness() const noexcept override
+    {
+        return brightness_;
+    }
+
     void                set_contrast(float contrast) noexcept override;
-    [[nodiscard]] float get_contrast() const noexcept override { return contrast_; }
-    
+    [[nodiscard]] float get_contrast() const noexcept override
+    {
+        return contrast_;
+    }
+
     void                set_saturation(float saturation) noexcept override;
-    [[nodiscard]] float get_saturation() const noexcept override { return saturation_; }
-    
+    [[nodiscard]] float get_saturation() const noexcept override
+    {
+        return saturation_;
+    }
+
     void                set_vignette(float intensity) noexcept override;
-    [[nodiscard]] float get_vignette() const noexcept override { return vignette_; }
-    
+    [[nodiscard]] float get_vignette() const noexcept override
+    {
+        return vignette_;
+    }
+
     void                set_render_distance(float distance) noexcept override;
-    [[nodiscard]] float get_render_distance() const noexcept override { return render_distance_; }
-    
+    [[nodiscard]] float get_render_distance() const noexcept override
+    {
+        return render_distance_;
+    }
+
     /// Check if post-processing is available
     [[nodiscard]] bool is_postprocess_available() const noexcept;
 
@@ -244,19 +266,19 @@ private:
     clear_color background_ = clear_color::dark();
 
     // Rendering settings
-    msaa_samples   current_msaa_          = msaa_samples::none;
-    float          render_scale_          = 1.0f;
-    float          max_anisotropy_        = 16.0f;
-    std::uint32_t  frames_in_flight_      = 2; // Default double buffering
+    msaa_samples   current_msaa_           = msaa_samples::none;
+    float          render_scale_           = 1.0f;
+    float          max_anisotropy_         = 16.0f;
+    std::uint32_t  frames_in_flight_       = 2; // Default double buffering
     bool           frames_in_flight_dirty_ = false;
-    bool           fxaa_enabled_          = false;
-    texture_filter texture_filter_        = texture_filter::trilinear;
-    float          gamma_                 = 2.2f;
-    float          brightness_            = 0.0f;
-    float          contrast_              = 1.0f;
-    float          saturation_            = 1.0f;
-    float          vignette_              = 0.0f;
-    float          render_distance_       = 200.0f;
+    bool           fxaa_enabled_           = false;
+    texture_filter texture_filter_         = texture_filter::trilinear;
+    float          gamma_                  = 2.2f;
+    float          brightness_             = 0.0f;
+    float          contrast_               = 1.0f;
+    float          saturation_             = 1.0f;
+    float          vignette_               = 0.0f;
+    float          render_distance_        = 200.0f;
 
     // Audio
     float master_volume_     = 1.0f;

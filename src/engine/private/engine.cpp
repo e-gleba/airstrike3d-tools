@@ -139,9 +139,9 @@ bool engine::init(const preinit_settings& settings)
     apply_vsync_mode();
 
     // Initialize rendering settings
-    current_msaa_     = settings.window.msaa;
-    render_scale_     = settings.renderer.render_scale;
-    max_anisotropy_   = settings.renderer.max_anisotropy;
+    current_msaa_   = settings.window.msaa;
+    render_scale_   = settings.renderer.render_scale;
+    max_anisotropy_ = settings.renderer.max_anisotropy;
 
     // Initialize shader manager
     shader_manager_ = std::make_unique<ShaderManager>(device_.get());
@@ -154,15 +154,15 @@ bool engine::init(const preinit_settings& settings)
         spdlog::error("renderer init failed");
         return false;
     }
-    
+
     // Apply initial rendering settings to renderer
     renderer_->set_msaa_samples(current_msaa_);
     renderer_->set_max_anisotropy(max_anisotropy_);
-    
+
     // Set frame buffering (default: 2 = double buffering)
     SDL_SetGPUAllowedFramesInFlight(device_.get(), frames_in_flight_);
     spdlog::info("Frames in flight: {}", frames_in_flight_);
-    
+
     renderer_->ensure_depth_texture(
         static_cast<Uint32>(settings.window.width),
         static_cast<Uint32>(settings.window.height));
@@ -390,9 +390,10 @@ void engine::set_max_anisotropy(float anisotropy) noexcept
 void engine::set_frames_in_flight(std::uint32_t frames) noexcept
 {
     frames_in_flight_ = std::clamp(frames, 1u, 3u);
-    // Note: SDL_SetGPUAllowedFramesInFlight should only be called before rendering starts
-    // or between frames. Changing it during rendering can cause crashes.
-    // We'll apply it at the start of the next frame via a dirty flag.
+    // Note: SDL_SetGPUAllowedFramesInFlight should only be called before
+    // rendering starts or between frames. Changing it during rendering can
+    // cause crashes. We'll apply it at the start of the next frame via a dirty
+    // flag.
     frames_in_flight_dirty_ = true;
     spdlog::info("Frames in flight will be set to: {}", frames_in_flight_);
 }
@@ -401,37 +402,48 @@ bool engine::is_msaa_supported(msaa_samples samples) const noexcept
 {
     if (!device_)
         return false;
-    
+
     SDL_GPUSampleCount count = SDL_GPU_SAMPLECOUNT_1;
     switch (samples)
     {
-        case msaa_samples::none: count = SDL_GPU_SAMPLECOUNT_1; break;
-        case msaa_samples::x2:   count = SDL_GPU_SAMPLECOUNT_2; break;
-        case msaa_samples::x4:   count = SDL_GPU_SAMPLECOUNT_4; break;
-        case msaa_samples::x8:   count = SDL_GPU_SAMPLECOUNT_8; break;
-        case msaa_samples::x16:  
+        case msaa_samples::none:
+            count = SDL_GPU_SAMPLECOUNT_1;
+            break;
+        case msaa_samples::x2:
+            count = SDL_GPU_SAMPLECOUNT_2;
+            break;
+        case msaa_samples::x4:
+            count = SDL_GPU_SAMPLECOUNT_4;
+            break;
+        case msaa_samples::x8:
+            count = SDL_GPU_SAMPLECOUNT_8;
+            break;
+        case msaa_samples::x16:
             // SDL_GPU only supports up to 8x, check 8x support for 16x
             count = SDL_GPU_SAMPLECOUNT_8;
             break;
     }
-    
+
     // Check if this sample count is supported for the swapchain format
-    auto format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
-    bool supported = SDL_GPUTextureSupportsSampleCount(device_.get(), format, count);
-    
+    auto format =
+        SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
+    bool supported =
+        SDL_GPUTextureSupportsSampleCount(device_.get(), format, count);
+
     // For 16x, warn that it's actually 8x
     if (samples == msaa_samples::x16 && supported)
     {
         // It's supported but will use 8x internally
     }
-    
+
     return supported;
 }
 
 void engine::set_fxaa_enabled(bool enabled) noexcept
 {
     fxaa_enabled_ = enabled;
-    // FXAA will be applied in post-processing pass (requires shader implementation)
+    // FXAA will be applied in post-processing pass (requires shader
+    // implementation)
 }
 
 void engine::set_texture_filter(texture_filter filter) noexcept
@@ -440,7 +452,8 @@ void engine::set_texture_filter(texture_filter filter) noexcept
     // Texture filter will be applied when creating/updating samplers
     if (renderer_)
     {
-        i_renderer::texture_filter rf = static_cast<i_renderer::texture_filter>(static_cast<int>(filter));
+        i_renderer::texture_filter rf =
+            static_cast<i_renderer::texture_filter>(static_cast<int>(filter));
         renderer_->set_texture_filter(rf);
     }
 }
@@ -473,7 +486,7 @@ void engine::set_vignette(float intensity) noexcept
 void engine::set_render_distance(float distance) noexcept
 {
     render_distance_ = std::clamp(distance, 10.0f, 10000.0f);
-    
+
     // Update camera far plane
     auto camera_view = registry_.view<camera_component>();
     for (auto&& [entity, cam] : camera_view.each())
@@ -799,7 +812,7 @@ void engine::render()
         apply_vsync_mode();
         vsync_dirty_ = false;
     }
-    
+
     // Apply deferred frames in flight change
     if (frames_in_flight_dirty_)
     {
@@ -834,36 +847,42 @@ void engine::render()
     }
 
     renderer_->ensure_depth_texture(swapchain_w, swapchain_h);
-    
+
     // Get swapchain format for MSAA and post-processing targets
-    auto swapchain_format = SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
-    
+    auto swapchain_format =
+        SDL_GetGPUSwapchainTextureFormat(device_.get(), window_.get());
+
     // Check if post-processing is enabled (any non-default value)
-    const bool use_postprocess = (gamma_ != 2.2f || brightness_ != 0.0f || contrast_ != 1.0f ||
-                                  saturation_ != 1.0f || vignette_ > 0.001f || fxaa_enabled_);
-    
+    const bool use_postprocess =
+        (gamma_ != 2.2f || brightness_ != 0.0f || contrast_ != 1.0f ||
+         saturation_ != 1.0f || vignette_ > 0.001f || fxaa_enabled_);
+
     // Ensure post-processing target if needed
     if (use_postprocess)
     {
         renderer_->ensure_pp_target(swapchain_w, swapchain_h, swapchain_format);
     }
-    
+
     // Ensure MSAA render targets if MSAA is enabled
     const bool use_msaa = (renderer_->get_msaa_samples() != msaa_samples::none);
     if (use_msaa)
     {
-        renderer_->ensure_msaa_targets(swapchain_w, swapchain_h, swapchain_format);
+        renderer_->ensure_msaa_targets(
+            swapchain_w, swapchain_h, swapchain_format);
     }
-    
+
     // Determine scene output target:
     // - With postprocess: output to pp_color_texture
     // - Without postprocess: output to swapchain
-    SDL_GPUTexture* scene_output = use_postprocess ? renderer_->pp_color_target() : swapchain;
-    
+    SDL_GPUTexture* scene_output =
+        use_postprocess ? renderer_->pp_color_target() : swapchain;
+
     // Determine which textures to render to for the scene
-    SDL_GPUTexture* color_texture = use_msaa ? renderer_->msaa_color_target() : scene_output;
-    SDL_GPUTexture* depth_texture = use_msaa ? renderer_->msaa_depth_target() : renderer_->depth_texture();
-    
+    SDL_GPUTexture* color_texture =
+        use_msaa ? renderer_->msaa_color_target() : scene_output;
+    SDL_GPUTexture* depth_texture =
+        use_msaa ? renderer_->msaa_depth_target() : renderer_->depth_texture();
+
     // Fallback if MSAA target creation failed
     if (use_msaa && (color_texture == nullptr || depth_texture == nullptr))
     {
@@ -882,12 +901,12 @@ void engine::render()
     };
     color_target.load_op  = SDL_GPU_LOADOP_CLEAR;
     color_target.store_op = SDL_GPU_STOREOP_STORE;
-    
+
     // For MSAA, we need to resolve to the scene_output target
     if (use_msaa && renderer_->msaa_color_target() != nullptr)
     {
         color_target.resolve_texture = scene_output;
-        color_target.store_op = SDL_GPU_STOREOP_RESOLVE;
+        color_target.store_op        = SDL_GPU_STOREOP_RESOLVE;
     }
 
     // Setup depth target
@@ -923,7 +942,7 @@ void engine::render()
         renderer_->end_frame();
         SDL_EndGPURenderPass(pass);
     }
-    
+
     // Apply post-processing if enabled
     if (use_postprocess && renderer_->pp_color_target() != nullptr)
     {
@@ -936,7 +955,7 @@ void engine::render()
         pp_params.fxaa_enabled = fxaa_enabled_ ? 1.0f : 0.0f;
         pp_params.res_x        = static_cast<float>(swapchain_w);
         pp_params.res_y        = static_cast<float>(swapchain_h);
-        
+
         renderer_->apply_postprocess(cmd, swapchain, pp_params);
     }
 

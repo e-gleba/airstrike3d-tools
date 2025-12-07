@@ -109,13 +109,15 @@ bool Renderer::init(SDL_GPUDevice* device, ShaderManager* shaders)
     shaders_->set_reload_callback(
         [this](const std::string& name)
         {
-            if (name == "wireframe" || name == "textured" || name == "postprocess")
+            if (name == "wireframe" || name == "textured" ||
+                name == "postprocess")
             {
                 pipeline_dirty_ = true;
             }
         });
 
-    if (!create_wireframe_pipeline() || !create_textured_pipeline() || !create_postprocess_pipeline())
+    if (!create_wireframe_pipeline() || !create_textured_pipeline() ||
+        !create_postprocess_pipeline())
     {
         return false;
     }
@@ -220,7 +222,7 @@ void Renderer::shutdown()
         SDL_ReleaseGPUTexture(device_, depth_texture_);
         depth_texture_ = nullptr;
     }
-    
+
     // Release MSAA render targets
     if (msaa_color_texture_ != nullptr)
     {
@@ -237,7 +239,7 @@ void Renderer::shutdown()
         SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
         msaa_resolve_texture_ = nullptr;
     }
-    
+
     // Release post-processing resources
     if (pp_color_texture_ != nullptr)
     {
@@ -296,7 +298,9 @@ void Renderer::ensure_depth_texture(Uint32 width, Uint32 height)
     }
 }
 
-void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFormat format)
+void Renderer::ensure_msaa_targets(Uint32               width,
+                                   Uint32               height,
+                                   SDL_GPUTextureFormat format)
 {
     // Skip if MSAA is disabled
     if (msaa_samples_ == msaa_samples::none)
@@ -317,17 +321,18 @@ void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFo
             SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
             msaa_resolve_texture_ = nullptr;
         }
-        msaa_width_ = 0;
+        msaa_width_  = 0;
         msaa_height_ = 0;
         return;
     }
-    
+
     // Check if we need to recreate
-    if (msaa_color_texture_ != nullptr && msaa_width_ == width && msaa_height_ == height)
+    if (msaa_color_texture_ != nullptr && msaa_width_ == width &&
+        msaa_height_ == height)
     {
         return; // Already have correct size
     }
-    
+
     // Release old textures
     if (msaa_color_texture_ != nullptr)
     {
@@ -344,31 +349,44 @@ void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFo
         SDL_ReleaseGPUTexture(device_, msaa_resolve_texture_);
         msaa_resolve_texture_ = nullptr;
     }
-    
+
     // Determine sample count
     SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
     switch (msaa_samples_)
     {
-        case msaa_samples::none: sample_count = SDL_GPU_SAMPLECOUNT_1; break;
-        case msaa_samples::x2:   sample_count = SDL_GPU_SAMPLECOUNT_2; break;
-        case msaa_samples::x4:   sample_count = SDL_GPU_SAMPLECOUNT_4; break;
-        case msaa_samples::x8:   sample_count = SDL_GPU_SAMPLECOUNT_8; break;
-        case msaa_samples::x16:  sample_count = SDL_GPU_SAMPLECOUNT_8; break; // SDL_GPU max is 8x
+        case msaa_samples::none:
+            sample_count = SDL_GPU_SAMPLECOUNT_1;
+            break;
+        case msaa_samples::x2:
+            sample_count = SDL_GPU_SAMPLECOUNT_2;
+            break;
+        case msaa_samples::x4:
+            sample_count = SDL_GPU_SAMPLECOUNT_4;
+            break;
+        case msaa_samples::x8:
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break;
+        case msaa_samples::x16:
+            sample_count = SDL_GPU_SAMPLECOUNT_8;
+            break; // SDL_GPU max is 8x
     }
-    
+
     // Check if this sample count is supported
     if (!SDL_GPUTextureSupportsSampleCount(device_, format, sample_count))
     {
-        spdlog::warn("MSAA {}x not supported for this format, falling back to 1x", 
-                     static_cast<int>(sample_count));
-        msaa_samples_ = msaa_samples::none;
+        spdlog::warn(
+            "MSAA {}x not supported for this format, falling back to 1x",
+            static_cast<int>(sample_count));
+        msaa_samples_   = msaa_samples::none;
         pipeline_dirty_ = true;
         return;
     }
-    
-    spdlog::info("Creating MSAA {}x render targets ({}x{})", 
-                 static_cast<int>(sample_count), width, height);
-    
+
+    spdlog::info("Creating MSAA {}x render targets ({}x{})",
+                 static_cast<int>(sample_count),
+                 width,
+                 height);
+
     // Create MSAA color texture
     SDL_GPUTextureCreateInfo color_info {};
     color_info.type                 = SDL_GPU_TEXTURETYPE_2D;
@@ -379,14 +397,15 @@ void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFo
     color_info.layer_count_or_depth = 1;
     color_info.num_levels           = 1;
     color_info.sample_count         = sample_count;
-    
+
     msaa_color_texture_ = SDL_CreateGPUTexture(device_, &color_info);
     if (msaa_color_texture_ == nullptr)
     {
-        spdlog::error("Failed to create MSAA color texture: {}", SDL_GetError());
+        spdlog::error("Failed to create MSAA color texture: {}",
+                      SDL_GetError());
         return;
     }
-    
+
     // Create MSAA depth texture
     SDL_GPUTextureCreateInfo depth_info {};
     depth_info.type                 = SDL_GPU_TEXTURETYPE_2D;
@@ -397,19 +416,20 @@ void Renderer::ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFo
     depth_info.layer_count_or_depth = 1;
     depth_info.num_levels           = 1;
     depth_info.sample_count         = sample_count;
-    
+
     msaa_depth_texture_ = SDL_CreateGPUTexture(device_, &depth_info);
     if (msaa_depth_texture_ == nullptr)
     {
-        spdlog::error("Failed to create MSAA depth texture: {}", SDL_GetError());
+        spdlog::error("Failed to create MSAA depth texture: {}",
+                      SDL_GetError());
         SDL_ReleaseGPUTexture(device_, msaa_color_texture_);
         msaa_color_texture_ = nullptr;
         return;
     }
-    
-    msaa_width_ = width;
+
+    msaa_width_  = width;
     msaa_height_ = height;
-    
+
     spdlog::info("MSAA render targets created successfully");
 }
 
@@ -419,18 +439,18 @@ void Renderer::resolve_msaa(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target)
     {
         return; // Nothing to resolve
     }
-    
+
     // Blit from MSAA texture to swapchain (this resolves the MSAA)
     SDL_GPUBlitInfo blit_info {};
-    blit_info.source.texture = msaa_color_texture_;
-    blit_info.source.w = msaa_width_;
-    blit_info.source.h = msaa_height_;
+    blit_info.source.texture      = msaa_color_texture_;
+    blit_info.source.w            = msaa_width_;
+    blit_info.source.h            = msaa_height_;
     blit_info.destination.texture = target;
-    blit_info.destination.w = msaa_width_;
-    blit_info.destination.h = msaa_height_;
-    blit_info.load_op = SDL_GPU_LOADOP_DONT_CARE;
-    blit_info.filter = SDL_GPU_FILTER_LINEAR;
-    
+    blit_info.destination.w       = msaa_width_;
+    blit_info.destination.h       = msaa_height_;
+    blit_info.load_op             = SDL_GPU_LOADOP_DONT_CARE;
+    blit_info.filter              = SDL_GPU_FILTER_LINEAR;
+
     SDL_BlitGPUTexture(cmd, &blit_info);
 }
 
@@ -501,8 +521,9 @@ bool Renderer::create_wireframe_pipeline()
             break;
     }
     ms_state.sample_count = sample_count;
-    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})", 
-                  static_cast<int>(msaa_samples_), static_cast<int>(sample_count));
+    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})",
+                  static_cast<int>(msaa_samples_),
+                  static_cast<int>(sample_count));
 
     SDL_GPUDepthStencilState depth_state {};
     depth_state.compare_op         = SDL_GPU_COMPAREOP_LESS;
@@ -530,14 +551,15 @@ bool Renderer::create_wireframe_pipeline()
     {
         return false;
     }
-    
+
     // Create triangle variant for thick lines
     pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     if (wireframe_tri_pipeline_ != nullptr)
     {
         SDL_ReleaseGPUGraphicsPipeline(device_, wireframe_tri_pipeline_);
     }
-    wireframe_tri_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
+    wireframe_tri_pipeline_ =
+        SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
     return wireframe_tri_pipeline_ != nullptr;
 }
 
@@ -612,8 +634,9 @@ bool Renderer::create_textured_pipeline()
             break;
     }
     ms_state.sample_count = sample_count;
-    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})", 
-                  static_cast<int>(msaa_samples_), static_cast<int>(sample_count));
+    spdlog::debug("Creating pipeline with MSAA: {}x (sample_count={})",
+                  static_cast<int>(msaa_samples_),
+                  static_cast<int>(sample_count));
 
     SDL_GPUDepthStencilState depth_state {};
     depth_state.compare_op         = SDL_GPU_COMPAREOP_LESS;
@@ -690,38 +713,43 @@ bool Renderer::create_postprocess_pipeline()
     ms_state.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
     SDL_GPUGraphicsPipelineCreateInfo pipeline_info {};
-    pipeline_info.vertex_shader       = prog->vertex_shader();
-    pipeline_info.fragment_shader     = prog->fragment_shader();
-    pipeline_info.vertex_input_state  = vertex_input;
-    pipeline_info.primitive_type      = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
-    pipeline_info.rasterizer_state    = raster_state;
-    pipeline_info.multisample_state   = ms_state;
-    pipeline_info.target_info         = target_info;
+    pipeline_info.vertex_shader      = prog->vertex_shader();
+    pipeline_info.fragment_shader    = prog->fragment_shader();
+    pipeline_info.vertex_input_state = vertex_input;
+    pipeline_info.primitive_type     = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    pipeline_info.rasterizer_state   = raster_state;
+    pipeline_info.multisample_state  = ms_state;
+    pipeline_info.target_info        = target_info;
 
     if (postprocess_pipeline_ != nullptr)
     {
         SDL_ReleaseGPUGraphicsPipeline(device_, postprocess_pipeline_);
     }
 
-    postprocess_pipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
+    postprocess_pipeline_ =
+        SDL_CreateGPUGraphicsPipeline(device_, &pipeline_info);
     if (postprocess_pipeline_ == nullptr)
     {
-        spdlog::error("Failed to create postprocess pipeline: {}", SDL_GetError());
+        spdlog::error("Failed to create postprocess pipeline: {}",
+                      SDL_GetError());
         return false;
     }
-    
+
     spdlog::info("Post-processing pipeline created successfully");
     return true;
 }
 
-void Renderer::ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureFormat format)
+void Renderer::ensure_pp_target(Uint32               width,
+                                Uint32               height,
+                                SDL_GPUTextureFormat format)
 {
     // Check if we need to recreate
-    if (pp_color_texture_ != nullptr && pp_width_ == width && pp_height_ == height)
+    if (pp_color_texture_ != nullptr && pp_width_ == width &&
+        pp_height_ == height)
     {
         return;
     }
-    
+
     // Release old texture
     if (pp_color_texture_ != nullptr)
     {
@@ -733,25 +761,27 @@ void Renderer::ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureForma
         SDL_ReleaseGPUSampler(device_, pp_sampler_);
         pp_sampler_ = nullptr;
     }
-    
+
     // Create color texture for scene rendering
     SDL_GPUTextureCreateInfo color_info {};
-    color_info.type                 = SDL_GPU_TEXTURETYPE_2D;
-    color_info.format               = format;
-    color_info.usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    color_info.type   = SDL_GPU_TEXTURETYPE_2D;
+    color_info.format = format;
+    color_info.usage =
+        SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
     color_info.width                = width;
     color_info.height               = height;
     color_info.layer_count_or_depth = 1;
     color_info.num_levels           = 1;
     color_info.sample_count         = SDL_GPU_SAMPLECOUNT_1;
-    
+
     pp_color_texture_ = SDL_CreateGPUTexture(device_, &color_info);
     if (pp_color_texture_ == nullptr)
     {
-        spdlog::error("Failed to create post-process color texture: {}", SDL_GetError());
+        spdlog::error("Failed to create post-process color texture: {}",
+                      SDL_GetError());
         return;
     }
-    
+
     // Create sampler for reading the texture in post-process pass
     SDL_GPUSamplerCreateInfo samp_info {};
     samp_info.min_filter     = SDL_GPU_FILTER_LINEAR;
@@ -760,50 +790,54 @@ void Renderer::ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureForma
     samp_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
     samp_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
     samp_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-    
+
     pp_sampler_ = SDL_CreateGPUSampler(device_, &samp_info);
-    
+
     pp_width_  = width;
     pp_height_ = height;
-    
-    spdlog::info("Post-processing render target created ({}x{})", width, height);
+
+    spdlog::info(
+        "Post-processing render target created ({}x{})", width, height);
 }
 
-void Renderer::apply_postprocess(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target,
+void Renderer::apply_postprocess(SDL_GPUCommandBuffer*     cmd,
+                                 SDL_GPUTexture*           target,
                                  const postprocess_params& params)
 {
-    if (postprocess_pipeline_ == nullptr || pp_color_texture_ == nullptr || pp_sampler_ == nullptr)
+    if (postprocess_pipeline_ == nullptr || pp_color_texture_ == nullptr ||
+        pp_sampler_ == nullptr)
     {
         return;
     }
-    
+
     // Setup render pass to output to final target (swapchain)
     SDL_GPUColorTargetInfo color_target {};
-    color_target.texture     = target;
-    color_target.load_op     = SDL_GPU_LOADOP_DONT_CARE; // We'll overwrite everything
-    color_target.store_op    = SDL_GPU_STOREOP_STORE;
-    
+    color_target.texture = target;
+    color_target.load_op =
+        SDL_GPU_LOADOP_DONT_CARE; // We'll overwrite everything
+    color_target.store_op = SDL_GPU_STOREOP_STORE;
+
     auto* pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, nullptr);
     if (pass == nullptr)
     {
         spdlog::error("Failed to begin postprocess render pass");
         return;
     }
-    
+
     SDL_BindGPUGraphicsPipeline(pass, postprocess_pipeline_);
-    
+
     // Bind the scene texture
     SDL_GPUTextureSamplerBinding tex_binding {};
     tex_binding.texture = pp_color_texture_;
     tex_binding.sampler = pp_sampler_;
     SDL_BindGPUFragmentSamplers(pass, 0, &tex_binding, 1);
-    
+
     // Push post-process parameters
     SDL_PushGPUFragmentUniformData(cmd, 0, &params, sizeof(params));
-    
+
     // Draw fullscreen triangle (3 vertices, generated in shader)
     SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
-    
+
     SDL_EndGPURenderPass(pass);
 }
 
@@ -811,7 +845,8 @@ void Renderer::reload_pipelines()
 {
     if (pipeline_dirty_)
     {
-        (void)create_wireframe_pipeline(); // This also creates wireframe_tri_pipeline_
+        (void)create_wireframe_pipeline(); // This also creates
+                                           // wireframe_tri_pipeline_
         (void)create_textured_pipeline();
         (void)create_postprocess_pipeline();
         pipeline_dirty_ = false;
@@ -1093,7 +1128,7 @@ mesh_handle Renderer::create_wireframe_grid(float            size,
 
 mesh_handle Renderer::create_mesh(std::span<const vertex>   verts,
                                   std::span<const uint16_t> idx,
-                                  primitive_type type)
+                                  primitive_type            type)
 {
     if (verts.empty() || idx.empty())
     {
@@ -1111,8 +1146,8 @@ mesh_handle Renderer::create_mesh(std::span<const vertex>   verts,
                                                          .color    = v.color };
                            });
 
-    auto mesh = upload_wireframe_mesh(converted, idx);
-    mesh.type = type;
+    auto mesh                  = upload_wireframe_mesh(converted, idx);
+    mesh.type                  = type;
     meshes_[next_mesh_handle_] = mesh;
     return next_mesh_handle_++;
 }
@@ -1174,7 +1209,7 @@ void Renderer::draw(mesh_handle h)
             {
                 pipeline = wireframe_pipeline_;
             }
-            
+
             if (pipeline != nullptr)
             {
                 SDL_BindGPUGraphicsPipeline(current_pass_, pipeline);
@@ -1538,13 +1573,16 @@ void Renderer::set_msaa_samples(msaa_samples samples)
 {
     if (msaa_samples_ != samples)
     {
-        msaa_samples_ = samples;
+        msaa_samples_   = samples;
         pipeline_dirty_ = true; // Mark pipelines for recreation
         if (samples != msaa_samples::none)
         {
-            spdlog::warn("MSAA set to {}x, but MSAA requires render target implementation. "
-                         "Currently only pipeline MSAA is configured - visual effect may be limited. "
-                         "Full MSAA requires creating MSAA render target and resolving to swapchain.",
+            spdlog::warn("MSAA set to {}x, but MSAA requires render target "
+                         "implementation. "
+                         "Currently only pipeline MSAA is configured - visual "
+                         "effect may be limited. "
+                         "Full MSAA requires creating MSAA render target and "
+                         "resolving to swapchain.",
                          static_cast<int>(samples));
         }
         else
@@ -1559,8 +1597,9 @@ void Renderer::set_max_anisotropy(float anisotropy)
     if (max_anisotropy_ != anisotropy)
     {
         max_anisotropy_ = anisotropy;
-        sampler_dirty_ = true; // Mark samplers for recreation
-        spdlog::info("Max anisotropy set to {:.1f}, samplers will be recreated", anisotropy);
+        sampler_dirty_  = true; // Mark samplers for recreation
+        spdlog::info("Max anisotropy set to {:.1f}, samplers will be recreated",
+                     anisotropy);
         // Note: Full implementation would recreate all texture samplers
         // For now, this just stores the value for future texture loads
     }
@@ -1569,10 +1608,11 @@ void Renderer::set_max_anisotropy(float anisotropy)
 void Renderer::set_texture_filter(texture_filter filter)
 {
     texture_filter_ = filter;
-    sampler_dirty_ = true;
-    spdlog::info("Texture filter set to: {}", 
-                 filter == texture_filter::nearest ? "Nearest" :
-                 filter == texture_filter::linear ? "Linear" : "Trilinear");
+    sampler_dirty_  = true;
+    spdlog::info("Texture filter set to: {}",
+                 filter == texture_filter::nearest  ? "Nearest"
+                 : filter == texture_filter::linear ? "Linear"
+                                                    : "Trilinear");
 }
 
 } // namespace euengine

@@ -117,11 +117,11 @@ public:
 
     virtual void set_msaa_samples(msaa_samples samples) = 0;
     virtual void set_max_anisotropy(float anisotropy)   = 0;
-    
+
     enum class texture_filter : std::uint8_t
     {
-        nearest = 0,
-        linear  = 1,
+        nearest   = 0,
+        linear    = 1,
         trilinear = 2,
     };
     virtual void set_texture_filter(texture_filter filter) = 0;

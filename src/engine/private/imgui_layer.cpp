@@ -1,9 +1,9 @@
 #include "imgui_layer.hpp"
 
 #include <imgui.h>
+#include <imgui_freetype.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlgpu3.h>
-#include <imgui_freetype.h>
 #include <spdlog/spdlog.h>
 
 namespace euengine
@@ -28,14 +28,16 @@ bool ImGuiLayer::init(SDL_Window* window, SDL_GPUDevice* device)
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
-    
+
     // Configure FreeType for better font rendering and alignment
     // Use FreeType loader instead of default stb_truetype for better quality
     io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
-    
-    // Set loader flags for better text alignment and readability (like ClearType)
+
+    // Set loader flags for better text alignment and readability (like
+    // ClearType)
     ImFontAtlas* atlas = io.Fonts;
-    // Use LightHinting for better text alignment and readability (like ClearType)
+    // Use LightHinting for better text alignment and readability (like
+    // ClearType)
     atlas->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
 
     if (!ImGui_ImplSDL3_InitForOther(window))

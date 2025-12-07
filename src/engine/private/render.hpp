@@ -106,19 +106,30 @@ public:
 
     /// Ensure depth texture matches given dimensions
     void ensure_depth_texture(Uint32 width, Uint32 height);
-    
+
     /// Ensure MSAA render targets match dimensions and sample count
-    void ensure_msaa_targets(Uint32 width, Uint32 height, SDL_GPUTextureFormat format);
-    
+    void ensure_msaa_targets(Uint32               width,
+                             Uint32               height,
+                             SDL_GPUTextureFormat format);
+
     /// Get MSAA color target (or nullptr if MSAA disabled)
-    [[nodiscard]] SDL_GPUTexture* msaa_color_target() const noexcept { return msaa_color_texture_; }
-    
+    [[nodiscard]] SDL_GPUTexture* msaa_color_target() const noexcept
+    {
+        return msaa_color_texture_;
+    }
+
     /// Get MSAA depth target (or nullptr if MSAA disabled)
-    [[nodiscard]] SDL_GPUTexture* msaa_depth_target() const noexcept { return msaa_depth_texture_; }
-    
+    [[nodiscard]] SDL_GPUTexture* msaa_depth_target() const noexcept
+    {
+        return msaa_depth_texture_;
+    }
+
     /// Get current MSAA sample count
-    [[nodiscard]] msaa_samples get_msaa_samples() const noexcept { return msaa_samples_; }
-    
+    [[nodiscard]] msaa_samples get_msaa_samples() const noexcept
+    {
+        return msaa_samples_;
+    }
+
     /// Resolve MSAA to target texture (call after render pass)
     void resolve_msaa(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target);
 
@@ -128,28 +139,34 @@ public:
     void set_max_anisotropy(float anisotropy) override;
     /// Set texture filter quality
     void set_texture_filter(texture_filter filter) override;
-    
+
     /// Post-processing parameters
     struct postprocess_params
     {
-        float gamma       = 2.2f;
-        float brightness  = 0.0f;
-        float contrast    = 1.0f;
-        float saturation  = 1.0f;
-        float vignette    = 0.0f;
+        float gamma        = 2.2f;
+        float brightness   = 0.0f;
+        float contrast     = 1.0f;
+        float saturation   = 1.0f;
+        float vignette     = 0.0f;
         float fxaa_enabled = 0.0f;
-        float res_x       = 1920.0f;
-        float res_y       = 1080.0f;
+        float res_x        = 1920.0f;
+        float res_y        = 1080.0f;
     };
-    
+
     /// Ensure post-processing render target exists
-    void ensure_pp_target(Uint32 width, Uint32 height, SDL_GPUTextureFormat format);
-    
+    void ensure_pp_target(Uint32               width,
+                          Uint32               height,
+                          SDL_GPUTextureFormat format);
+
     /// Get post-processing color target
-    [[nodiscard]] SDL_GPUTexture* pp_color_target() const noexcept { return pp_color_texture_; }
-    
+    [[nodiscard]] SDL_GPUTexture* pp_color_target() const noexcept
+    {
+        return pp_color_texture_;
+    }
+
     /// Apply post-processing pass
-    void apply_postprocess(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target, 
+    void apply_postprocess(SDL_GPUCommandBuffer*     cmd,
+                           SDL_GPUTexture*           target,
                            const postprocess_params& params);
 
     /// Get current depth texture
@@ -244,8 +261,9 @@ private:
     ShaderManager* shaders_ = nullptr;
 
     // Pipelines
-    SDL_GPUGraphicsPipeline* wireframe_pipeline_          = nullptr;
-    SDL_GPUGraphicsPipeline* wireframe_tri_pipeline_      = nullptr; // For triangle wireframe meshes
+    SDL_GPUGraphicsPipeline* wireframe_pipeline_ = nullptr;
+    SDL_GPUGraphicsPipeline* wireframe_tri_pipeline_ =
+        nullptr; // For triangle wireframe meshes
     SDL_GPUGraphicsPipeline* textured_pipeline_           = nullptr;
     SDL_GPUGraphicsPipeline* textured_wireframe_pipeline_ = nullptr;
     SDL_GPUGraphicsPipeline* postprocess_pipeline_        = nullptr;
@@ -255,12 +273,12 @@ private:
     SDL_GPUCommandBuffer* current_cmd_  = nullptr;
 
     // Render state
-    glm::mat4   view_proj_      = glm::mat4(1.0f);
-    render_mode render_mode_    = render_mode::wireframe;
-    bool        pipeline_dirty_ = false;
-    msaa_samples msaa_samples_  = msaa_samples::none;
-    float        max_anisotropy_ = 16.0f;
-    bool         sampler_dirty_  = false;
+    glm::mat4      view_proj_      = glm::mat4(1.0f);
+    render_mode    render_mode_    = render_mode::wireframe;
+    bool           pipeline_dirty_ = false;
+    msaa_samples   msaa_samples_   = msaa_samples::none;
+    float          max_anisotropy_ = 16.0f;
+    bool           sampler_dirty_  = false;
     texture_filter texture_filter_ = texture_filter::trilinear;
 
     // Resource maps

@@ -16,11 +16,11 @@ std::string sanitize_utf8(const std::string& str)
 {
     std::string result;
     result.reserve(str.size());
-    
+
     for (std::size_t i = 0; i < str.size(); ++i)
     {
         unsigned char c = static_cast<unsigned char>(str[i]);
-        
+
         // Valid ASCII
         if (c < 0x80)
         {
@@ -65,7 +65,8 @@ std::string sanitize_utf8(const std::string& str)
             unsigned char c2 = static_cast<unsigned char>(str[i + 1]);
             unsigned char c3 = static_cast<unsigned char>(str[i + 2]);
             unsigned char c4 = static_cast<unsigned char>(str[i + 3]);
-            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80 && (c4 & 0xC0) == 0x80)
+            if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80 &&
+                (c4 & 0xC0) == 0x80)
             {
                 result += static_cast<char>(c);
                 result += static_cast<char>(c2);
@@ -83,7 +84,7 @@ std::string sanitize_utf8(const std::string& str)
             result += '?'; // Invalid byte, replace with ?
         }
     }
-    
+
     return result;
 }
 
@@ -96,13 +97,24 @@ protected:
         int lvl = 2;
         switch (msg.level)
         {
-            case spdlog::level::trace:    lvl = 0; break;
-            case spdlog::level::debug:    lvl = 1; break;
-            case spdlog::level::info:     lvl = 2; break;
-            case spdlog::level::warn:     lvl = 3; break;
+            case spdlog::level::trace:
+                lvl = 0;
+                break;
+            case spdlog::level::debug:
+                lvl = 1;
+                break;
+            case spdlog::level::info:
+                lvl = 2;
+                break;
+            case spdlog::level::warn:
+                lvl = 3;
+                break;
             case spdlog::level::err:
-            case spdlog::level::critical: lvl = 4; break;
-            default: break;
+            case spdlog::level::critical:
+                lvl = 4;
+                break;
+            default:
+                break;
         }
         // Sanitize UTF-8 before logging to avoid Pango warnings
         std::string payload(msg.payload.data(), msg.payload.size());
@@ -156,7 +168,8 @@ GAME_API void game_shutdown()
     if (g_sink)
     {
         auto& sinks = spdlog::default_logger()->sinks();
-        sinks.erase(std::remove(sinks.begin(), sinks.end(), g_sink), sinks.end());
+        sinks.erase(std::remove(sinks.begin(), sinks.end(), g_sink),
+                    sinks.end());
         g_sink.reset();
     }
 }
