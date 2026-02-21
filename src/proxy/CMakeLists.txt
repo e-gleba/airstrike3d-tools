@@ -1,7 +1,7 @@
 function(generate_proxy_def input_dll output_var)
-    find_program(LLVM_OBJDUMP llvm-objdump REQUIRED)
+    find_program(objdump_bin NAMES llvm-objdump objdump
+                 HINTS "${CMAKE_SOURCE_DIR}/llvm-mingw/bin" REQUIRED)
 
-    # Get clean filename for the LIBRARY directive (e.g., "BASS" from "bass.dll")
     cmake_path(
         GET
         input_dll
@@ -12,14 +12,12 @@ function(generate_proxy_def input_dll output_var)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
                                            "${input_dll}")
 
-    message(STATUS "Parsing exports for proxy: ${input_dll}")
-    execute_process(
-        COMMAND ${LLVM_OBJDUMP} -p ${input_dll}
-        OUTPUT_VARIABLE dump_output
-        OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY
-        RESULT_VARIABLE result)
+    message(STATUS "parsing exports '${objdump_bin}': ${input_dll}")
 
-    # Parse exports (Ordinal + RVA + Name)
+    execute_process(
+        COMMAND ${objdump_bin} -p "${input_dll}" OUTPUT_VARIABLE dump_output
+        OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+
     string(
         REGEX MATCHALL
               "[0-9]+[ \t]+0x[0-9a-fA-F]+[ \t]+[^ \t\r\n]+"
@@ -29,12 +27,11 @@ function(generate_proxy_def input_dll output_var)
     set(content "LIBRARY \"${dll_stem}.dll\"\nEXPORTS\n")
 
     foreach(row IN LISTS raw_exports)
-        # Extract Name (group 2) and Ordinal (group 1)
         string(
             REGEX
             REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
                     "\\2"
-                    name
+                    sym_name
                     "${row}")
         string(
             REGEX
@@ -43,16 +40,17 @@ function(generate_proxy_def input_dll output_var)
                     ordinal
                     "${row}")
 
-        # Forward to 'original.dll'
-        string(APPEND content "    ${name}=original.${name} @${ordinal}\n")
+        string(APPEND content
+               "    ${sym_name}=original.${sym_name} @${ordinal}\n")
     endforeach()
 
-    file(WRITE ${def_file} "${content}")
+    file(WRITE "${def_file}" "${content}")
 
-    set(${output_var} "${def_file}" PARENT_SCOPE)
+    set(${output_var} "${def_file}")
+    return(PROPAGATE ${output_var})
 endfunction()
 
-generate_proxy_def(${CMAKE_SOURCE_DIR}/2.06/bass.dll bass_proxy_definitions)
+generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_definitions)
 
 # TODO: as we have some aspect sensitivity problems, so its impossible to use
 # cmaera now with the all ui, so to compile camera, replace bass_proxy.cpp here

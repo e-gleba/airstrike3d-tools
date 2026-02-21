@@ -27,6 +27,7 @@ set(work_dir "${CMAKE_SOURCE_DIR}")
 set(archive_path "${work_dir}/${pkg_name}.tar.xz")
 set(toolchain_dir "${work_dir}/llvm_mingw")
 
+message(CHECK_START "llvm-mingw")
 if(NOT EXISTS "${toolchain_dir}/bin/clang")
     if(NOT download_llvm_mingw_if_not_exist)
         message(
@@ -37,7 +38,7 @@ if(NOT EXISTS "${toolchain_dir}/bin/clang")
 
     message(
         STATUS
-            "=> fetching llvm-mingw ${llvm_mingw_ver} [host=${host_arch} target=${CMAKE_SYSTEM_PROCESSOR}]..."
+            "fetching llvm-mingw ${llvm_mingw_ver} [host=${host_arch} target=${CMAKE_SYSTEM_PROCESSOR}]..."
         )
 
     file(DOWNLOAD "${dl_url}" "${archive_path}" SHOW_PROGRESS STATUS dl_status)
@@ -58,10 +59,10 @@ if(NOT EXISTS "${toolchain_dir}/bin/clang")
        EQUAL
        0)
         file(REMOVE "${archive_path}")
-        message(FATAL_ERROR "== error: download failed => '${dl_msg}'")
+        message(FATAL_ERROR "download failed: '${dl_msg}'")
     endif()
 
-    message(STATUS "=> extracting '${pkg_name}.tar.xz'...")
+    message(STATUS "extracting '${pkg_name}.tar.xz'")
     execute_process(COMMAND ${CMAKE_COMMAND} -E tar xf "${archive_path}"
                     WORKING_DIRECTORY "${work_dir}" COMMAND_ERROR_IS_FATAL ANY)
 
@@ -69,9 +70,9 @@ if(NOT EXISTS "${toolchain_dir}/bin/clang")
     file(RENAME "${work_dir}/${pkg_name}" "${toolchain_dir}")
     file(REMOVE "${archive_path}")
 
-    message(STATUS "=> llvm-mingw ready at '${toolchain_dir}'")
+    message(CHECK_PASS "downloaded '${toolchain_dir}'")
 else()
-    message(STATUS "=> llvm-mingw found at '${toolchain_dir}', skipping fetch")
+    message(CHECK_PASS "'${toolchain_dir}'")
 endif()
 
 set(CMAKE_C_COMPILER "${toolchain_dir}/bin/${target_prefix}-clang"
