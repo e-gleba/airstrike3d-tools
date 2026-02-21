@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.31)
-
 function(generate_proxy_def input_dll output_var)
     find_program(LLVM_OBJDUMP llvm-objdump REQUIRED)
 
