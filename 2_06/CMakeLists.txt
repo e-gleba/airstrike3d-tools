@@ -1,23 +1,67 @@
-add_custom_target(
-    deploy_game ALL
-    COMMENT "deploying runtime deps => ${CMAKE_CURRENT_BINARY_DIR}")
-
 set(game_exe_name "as3d2.exe")
+set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
+set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
+
+set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
 add_custom_command(
-    TARGET deploy_game
-    PRE_BUILD
+    OUTPUT "${deploy_stamp}"
+    COMMENT "Deploying runtime deps => ${deploy_dir}"
+    # Copy data directory
     COMMAND
-        ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_LIST_DIR}/data"
-        "${CMAKE_CURRENT_BINARY_DIR}/data"
+        ${CMAKE_COMMAND} -E copy_directory "${source_dir}/data"
+        "${deploy_dir}/data"
+    # Copy plugins directory
     COMMAND
-        ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_LIST_DIR}/${game_exe_name}"
-        "${CMAKE_CURRENT_BINARY_DIR}/${game_exe_name}")
+        ${CMAKE_COMMAND} -E copy_directory "${source_dir}/plugins"
+        "${deploy_dir}/plugins"
+    # Copy game executable
+    COMMAND
+        ${CMAKE_COMMAND} -E copy_if_different "${source_dir}/${game_exe_name}"
+        "${deploy_dir}/${game_exe_name}"
+    # Touch a stamp file so CMake can track freshness
+    COMMAND ${CMAKE_COMMAND} -E touch "${deploy_stamp}"
+    DEPENDS "${source_dir}/${game_exe_name}"
+    VERBATIM)
+
+set(bass_stamp "${deploy_dir}/.bass_stamp")
+
+if(NOT TARGET bass_proxy)
+    # No proxy — just copy bass.dll as-is
+    add_custom_command(
+        OUTPUT "${bass_stamp}"
+        COMMENT "Copying bass.dll (no proxy)"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different "${source_dir}/bass.dll"
+            "${deploy_dir}/bass.dll"
+        COMMAND ${CMAKE_COMMAND} -E touch "${bass_stamp}"
+        DEPENDS "${source_dir}/bass.dll"
+        VERBATIM)
+else()
+    # Proxy build — rename original, copy proxy as bass.dll
+    add_custom_command(
+        OUTPUT "${bass_stamp}"
+        COMMENT "Deploying bass_proxy + original bass.dll"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different "${source_dir}/bass.dll"
+            "${deploy_dir}/original.dll"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different "${source_dir}/bass.dll"
+            "${deploy_dir}/_original.dll"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bass_proxy>"
+            "${deploy_dir}/bass.dll"
+        COMMAND ${CMAKE_COMMAND} -E touch "${bass_stamp}"
+        DEPENDS "${source_dir}/bass.dll" bass_proxy
+        VERBATIM)
+endif()
+
+add_custom_target(deploy_game ALL DEPENDS "${deploy_stamp}" "${bass_stamp}"
+                  COMMENT "All runtime dependencies deployed")
 
 configure_file(
-    "${CMAKE_CURRENT_LIST_DIR}/run_with_proton.sh.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/run_game.sh"
+    "${source_dir}/run_with_proton.sh.in"
+    "${deploy_dir}/run_game.sh"
     @ONLY
     FILE_PERMISSIONS
     OWNER_READ
@@ -28,39 +72,14 @@ configure_file(
     WORLD_READ
     WORLD_EXECUTE)
 
-if(NOT TARGET bass_proxy)
-    add_custom_command(
-        TARGET deploy_game
-        PRE_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/bass.dll")
-else()
-    add_custom_command(
-        TARGET deploy_game
-        PRE_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/original.dll"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/bass.dll"
-            "${CMAKE_CURRENT_BINARY_DIR}/_original.dll"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bass_proxy>"
-            "${CMAKE_CURRENT_BINARY_DIR}/bass.dll")
-endif()
-
 add_custom_target(
     run_game
-    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/run_game.sh"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "executing script => run_game.sh"
+    COMMAND "${deploy_dir}/run_game.sh"
+    WORKING_DIRECTORY "${deploy_dir}"
+    COMMENT "Executing script => run_game.sh"
     USES_TERMINAL)
 
 add_dependencies(run_game deploy_game)
 
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DESTINATION 2_06)
+install(DIRECTORY "${deploy_dir}/" DESTINATION 2_06)
 include(CPack)

@@ -7,7 +7,7 @@ project(
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
 
-option(USE_BASS_PROXY_LIB ON)
+option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 
 list(
     APPEND

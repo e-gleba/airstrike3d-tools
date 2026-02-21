@@ -50,14 +50,15 @@ function(generate_proxy_def input_dll output_var)
     return(PROPAGATE ${output_var})
 endfunction()
 
-generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_definitions
-                   plugins.cpp)
+generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_definitions)
 
-# TODO: as we have some aspect sensitivity problems, so its impossible to use
-# cmaera now with the all ui, so to compile camera, replace bass_proxy.cpp here
-# with todo_camera.cpp
-add_library(bass_proxy SHARED ${bass_proxy_definitions} plugins.cpp
-                              dll_main.cpp)
+file(
+    GLOB_RECURSE
+    sdk_sources
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/*.cpp")
+
+add_library(bass_proxy SHARED ${bass_proxy_definitions} ${sdk_sources})
 target_include_directories(bass_proxy PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 set_target_properties(
@@ -69,7 +70,12 @@ set_target_properties(
                PREFIX "" # no "lib" prefix
     )
 
-target_compile_options(bass_proxy PRIVATE -Wno-empty-body)
+target_compile_definitions(
+    bass_proxy
+    PRIVATE WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            GLM_FORCE_RADIANS
+            GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_link_options(
     bass_proxy
@@ -83,8 +89,8 @@ target_link_libraries(
             imgui_opengl3
             dwmapi
             glm
-            minhook
-            EnTT::EnTT
+            glu32
+            opengl32
             safetyhook
             spdlog::spdlog
             sol2::sol2

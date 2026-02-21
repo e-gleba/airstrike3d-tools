@@ -28,6 +28,7 @@ set(archive_path "${work_dir}/${pkg_name}.tar.xz")
 set(toolchain_dir "${work_dir}/llvm_mingw")
 
 message(CHECK_START "llvm-mingw")
+
 if(NOT EXISTS "${toolchain_dir}/bin/clang")
     if(NOT download_llvm_mingw_if_not_exist)
         message(
@@ -69,11 +70,9 @@ if(NOT EXISTS "${toolchain_dir}/bin/clang")
     file(REMOVE_RECURSE "${toolchain_dir}")
     file(RENAME "${work_dir}/${pkg_name}" "${toolchain_dir}")
     file(REMOVE "${archive_path}")
-
-    message(CHECK_PASS "downloaded '${toolchain_dir}'")
-else()
-    message(CHECK_PASS "'${toolchain_dir}'")
 endif()
+
+message(CHECK_PASS "'${toolchain_dir}'")
 
 set(CMAKE_C_COMPILER "${toolchain_dir}/bin/${target_prefix}-clang"
     CACHE FILEPATH "c compiler")

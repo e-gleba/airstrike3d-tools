@@ -1,79 +1,175 @@
 #!/usr/bin/env bash
+#
+# run_game.sh.in — launch a Windows game via Proton
+# CMake configures @game_exe_name@ at generation time.
+#
 
-exe_name="@game_exe_name@"
-exe_dir="$(dirname "$(realpath "$0")")"
+set -euo pipefail
 
-# detect steam installation
-if [ -d "$HOME/.var/app/com.valvesoftware.Steam" ]; then
-    # flatpak steam
-    steam_root="$HOME/.var/app/com.valvesoftware.Steam/data/Steam"
-    [ ! -d "$steam_root" ] && steam_root="$HOME/.var/app/com.valvesoftware.Steam/.steam/steam"
-elif [ -d "$HOME/.steam/root" ]; then
-    # native steam (symlink)
-    steam_root="$HOME/.steam/root"
-elif [ -d "$HOME/.local/share/Steam" ]; then
-    # native steam (direct)
-    steam_root="$HOME/.local/share/Steam"
-else
-    echo "=> steam not found, checked:"
-    echo "   - flatpak: ~/.var/app/com.valvesoftware.Steam"
-    echo "   - native: ~/.steam/root or ~/.local/share/Steam"
+# -----------------------------------------------------------------------
+# Constants (configured by CMake)
+# -----------------------------------------------------------------------
+readonly EXE_NAME="@game_exe_name@"
+readonly EXE_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+# -----------------------------------------------------------------------
+# Logging helpers
+# -----------------------------------------------------------------------
+log() { printf '=> %s\n' "$*"; }
+die() {
+    printf '=> ERROR: %s\n' "$*" >&2
     exit 1
-fi
+}
 
-echo "=> using steam: $steam_root"
+# -----------------------------------------------------------------------
+# Find first matching directory under a base path.
+#   find_dir <base> <-f required_file> <pattern> [pattern...]
+# -----------------------------------------------------------------------
+find_dir() {
+    local base="$1"
+    shift
+    local required_file=""
 
-# find proton (prefer experimental, then GE, then any)
-proton_path=""
-for candidate in \
-    "Proton - Experimental" \
-    "GE-Proton"* \
-    "Proton "*; do
-    test_path="$steam_root/steamapps/common/$candidate"
-    if [ -d "$test_path" ] && [ -f "$test_path/proton" ]; then
-        proton_path="$test_path"
+    if [[ "$1" == "-f" ]]; then
+        required_file="$2"
+        shift 2
+    fi
+
+    local pattern
+    for pattern in "$@"; do
+        local match
+        while IFS= read -r -d '' match; do
+            if [[ -z "$required_file" ]] || [[ -f "$match/$required_file" ]]; then
+                printf '%s' "$match"
+                return 0
+            fi
+        done < <(find "$base" -maxdepth 1 -type d -name "$pattern" -print0 2>/dev/null | sort -z)
+    done
+
+    return 1
+}
+
+# -----------------------------------------------------------------------
+# Steam detection
+# -----------------------------------------------------------------------
+readonly -a STEAM_CANDIDATES=(
+    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam"
+    "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam"
+    "$HOME/.steam/root"
+    "$HOME/.local/share/Steam"
+)
+
+steam_root=""
+for candidate in "${STEAM_CANDIDATES[@]}"; do
+    if [[ -d "$candidate" ]]; then
+        steam_root="$candidate"
         break
     fi
 done
 
-if [ -z "$proton_path" ]; then
-    echo "=> proton not found in $steam_root/steamapps/common/"
-    exit 1
-fi
+[[ -z "$steam_root" ]] && die "steam not found, checked:" \
+    $'\n'"   - flatpak: ~/.var/app/com.valvesoftware.Steam/{data/Steam,.steam/steam}" \
+    $'\n'"   - native:  ~/.steam/root or ~/.local/share/Steam"
 
-echo "=> using proton: $(basename "$proton_path")"
+log "using steam: $steam_root"
 
-# find runtime
+# -----------------------------------------------------------------------
+# Proton detection (prefer Experimental → GE → any numbered release)
+# -----------------------------------------------------------------------
+readonly COMMON="$steam_root/steamapps/common"
+
+proton_path=""
+proton_path=$(find_dir "$COMMON" -f "proton" \
+    "Proton - Experimental" \
+    "GE-Proton*" \
+    "Proton *") || true
+
+[[ -z "$proton_path" ]] && die "proton not found in $COMMON/"
+
+log "using proton: ${proton_path##*/}"
+
+# -----------------------------------------------------------------------
+# Steam Linux Runtime detection
+# -----------------------------------------------------------------------
+runtime_cmd=()
 runtime_path=""
-for runtime in \
+runtime_path=$(find_dir "$COMMON" -f "_v2-entry-point" \
     "SteamLinuxRuntime_sniper" \
     "SteamLinuxRuntime_soldier" \
-    "SteamLinuxRuntime"*; do
-    test_path="$steam_root/steamapps/common/$runtime"
-    if [ -d "$test_path" ] && [ -f "$test_path/_v2-entry-point" ]; then
-        runtime_path="$test_path"
-        break
-    fi
-done
+    "SteamLinuxRuntime*") || true
 
-if [ -z "$runtime_path" ]; then
-    echo "=> runtime not found, trying without it"
-    runtime_cmd=()
-else
-    echo "=> using runtime: $(basename "$runtime_path")"
+if [[ -n "$runtime_path" ]]; then
     runtime_cmd=("$runtime_path/_v2-entry-point" --verb=run --)
+    log "using runtime: ${runtime_path##*/}"
+else
+    log "runtime not found, trying without it"
 fi
 
-# setup prefix
-prefix_root="$HOME/.proton_prefixes"
-prefix_dir="$prefix_root/$exe_name/pfx"
-mkdir -p "$prefix_dir"
+# -----------------------------------------------------------------------
+# Proton prefix setup
+# -----------------------------------------------------------------------
+readonly PREFIX_ROOT="$HOME/.proton_prefixes"
+readonly PREFIX_DIR="$PREFIX_ROOT/$EXE_NAME/pfx"
+mkdir -p "$PREFIX_DIR"
 
-export STEAM_COMPAT_DATA_PATH="$prefix_dir/.."
+export STEAM_COMPAT_DATA_PATH="${PREFIX_DIR%/*}"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_root"
 export MESA_EXTENSION_MAX_YEAR=2003
 
-cd "$exe_dir" || exit 1
+# -----------------------------------------------------------------------
+# Signal handling — kill the entire Proton/Wine process tree
+# -----------------------------------------------------------------------
+child_pid=""
 
-echo "=> launching $exe_name"
-"${runtime_cmd[@]}" "$proton_path/proton" run "$exe_name" "$@"
+cleanup() {
+    local sig="${1:-TERM}"
+    log "caught SIG$sig, shutting down…"
+
+    if [[ -n "${child_pid:-}" ]]; then
+        # 1. wineserver -k: the clean way to terminate all Wine
+        #    processes inside the prefix.
+        if [[ -f "$proton_path/files/bin/wineserver" ]]; then
+            WINEPREFIX="$PREFIX_DIR" \
+                "$proton_path/files/bin/wineserver" -k 2>/dev/null || true
+        fi
+
+        # 2. Kill the entire process group rooted at our child.
+        #    setsid (below) ensures the child has its own PGID.
+        local pgid
+        pgid=$(ps -o pgid= -p "$child_pid" 2>/dev/null | tr -d ' ') || true
+
+        if [[ -n "$pgid" ]]; then
+            kill "-TERM" -- "-$pgid" 2>/dev/null || true
+            # Give processes a moment to exit gracefully.
+            sleep 0.5
+            kill "-KILL" -- "-$pgid" 2>/dev/null || true
+        fi
+
+        wait "$child_pid" 2>/dev/null || true
+    fi
+
+    exit 1
+}
+
+trap 'cleanup INT' INT
+trap 'cleanup TERM' TERM
+
+# -----------------------------------------------------------------------
+# Launch
+# -----------------------------------------------------------------------
+cd "$EXE_DIR"
+
+log "launching $EXE_NAME"
+
+# setsid: start Proton in its own process group so we can
+# kill the entire tree (wineserver, wine, game) in cleanup().
+setsid "${runtime_cmd[@]}" "$proton_path/proton" run "$EXE_NAME" "$@" &
+child_pid=$!
+
+# Wait in a loop — `wait` is interrupted when a trapped signal fires.
+while kill -0 "$child_pid" 2>/dev/null; do
+    wait "$child_pid" || true
+done
+
+wait "$child_pid" 2>/dev/null
+exit $?

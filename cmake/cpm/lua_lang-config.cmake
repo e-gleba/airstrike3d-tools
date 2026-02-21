@@ -9,7 +9,11 @@ cpmaddpackage(
     YES)
 
 if(lua_ADDED)
-    file(GLOB lua_sources ${lua_SOURCE_DIR}/*.c)
+    file(
+        GLOB
+        lua_sources
+        CONFIGURE_DEPENDS
+        ${lua_SOURCE_DIR}/*.c)
     list(
         REMOVE_ITEM
         lua_sources
@@ -29,4 +33,6 @@ cpmaddpackage(
     GIT_REPOSITORY
     https://github.com/ThePhD/sol2.git
     VERSION
-    3.3.0)
+    3.3.0
+    PATCHES
+    "${CMAKE_SOURCE_DIR}/cmake/patches/sol2_emplace_fix.patch")

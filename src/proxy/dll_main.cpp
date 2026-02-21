@@ -1,66 +1,45 @@
-#include "bass_proxy.hpp"
+#include "sdk/core/logging.hpp"
+#include "sdk/sdk.hpp"
 
+#include <spdlog/spdlog.h>
 #include <thread>
-
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-void safe_install() noexcept
-{
-    try
-    {
-        install_hooks();
-    }
-    catch (...)
-    {
-        // In a proxy DLL, we usually can't log easily, but we must
-        // prevent the exception from crashing the host process.
-    }
-}
+// bass_proxy.hpp presumably handles the actual DLL proxy forwarding.
+// DllMain just calls our SDK install/uninstall.
 
-extern "C" BOOL APIENTRY DllMain(HMODULE h_module,
-                                 DWORD   reason,
-                                 LPVOID  reserved)
+BOOL APIENTRY DllMain(HMODULE                 h_module,
+                      DWORD                   reason,
+                      [[maybe_unused]] LPVOID lp_reserved)
 {
     switch (reason)
     {
         case DLL_PROCESS_ATTACH:
         {
-            // Optimization: Prevent DllMain calls for thread
-            // creation/destruction in this DLL. This reduces overhead and
-            // loader lock contention.
-            ::DisableThreadLibraryCalls(h_module);
+            DisableThreadLibraryCalls(h_module);
+            sdk::logging::init("logs");
 
-            // DANGER: Spawning a std::thread inside DllMain invokes the Windows
-            // Loader Lock. However, std::thread implementations often try to
-            // mitigate this. If strict "Correctness" is required, one should
-            // use CreateThread via WinAPI directly to minimize CRT
-            // initialization risks, but you requested C++26.
+            spdlog::set_level(spdlog::level::info);
+            spdlog::info("[bass_proxy] attached");
 
-            // We detach immediately to prevent blocking the loader.
-            std::thread(safe_install).detach();
+            // Install hooks on a separate thread to avoid loader lock issues.
+            // C++26: std::jthread is preferred, but we detach immediately
+            // so the semantics match the original. Using a plain lambda
+            // with static operator() (P1169, merged for C++23/26).
+            std::jthread([]() static { sdk::install_hooks(); }).detach();
             break;
         }
 
         case DLL_PROCESS_DETACH:
         {
-            // CRITICAL FIX: Check 'reserved'.
-            // If reserved is NOT nullptr, the process is terminating (crashing
-            // or exit() called). In this state, the heap might be gone, and
-            // other threads are killed. Calling remove_hooks() here is
-            // dangerous/undefined. Only clean up if the DLL is being unloaded
-            // dynamically (FreeLibrary).
-            if (reserved == nullptr)
-            {
-                uninstall_hooks();
-            }
+            sdk::uninstall_hooks();
+            spdlog::info("[bass_proxy] detached");
+
+            sdk::logging::shutdown();
             break;
         }
 
-        case DLL_THREAD_ATTACH:
-        case DLL_THREAD_DETACH:
-            // Explicitly ignored via DisableThreadLibraryCalls,
-            // but standard switch practice suggests handling or ignoring them.
+        default:
             break;
     }
 
