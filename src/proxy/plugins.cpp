@@ -11,6 +11,7 @@
 #include <GL/gl.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <safetyhook.hpp>
 
 #include <glm/glm.hpp>
@@ -500,7 +501,7 @@ static void load_plugins()
         }
     }
 
-    std::sort(scripts.begin(), scripts.end());
+    std::ranges::sort(scripts);
 
     for (auto& path : scripts)
     {
