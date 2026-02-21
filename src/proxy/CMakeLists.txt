@@ -50,12 +50,13 @@ function(generate_proxy_def input_dll output_var)
     return(PROPAGATE ${output_var})
 endfunction()
 
-generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_definitions)
+generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_definitions
+                   plugins.cpp)
 
 # TODO: as we have some aspect sensitivity problems, so its impossible to use
 # cmaera now with the all ui, so to compile camera, replace bass_proxy.cpp here
 # with todo_camera.cpp
-add_library(bass_proxy SHARED ${bass_proxy_definitions} todo_camera.cpp
+add_library(bass_proxy SHARED ${bass_proxy_definitions} plugins.cpp
                               dll_main.cpp)
 target_include_directories(bass_proxy PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
@@ -67,6 +68,8 @@ set_target_properties(
                POSITION_INDEPENDENT_CODE ON
                PREFIX "" # no "lib" prefix
     )
+
+target_compile_options(bass_proxy PRIVATE -Wno-empty-body)
 
 target_link_options(
     bass_proxy
@@ -83,4 +86,6 @@ target_link_libraries(
             minhook
             EnTT::EnTT
             safetyhook
-            spdlog::spdlog)
+            spdlog::spdlog
+            sol2::sol2
+            lua)
