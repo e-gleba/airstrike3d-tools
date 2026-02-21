@@ -3,7 +3,7 @@
   "version": 9,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 30,
+    "minor": 31,
     "patch": 0
   },
   "configurePresets": [
@@ -157,19 +157,25 @@
       "name": "msvc-package",
       "displayName": "MSVC Package",
       "configurePreset": "msvc",
-      "generators": ["ZIP"]
+      "generators": [
+        "ZIP"
+      ]
     },
     {
       "name": "llvm-mingw-i686-package",
       "displayName": "LLVM-MinGW Win32 Package",
       "configurePreset": "llvm-mingw-i686",
-      "generators": ["TXZ"]
+      "generators": [
+        "TXZ"
+      ]
     },
     {
       "name": "llvm-mingw-x86_64-package",
       "displayName": "LLVM-MinGW Win64 Package",
       "configurePreset": "llvm-mingw-x86_64",
-      "generators": ["TXZ"]
+      "generators": [
+        "TXZ"
+      ]
     }
   ],
   "workflowPresets": [
