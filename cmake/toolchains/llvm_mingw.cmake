@@ -79,7 +79,7 @@ set(CMAKE_C_COMPILER "${toolchain_dir}/bin/${target_prefix}-clang"
     CACHE FILEPATH "c compiler")
 set(CMAKE_CXX_COMPILER "${toolchain_dir}/bin/${target_prefix}-clang++"
     CACHE FILEPATH "c++ compiler")
-set(CMAKE_RC_COMPILER "${toolchain_dir}/bin/llvm-windres"
+set(CMAKE_RC_COMPILER "${toolchain_dir}/bin/${target_prefix}-windres"
     CACHE FILEPATH "resource compiler")
 set(CMAKE_AR "${toolchain_dir}/bin/llvm-ar" CACHE FILEPATH "archiver")
 set(CMAKE_RANLIB "${toolchain_dir}/bin/llvm-ranlib" CACHE FILEPATH "ranlib")
