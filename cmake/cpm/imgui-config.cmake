@@ -24,6 +24,8 @@ target_include_directories(
     imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/misc/cpp
                         ${imgui_SOURCE_DIR}/misc/freetype)
 
+target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
+
 target_link_libraries(imgui PRIVATE freetype)
 
 # Adding backend implementations
