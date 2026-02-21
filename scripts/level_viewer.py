@@ -1,61 +1,49 @@
 #!/usr/bin/env python3
-"""
-level_viewer - 3D Viewer for AirStrike 3D levels
+"""AirStrike 3D level viewer — Panda3D rewrite."""
 
-Renders terrain heightmaps and object placements using Pygame + OpenGL.
-Heightmap layers are stacked to form the full scrolling level.
-
-Controls:
-  Mouse drag     - Rotate camera
-  Scroll         - Zoom in/out
-  W/S            - Move forward/back
-  A/D            - Move left/right
-  +/-            - Adjust height scale
-  F              - Toggle wireframe
-  G              - Toggle grid
-  C              - Cycle color modes
-  O              - Toggle objects
-  R              - Reset view
-  ESC            - Quit
-"""
-import argparse
-import math
-import struct
-import sys
+import argparse, math, struct, sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
-try:
-    import pygame
-    from pygame.locals import *
-    from OpenGL.GL import *
-    from OpenGL.GLU import *
-except ImportError:
-    print("Required: pip install pygame PyOpenGL")
-    sys.exit(1)
+from direct.showbase.ShowBase import ShowBase
+from direct.gui.OnscreenText import OnscreenText
+from direct.task import Task
+from panda3d.core import (
+    GeomVertexFormat,
+    GeomVertexData,
+    GeomVertexWriter,
+    Geom,
+    GeomTriangles,
+    GeomNode,
+    NodePath,
+    LVector3,
+    Fog,
+    TextNode,
+    WindowProperties,
+    LineSegs,
+    KeyboardButton,
+    AntialiasAttrib,
+    CullFaceAttrib,
+    LightAttrib,
+    ColorAttrib,
+)
 
 
 @dataclass
 class LevelData:
-    """Parsed level data for rendering."""
-
     name: str
     grid_size: int
     terrain_scale: int
     layer_count: int
-    heightmaps: list[list[list[int]]] = field(default_factory=list)
-    combined_heightmap: list[list[int]] = field(default_factory=list)  # Full terrain
-    object_types: list[str] = field(default_factory=list)
-    item_types: list[str] = field(default_factory=list)
-    objects: list[tuple[str, float, float, float, float]] = field(default_factory=list)
+    heightmaps: list = field(default_factory=list)
+    combined_heightmap: list = field(default_factory=list)
+    object_types: list = field(default_factory=list)
+    item_types: list = field(default_factory=list)
+    objects: list = field(default_factory=list)
 
 
-def parse_hmap(data: bytes, name: str = "Unknown") -> Optional[LevelData]:
-    """Parse HMAP file and extract all data for rendering."""
+def parse_hmap(data: bytes, name: str = "Unknown"):
     if len(data) < 28 or data[:4] != b"HMAP":
         return None
-
     (
         version,
         grid_size,
@@ -64,626 +52,467 @@ def parse_hmap(data: bytes, name: str = "Unknown") -> Optional[LevelData]:
         object_type_count,
         item_type_count,
     ) = struct.unpack_from("<6I", data, 4)
-
     level = LevelData(
         name=name,
         grid_size=grid_size,
         terrain_scale=terrain_scale,
         layer_count=item_type_count,
     )
-
-    # Parse object type names (length-prefixed strings)
     offset = 28
     for _ in range(object_type_count):
         if offset >= len(data):
             break
-        name_len = data[offset]
+        nl = data[offset]
         offset += 1
-        if offset + name_len > len(data):
+        if offset + nl > len(data):
             break
-        name_str = data[offset : offset + name_len].decode("ascii", errors="replace").rstrip("\x00")
-        level.object_types.append(name_str)
-        offset += name_len
-
-    # Parse item type names
+        level.object_types.append(
+            data[offset : offset + nl].decode("ascii", errors="replace").rstrip("\x00")
+        )
+        offset += nl
     for _ in range(item_type_count):
         if offset >= len(data):
             break
-        name_len = data[offset]
+        nl = data[offset]
         offset += 1
-        if offset + name_len > len(data):
+        if offset + nl > len(data):
             break
-        name_str = data[offset : offset + name_len].decode("ascii", errors="replace").rstrip("\x00")
-        level.item_types.append(name_str)
-        offset += name_len
-
-    # Find where object data starts (first 0xFFFF marker)
+        level.item_types.append(
+            data[offset : offset + nl].decode("ascii", errors="replace").rstrip("\x00")
+        )
+        offset += nl
     first_ffff = len(data)
     for i in range(offset, len(data) - 1):
-        if data[i:i + 2] == b"\xff\xff":
+        if data[i : i + 2] == b"\xff\xff":
             first_ffff = i
             break
-
-    # Calculate actual number of heightmap layers from available data
     layer_size = grid_size * grid_size * 4
-    heightmap_bytes = first_ffff - offset
-    actual_layers = heightmap_bytes // layer_size
+    actual_layers = (first_ffff - offset) // layer_size
     level.layer_count = actual_layers
-
-    # Parse heightmap layers
-    # Each layer is grid_size × grid_size × 4 bytes (uint32)
-    # Layers are stacked vertically to form the full level
     for _ in range(actual_layers):
         hmap = []
         for y in range(grid_size):
             row = []
             for x in range(grid_size):
-                if offset + 4 <= len(data):
-                    h = struct.unpack_from("<I", data, offset)[0]
-                    # Values are 0-255 height values
-                    h = min(255, h)
-                else:
-                    h = 128
+                h = (
+                    min(255, struct.unpack_from("<I", data, offset)[0])
+                    if offset + 4 <= len(data)
+                    else 128
+                )
                 row.append(h)
                 offset += 4
             hmap.append(row)
         level.heightmaps.append(hmap)
-
-    # Combine all heightmap layers into one long terrain
-    # Each layer adds grid_size rows in the Y direction
     for hmap in level.heightmaps:
         for row in hmap:
             level.combined_heightmap.append(row)
-
-    # Parse object placements
-    # Objects are delimited by 0xFFFF markers
-    # Format: ffff(2) + type_idx(2) + x_grid(2) + y_grid(2) + extra bytes
     ffff_positions = []
     for i in range(offset, len(data) - 1):
-        if data[i:i + 2] == b"\xff\xff":
+        if data[i : i + 2] == b"\xff\xff":
             ffff_positions.append(i)
-
-    # Parse each object record
-    scale = terrain_scale / grid_size  # World units per grid cell
-    for i, pos in enumerate(ffff_positions):
+    scale = terrain_scale / grid_size
+    for pos in ffff_positions:
         if pos + 8 > len(data):
             break
-
         type_idx = struct.unpack_from("<H", data, pos + 2)[0]
         x_grid = struct.unpack_from("<H", data, pos + 4)[0]
         y_grid = struct.unpack_from("<H", data, pos + 6)[0]
-
         if type_idx >= len(level.object_types):
             continue
-
-        # Convert grid coordinates to world coordinates
-        x_world = x_grid * scale
-        y_world = y_grid * scale
-
-        type_name = level.object_types[type_idx]
-        level.objects.append((type_name, x_world, y_world, 0.0, 0.0))
-
+        level.objects.append(
+            (level.object_types[type_idx], x_grid * scale, y_grid * scale, 0.0, 0.0)
+        )
     return level
 
 
-class Camera:
-    """Orbit camera controller."""
+COLOR_MODES = ["terrain", "gradient", "contour", "satellite"]
 
-    def __init__(self):
-        self.yaw = 45.0
-        self.pitch = 30.0
-        self.distance = 50.0
-        self.center = [16.0, 16.0, 0.0]
+
+def height_z(h, hs):
+    return (8.0 if h >= 250 else h) * hs
+
+
+def height_color(h, color_mode):
+    if h >= 250:
+        return (0.55, 0.45, 0.35, 1.0)
+    t = h / 249.0
+    if color_mode == 0:
+        if t < 0.25:
+            c = (0.35, 0.55 + t * 0.3, 0.2)
+        elif t < 0.5:
+            tt = (t - 0.25) / 0.25
+            c = (0.3 + tt * 0.15, 0.5 - tt * 0.1, 0.15 + tt * 0.1)
+        elif t < 0.75:
+            tt = (t - 0.5) / 0.25
+            c = (0.5 + tt * 0.15, 0.4 + tt * 0.05, 0.25 + tt * 0.1)
+        else:
+            tt = (t - 0.75) / 0.25
+            c = (0.6 + tt * 0.25, 0.55 + tt * 0.25, 0.5 + tt * 0.3)
+    elif color_mode == 1:
+        c = (0.2 + t * 0.6, 0.6 - t * 0.3, 0.2)
+    elif color_mode == 2:
+        band = int(h / 15) % 2
+        bg = 0.4 + t * 0.3
+        c = (0.3, bg + 0.1, 0.2) if band else (0.25, bg, 0.15)
+    else:
+        if t < 0.4:
+            c = (0.3 + t * 0.2, 0.45 + t * 0.2, 0.2)
+        else:
+            tt = (t - 0.4) / 0.6
+            c = (0.4 + tt * 0.35, 0.5 - tt * 0.1, 0.25 + tt * 0.2)
+    return (*c, 1.0)
+
+
+def obj_color(name):
+    nl = name.lower()
+    if any(k in nl for k in ("helic", "tank", "turret", "btr")):
+        return (1.0, 0.2, 0.2, 1.0)
+    if "item" in nl:
+        return (1.0, 1.0, 0.2, 1.0)
+    if any(k in nl for k in ("tree", "grass", "kust", "kamni")):
+        return (0.2, 0.8, 0.2, 1.0)
+    if any(k in nl for k in ("kolhoz", "dom", "angar", "zabor")):
+        return (0.8, 0.5, 0.2, 1.0)
+    if any(k in nl for k in ("jeep", "uaz", "gruzovik")):
+        return (0.9, 0.6, 0.1, 1.0)
+    return (0.6, 0.6, 0.6, 1.0)
+
+
+def build_terrain(level, hs, cm):
+    hmap = level.combined_heightmap
+    w, h = level.grid_size, len(hmap)
+    fmt = GeomVertexFormat.get_v3c4()
+    vdata = GeomVertexData("terrain", fmt, Geom.UH_static)
+    vdata.set_num_rows(w * h)
+    vw = GeomVertexWriter(vdata, "vertex")
+    cw = GeomVertexWriter(vdata, "color")
+    for y in range(h):
+        for x in range(w):
+            hv = hmap[y][x]
+            vw.add_data3(float(x), float(y), height_z(hv, hs))
+            cw.add_data4(*height_color(hv, cm))
+    tris = GeomTriangles(Geom.UH_static)
+    for y in range(h - 1):
+        for x in range(w - 1):
+            i = y * w + x
+            # Two triangles per quad, consistent CCW winding
+            tris.add_vertices(i, i + w, i + 1)
+            tris.add_vertices(i + 1, i + w, i + w + 1)
+    geom = Geom(vdata)
+    geom.add_primitive(tris)
+    node = GeomNode("terrain")
+    node.add_geom(geom)
+    return node
+
+
+def build_grid(level):
+    hmap = level.combined_heightmap
+    w, h = level.grid_size, len(hmap)
+    segs = LineSegs("grid")
+    segs.set_color(0.3, 0.3, 0.3, 1.0)
+    segs.set_thickness(1.0)
+    for i in range(0, w + 1, 8):
+        segs.move_to(float(i), 0.0, 0.2)
+        segs.draw_to(float(i), float(h - 1), 0.2)
+    for i in range(0, h + 1, level.grid_size):
+        segs.move_to(0.0, float(i), 0.2)
+        segs.draw_to(float(w - 1), float(i), 0.2)
+    return NodePath(segs.create())
+
+
+def make_cube_geom(color, size=0.25):
+    """Build a proper solid cube with correct winding for all 6 faces."""
+    fmt = GeomVertexFormat.get_v3c4()
+    vdata = GeomVertexData("cube", fmt, Geom.UH_static)
+    vdata.set_num_rows(24)  # 6 faces × 4 verts
+    vw = GeomVertexWriter(vdata, "vertex")
+    cw = GeomVertexWriter(vdata, "color")
+    s = size
+    # Define 6 faces, each with 4 vertices in CCW order (viewed from outside)
+    faces = [
+        # Top (+Z)
+        [(-s, -s, s), (s, -s, s), (s, s, s), (-s, s, s)],
+        # Bottom (-Z)
+        [(-s, s, -s), (s, s, -s), (s, -s, -s), (-s, -s, -s)],
+        # Front (-Y)
+        [(-s, -s, -s), (s, -s, -s), (s, -s, s), (-s, -s, s)],
+        # Back (+Y)
+        [(s, s, -s), (-s, s, -s), (-s, s, s), (s, s, s)],
+        # Left (-X)
+        [(-s, s, -s), (-s, -s, -s), (-s, -s, s), (-s, s, s)],
+        # Right (+X)
+        [(s, -s, -s), (s, s, -s), (s, s, s), (s, -s, s)],
+    ]
+    tris = GeomTriangles(Geom.UH_static)
+    vi = 0
+    for face in faces:
+        for v in face:
+            vw.add_data3(*v)
+            cw.add_data4(*color)
+        tris.add_vertices(vi, vi + 1, vi + 2)
+        tris.add_vertices(vi, vi + 2, vi + 3)
+        vi += 4
+    geom = Geom(vdata)
+    geom.add_primitive(tris)
+    node = GeomNode("cube")
+    node.add_geom(geom)
+    return node
+
+
+def build_objects(level, hs):
+    hmap = level.combined_heightmap
+    w, h = level.grid_size, len(hmap)
+    scale = level.terrain_scale / level.grid_size
+    root = NodePath("objects")
+    for name, xw, yw, _, _ in level.objects:
+        gx, gy = xw / scale, yw / scale
+        ix, iy = int(gx), int(gy)
+        gz = hmap[iy][ix] * hs if 0 <= ix < w and 0 <= iy < h else 0.0
+        color = obj_color(name)
+        np = root.attach_new_node(make_cube_geom(color))
+        np.set_pos(gx, gy, gz + 0.3)
+    return root
+
+
+class Viewer(ShowBase):
+    def __init__(self, level, wireframe=False):
+        super().__init__()
+        self.level = level
+        self.hs = 0.1
+        self.cm = 0
+        self.wf = wireframe
+        self.show_grid = True
+        self.show_obj = True
+        self.show_help = True
+        self.fog_on = True
         self.dragging = False
-        self.last_pos = (0, 0)
+        self.last_m = (0, 0)
+        fh = level.grid_size * level.layer_count
+        self.cam_yaw = 45.0
+        self.cam_pitch = 30.0
+        self.cam_dist = max(level.grid_size, fh) * 0.8
+        self.cam_ctr = LVector3(level.grid_size / 2.0, fh / 2.0, 0.0)
 
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Left click
-                self.dragging = True
-                self.last_pos = event.pos
-            elif event.button == 4:  # Scroll up
-                self.distance = max(5.0, self.distance - 3.0)
-            elif event.button == 5:  # Scroll down
-                self.distance = min(200.0, self.distance + 3.0)
-        elif event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1:
-                self.dragging = False
-        elif event.type == pygame.MOUSEMOTION:
-            if self.dragging:
-                dx = event.pos[0] - self.last_pos[0]
-                dy = event.pos[1] - self.last_pos[1]
-                self.yaw += dx * 0.5
-                self.pitch = max(-89, min(89, self.pitch + dy * 0.5))
-                self.last_pos = event.pos
+        props = WindowProperties()
+        props.set_title(f"Level Viewer — {level.name}")
+        props.set_size(1280, 800)
+        self.win.request_properties(props)
+        self.set_background_color(0.4, 0.6, 0.85, 1.0)
+        self.disable_mouse()
+        self.render.set_antialias(AntialiasAttrib.M_auto)
+        # Disable backface culling globally so terrain is visible from both sides
+        self.render.set_attrib(CullFaceAttrib.make(CullFaceAttrib.M_cull_none))
+        # Disable default lighting so vertex colors show correctly
+        self.render.set_light_off()
 
-    def handle_keys(self, keys):
-        speed = 0.5
-        rad = math.radians(self.yaw)
-        if keys[K_w]:
-            self.center[0] -= math.sin(rad) * speed
-            self.center[1] += math.cos(rad) * speed
-        if keys[K_s]:
-            self.center[0] += math.sin(rad) * speed
-            self.center[1] -= math.cos(rad) * speed
-        if keys[K_a]:
-            self.center[0] -= math.cos(rad) * speed
-            self.center[1] -= math.sin(rad) * speed
-        if keys[K_d]:
-            self.center[0] += math.cos(rad) * speed
-            self.center[1] += math.sin(rad) * speed
+        self.terrain_np = None
+        self.grid_np = None
+        self.obj_np = None
+        self._rebuild()
 
-    def apply(self):
-        glLoadIdentity()
-        yaw_rad = math.radians(self.yaw)
-        pitch_rad = math.radians(self.pitch)
-        
-        eye_x = self.center[0] + self.distance * math.sin(yaw_rad) * math.cos(pitch_rad)
-        eye_y = self.center[1] - self.distance * math.cos(yaw_rad) * math.cos(pitch_rad)
-        eye_z = self.center[2] + self.distance * math.sin(pitch_rad)
-        
-        gluLookAt(
-            eye_x, eye_y, eye_z,
-            self.center[0], self.center[1], self.center[2],
-            0, 0, 1
+        self.fog = Fog("fog")
+        self.fog.set_color(0.5, 0.6, 0.75)
+        self.fog.set_linear_range(80.0, 250.0)
+        self.render.set_fog(self.fog)
+
+        self.help_nodes = []
+        self._build_hud()
+        self.status = OnscreenText(
+            "",
+            pos=(-1.3, -0.95),
+            scale=0.04,
+            fg=(0.6, 1, 0.6, 1),
+            bg=(0.08, 0.08, 0.16, 0.7),
+            align=TextNode.A_left,
+            mayChange=True,
+        )
+        self._upd_status()
+
+        for key, fn in [
+            ("escape", sys.exit),
+            ("f", self._tog_wf),
+            ("g", self._tog_grid),
+            ("o", self._tog_obj),
+            ("c", self._cyc_cm),
+            ("v", self._tog_fog),
+            ("h", self._tog_help),
+            ("r", self._reset),
+            ("+", self._su),
+            ("=", self._su),
+            ("shift-=", self._su),
+            ("-", self._sd),
+            ("mouse1", self._md),
+            ("mouse1-up", self._mu),
+            ("wheel_up", self._zi),
+            ("wheel_down", self._zo),
+        ]:
+            self.accept(key, fn)
+
+        self.taskMgr.add(self._cam_task, "cam")
+        self.taskMgr.add(self._key_task, "keys")
+
+    def _rebuild(self):
+        for np in (self.terrain_np, self.grid_np, self.obj_np):
+            if np:
+                np.remove_node()
+        self.terrain_np = self.render.attach_new_node(
+            build_terrain(self.level, self.hs, self.cm)
+        )
+        if self.wf:
+            self.terrain_np.set_render_mode_wireframe()
+        else:
+            self.terrain_np.clear_render_mode()
+        self.grid_np = build_grid(self.level)
+        self.grid_np.reparent_to(self.render)
+        if not self.show_grid:
+            self.grid_np.hide()
+        self.obj_np = build_objects(self.level, self.hs)
+        self.obj_np.reparent_to(self.render)
+        if not self.show_obj:
+            self.obj_np.hide()
+
+    def _build_hud(self):
+        lines = [
+            "Mouse drag - Rotate | Scroll - Zoom | WASD - Move | +/- Height",
+            "F Wire | G Grid | O Objs | C Color | V Fog | H Help | R Reset | ESC Quit",
+        ]
+        self.help_nodes = []
+        for i, l in enumerate(lines):
+            t = OnscreenText(
+                l,
+                pos=(-1.3, 0.95 - i * 0.05),
+                scale=0.038,
+                fg=(0.9, 0.9, 0.9, 1),
+                bg=(0.08, 0.08, 0.16, 0.6),
+                align=TextNode.A_left,
+            )
+            self.help_nodes.append(t)
+
+    def _upd_status(self):
+        w, h = self.level.grid_size, len(self.level.combined_heightmap)
+        self.status.setText(
+            f"{self.level.name} | {w}x{h} | {len(self.level.objects)} objs | {COLOR_MODES[self.cm]}"
         )
 
+    def _apply_cam(self):
+        yr, pr = math.radians(self.cam_yaw), math.radians(self.cam_pitch)
+        d = self.cam_dist
+        ex = self.cam_ctr.x + d * math.sin(yr) * math.cos(pr)
+        ey = self.cam_ctr.y - d * math.cos(yr) * math.cos(pr)
+        ez = self.cam_ctr.z + d * math.sin(pr)
+        self.camera.set_pos(ex, ey, ez)
+        self.camera.look_at(self.cam_ctr)
 
-class TerrainRenderer:
-    """Renders terrain heightmap as 3D mesh with display list optimization."""
+    def _cam_task(self, task):
+        if self.dragging and self.mouseWatcherNode.has_mouse():
+            mx = self.mouseWatcherNode.get_mouse_x()
+            my = self.mouseWatcherNode.get_mouse_y()
+            dx, dy = (mx - self.last_m[0]) * 300, (my - self.last_m[1]) * 300
+            self.cam_yaw += dx * 0.5
+            self.cam_pitch = max(-89, min(89, self.cam_pitch - dy * 0.5))
+            self.last_m = (mx, my)
+        self._apply_cam()
+        return Task.cont
 
-    COLOR_MODES = ["height", "gradient", "contour", "terrain"]
+    def _key_task(self, task):
+        sp, r = 0.5, math.radians(self.cam_yaw)
+        isd = self.mouseWatcherNode.is_button_down
+        if isd(KeyboardButton.ascii_key("w")):
+            self.cam_ctr.x -= math.sin(r) * sp
+            self.cam_ctr.y += math.cos(r) * sp
+        if isd(KeyboardButton.ascii_key("s")):
+            self.cam_ctr.x += math.sin(r) * sp
+            self.cam_ctr.y -= math.cos(r) * sp
+        if isd(KeyboardButton.ascii_key("a")):
+            self.cam_ctr.x -= math.cos(r) * sp
+            self.cam_ctr.y -= math.sin(r) * sp
+        if isd(KeyboardButton.ascii_key("d")):
+            self.cam_ctr.x += math.cos(r) * sp
+            self.cam_ctr.y += math.sin(r) * sp
+        return Task.cont
 
-    def __init__(self, level: LevelData):
-        self.level = level
-        self.height_scale = 0.1
-        self.wireframe = False
-        self.show_grid = True
-        self.show_objects = True
-        self.color_mode = 0
-        # Full terrain dimensions
-        self.width = level.grid_size
-        self.height = len(level.combined_heightmap)  # grid_size * layer_count
-        # Display lists for fast rendering
-        self._terrain_list = None
-        self._grid_list = None
-        self._objects_list = None
-        self._last_height_scale = None
-        self._last_color_mode = None
-        self._build_mesh()
+    def _md(self):
+        self.dragging = True
+        if self.mouseWatcherNode.has_mouse():
+            self.last_m = (
+                self.mouseWatcherNode.get_mouse_x(),
+                self.mouseWatcherNode.get_mouse_y(),
+            )
 
-    def _build_mesh(self):
-        """Pre-calculate mesh data and create display lists."""
-        self._rebuild_terrain()
-        self._rebuild_grid()
-        self._rebuild_objects()
+    def _mu(self):
+        self.dragging = False
 
-    def _rebuild_terrain(self):
-        """Build terrain display list."""
-        if self._terrain_list:
-            glDeleteLists(self._terrain_list, 1)
-        
-        self._terrain_list = glGenLists(1)
-        glNewList(self._terrain_list, GL_COMPILE)
-        self._render_terrain_immediate()
-        glEndList()
-        self._last_height_scale = self.height_scale
-        self._last_color_mode = self.color_mode
+    def _zi(self):
+        self.cam_dist = max(5, self.cam_dist - 3)
 
-    def _rebuild_grid(self):
-        """Build grid display list."""
-        if self._grid_list:
-            glDeleteLists(self._grid_list, 1)
-        
-        hmap = self.level.combined_heightmap
-        width = self.width
-        height = self.height
-        
-        self._grid_list = glGenLists(1)
-        glNewList(self._grid_list, GL_COMPILE)
-        glColor3f(0.3, 0.3, 0.3)
-        glBegin(GL_LINES)
-        for i in range(0, width + 1, 8):
-            glVertex3f(i, 0, 0.2)
-            glVertex3f(i, height - 1, 0.2)
-        for i in range(0, height + 1, self.level.grid_size):
-            glVertex3f(0, i, 0.2)
-            glVertex3f(width - 1, i, 0.2)
-        glEnd()
-        glEndList()
+    def _zo(self):
+        self.cam_dist = min(500, self.cam_dist + 3)
 
-    def _rebuild_objects(self):
-        """Build objects display list."""
-        if self._objects_list:
-            glDeleteLists(self._objects_list, 1)
-        
-        self._objects_list = glGenLists(1)
-        glNewList(self._objects_list, GL_COMPILE)
-        self._render_objects_immediate()
-        glEndList()
-
-    def _get_height(self, h: int) -> float:
-        """Convert raw height value to rendered height. 255 = road (flat)."""
-        if h >= 250:  # Road - render flat at low level
-            return 8.0 * self.height_scale
-        return h * self.height_scale
-
-    def _get_color(self, h: int, x: int, y: int) -> tuple[float, float, float]:
-        """Get color for height value based on current mode."""
-        # 255 = road, render as dirt/gravel
-        if h >= 250:
-            return (0.55, 0.45, 0.35)  # Dirt road color
-
-        t = h / 249.0  # Normalize to 0-249 range (not 255)
-
-        if self.color_mode == 0:  # Natural terrain colors
-            if t < 0.25:  # Low grass - bright green
-                return (0.35, 0.55 + t * 0.3, 0.2)
-            elif t < 0.5:  # Medium grass/shrubs - darker green
-                tt = (t - 0.25) / 0.25
-                return (0.3 + tt * 0.15, 0.5 - tt * 0.1, 0.15 + tt * 0.1)
-            elif t < 0.75:  # Hills - brown/tan
-                tt = (t - 0.5) / 0.25
-                return (0.5 + tt * 0.15, 0.4 + tt * 0.05, 0.25 + tt * 0.1)
-            else:  # Mountains - rocky gray
-                tt = (t - 0.75) / 0.25
-                return (0.6 + tt * 0.25, 0.55 + tt * 0.25, 0.5 + tt * 0.3)
-        elif self.color_mode == 1:  # Height gradient
-            return (0.2 + t * 0.6, 0.6 - t * 0.3, 0.2)
-        elif self.color_mode == 2:  # Contour lines
-            band = int(h / 15) % 2
-            base_g = 0.4 + t * 0.3
-            if band:
-                return (0.3, base_g + 0.1, 0.2)
-            else:
-                return (0.25, base_g, 0.15)
-        else:  # Satellite-style
-            if t < 0.4:
-                return (0.3 + t * 0.2, 0.45 + t * 0.2, 0.2)
-            else:
-                tt = (t - 0.4) / 0.6
-                return (0.4 + tt * 0.35, 0.5 - tt * 0.1, 0.25 + tt * 0.2)
-
-    def _render_terrain_immediate(self):
-        """Render terrain using immediate mode (for display list)."""
-        hmap = self.level.combined_heightmap
-        width = self.width
-        height = self.height
-
-        # Use triangle strips for better performance
-        for y in range(height - 1):
-            glBegin(GL_TRIANGLE_STRIP)
-            for x in range(width):
-                h0 = hmap[y][x]
-                h1 = hmap[y + 1][x]
-                
-                z0 = self._get_height(h0)
-                z1 = self._get_height(h1)
-                
-                c0 = self._get_color(h0, x, y)
-                c1 = self._get_color(h1, x, y + 1)
-                
-                glColor3f(*c0)
-                glVertex3f(x, y, z0)
-                glColor3f(*c1)
-                glVertex3f(x, y + 1, z1)
-            glEnd()
-
-    def render(self):
-        """Render terrain using display lists for performance."""
-        if not self.level.combined_heightmap:
-            return
-
-        # Rebuild if settings changed
-        if (self._last_height_scale != self.height_scale or 
-            self._last_color_mode != self.color_mode):
-            self._rebuild_terrain()
-            self._rebuild_objects()
-
-        if self.wireframe:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+    def _tog_wf(self):
+        self.wf = not self.wf
+        if self.wf:
+            self.terrain_np.set_render_mode_wireframe()
         else:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+            self.terrain_np.clear_render_mode()
 
-        # Render terrain from display list
-        if self._terrain_list:
-            glCallList(self._terrain_list)
+    def _tog_grid(self):
+        self.show_grid = not self.show_grid
+        self.grid_np.show() if self.show_grid else self.grid_np.hide()
 
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+    def _tog_obj(self):
+        self.show_obj = not self.show_obj
+        self.obj_np.show() if self.show_obj else self.obj_np.hide()
 
-        # Render grid
-        if self.show_grid and self._grid_list:
-            glCallList(self._grid_list)
+    def _cyc_cm(self):
+        self.cm = (self.cm + 1) % len(COLOR_MODES)
+        self._rebuild()
+        self._upd_status()
 
-        # Render objects
-        if self.show_objects and self._objects_list:
-            glCallList(self._objects_list)
+    def _tog_fog(self):
+        self.fog_on = not self.fog_on
+        self.render.set_fog(self.fog) if self.fog_on else self.render.clear_fog()
 
-    def _render_objects_immediate(self):
-        """Render object markers (for display list)."""
-        hmap = self.level.combined_heightmap
-        width = self.width
-        height = self.height
-        scale = self.level.terrain_scale / self.level.grid_size  # World units per grid cell
+    def _tog_help(self):
+        self.show_help = not self.show_help
+        for t in self.help_nodes:
+            t.show() if self.show_help else t.hide()
 
-        for obj_name, x_world, y_world, z, rot in self.level.objects:
-            # Convert world coords to grid coords for rendering
-            gx = x_world / scale
-            gy = y_world / scale
+    def _su(self):
+        self.hs *= 1.2
+        self._rebuild()
 
-            # Get terrain height at object position from combined heightmap
-            gz = 0.0
-            ix, iy = int(gx), int(gy)
-            if hmap and 0 <= ix < width and 0 <= iy < height:
-                gz = hmap[iy][ix] * self.height_scale
+    def _sd(self):
+        self.hs /= 1.2
+        self._rebuild()
 
-            # Color by object type
-            name_lower = obj_name.lower()
-            if "helic" in name_lower or "tank" in name_lower or "turret" in name_lower or "btr" in name_lower:
-                color = (1.0, 0.2, 0.2)  # Red - enemies
-            elif "item" in name_lower:
-                color = (1.0, 1.0, 0.2)  # Yellow - items
-            elif "tree" in name_lower or "grass" in name_lower or "kust" in name_lower or "kamni" in name_lower:
-                color = (0.2, 0.8, 0.2)  # Green - nature
-            elif "kolhoz" in name_lower or "dom" in name_lower or "angar" in name_lower or "zabor" in name_lower:
-                color = (0.8, 0.5, 0.2)  # Orange - buildings
-            elif "jeep" in name_lower or "uaz" in name_lower or "gruzovik" in name_lower:
-                color = (0.9, 0.6, 0.1)  # Yellow-orange - vehicles
-            else:
-                color = (0.6, 0.6, 0.6)  # Gray - misc
-
-            # Draw marker
-            glColor3f(*color)
-            glPushMatrix()
-            glTranslatef(gx, gy, gz + 0.3)
-            
-            # Small cube marker
-            s = 0.25
-            glBegin(GL_QUADS)
-            # Top
-            glVertex3f(-s, -s, s)
-            glVertex3f(s, -s, s)
-            glVertex3f(s, s, s)
-            glVertex3f(-s, s, s)
-            # Bottom
-            glVertex3f(-s, -s, -s)
-            glVertex3f(s, -s, -s)
-            glVertex3f(s, s, -s)
-            glVertex3f(-s, s, -s)
-            # Front
-            glVertex3f(-s, -s, -s)
-            glVertex3f(s, -s, -s)
-            glVertex3f(s, -s, s)
-            glVertex3f(-s, -s, s)
-            # Back
-            glVertex3f(-s, s, -s)
-            glVertex3f(s, s, -s)
-            glVertex3f(s, s, s)
-            glVertex3f(-s, s, s)
-            # Left
-            glVertex3f(-s, -s, -s)
-            glVertex3f(-s, -s, s)
-            glVertex3f(-s, s, s)
-            glVertex3f(-s, s, -s)
-            # Right
-            glVertex3f(s, -s, -s)
-            glVertex3f(s, -s, s)
-            glVertex3f(s, s, s)
-            glVertex3f(s, s, -s)
-            glEnd()
-            glPopMatrix()
+    def _reset(self):
+        fh = self.level.grid_size * self.level.layer_count
+        self.cam_yaw, self.cam_pitch = 45.0, 30.0
+        self.cam_dist = max(self.level.grid_size, fh) * 0.8
+        self.cam_ctr = LVector3(self.level.grid_size / 2.0, fh / 2.0, 0.0)
+        self.hs = 0.1
+        self.cm = 0
+        self._rebuild()
+        self._upd_status()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="3D Level Viewer for AirStrike 3D")
-    parser.add_argument("level", type=Path, help="Level file (.hsc)")
-    parser.add_argument("-w", "--wireframe", action="store_true", help="Start in wireframe mode")
-    args = parser.parse_args()
-
+    ap = argparse.ArgumentParser(description="AirStrike 3D Level Viewer (Panda3D)")
+    ap.add_argument("level", type=Path, help="Level file (.hsc)")
+    ap.add_argument("-w", "--wireframe", action="store_true")
+    args = ap.parse_args()
     if not args.level.exists():
-        print(f"Error: File not found: {args.level}")
+        print(f"Error: {args.level} not found")
         return 1
-
-    # Parse level
-    data = args.level.read_bytes()
-    level = parse_hmap(data, args.level.stem)
+    level = parse_hmap(args.level.read_bytes(), args.level.stem)
     if not level:
         print("Error: Invalid HMAP file")
         return 1
-
-    print(f"Level: {level.name}")
-    full_height = level.grid_size * level.layer_count
-    print(f"Terrain: {level.grid_size}x{full_height} (from {level.layer_count} layers)")
-    if level.combined_heightmap:
-        heights = [h for row in level.combined_heightmap for h in row]
-        print(f"Heights: {min(heights)}-{max(heights)} ({len(set(heights))} unique)")
-    print(f"Objects: {len(level.objects)} placed")
-
-    # Initialize Pygame
-    pygame.init()
-    display = (1024, 768)
-    pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
-    pygame.display.set_caption(f"Level Viewer - {level.name}")
-
-    # OpenGL setup
-    glEnable(GL_DEPTH_TEST)
-    glClearColor(0.4, 0.6, 0.85, 1.0)  # Sky blue background
-    glMatrixMode(GL_PROJECTION)
-    gluPerspective(60, display[0] / display[1], 0.1, 500.0)
-    glMatrixMode(GL_MODELVIEW)
-    
-    # Enable fog for depth effect
-    glEnable(GL_FOG)
-    glFogi(GL_FOG_MODE, GL_LINEAR)
-    glFogfv(GL_FOG_COLOR, (0.5, 0.6, 0.75, 1.0))
-    glFogf(GL_FOG_START, 80.0)
-    glFogf(GL_FOG_END, 250.0)
-
-    camera = Camera()
-    # Center camera on the full terrain (which is grid_size × (grid_size * layer_count))
-    full_height = level.grid_size * level.layer_count
-    camera.center = [level.grid_size / 2, full_height / 2, 0]
-    camera.distance = max(level.grid_size, full_height) * 0.8
-
-    renderer = TerrainRenderer(level)
-    if args.wireframe:
-        renderer.wireframe = True
-
-    clock = pygame.time.Clock()
-    running = True
-    show_help = True
-    fog_enabled = True
-    font = pygame.font.SysFont("monospace", 14)
-    font_big = pygame.font.SysFont("monospace", 16, bold=True)
-
-    # Help text
-    help_lines = [
-        "CONTROLS:",
-        "Mouse      - Rotate view",
-        "Scroll     - Zoom in/out",
-        "W/S/A/D    - Move camera",
-        "+/-        - Height scale",
-        "F          - Wireframe",
-        "G          - Grid lines",
-        "O          - Object markers",
-        "C          - Color mode",
-        "V          - Fog/haze",
-        "H          - This help",
-        "R          - Reset view",
-        "ESC        - Quit",
-    ]
-
-    while running:
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                running = False
-            elif event.type == KEYDOWN:
-                if event.key == K_ESCAPE:
-                    running = False
-                elif event.key == K_f:
-                    renderer.wireframe = not renderer.wireframe
-                elif event.key == K_g:
-                    renderer.show_grid = not renderer.show_grid
-                elif event.key == K_o:
-                    renderer.show_objects = not renderer.show_objects
-                elif event.key == K_c:
-                    renderer.color_mode = (renderer.color_mode + 1) % len(TerrainRenderer.COLOR_MODES)
-                elif event.key == K_h:
-                    show_help = not show_help
-                elif event.key == K_v:
-                    fog_enabled = not fog_enabled
-                    if fog_enabled:
-                        glEnable(GL_FOG)
-                    else:
-                        glDisable(GL_FOG)
-                elif event.key == K_PLUS or event.key == K_EQUALS:
-                    renderer.height_scale *= 1.2
-                elif event.key == K_MINUS:
-                    renderer.height_scale /= 1.2
-                elif event.key == K_r:
-                    camera = Camera()
-                    full_height = level.grid_size * level.layer_count
-                    camera.center = [level.grid_size / 2, full_height / 2, 0]
-                    camera.distance = max(level.grid_size, full_height) * 0.8
-                    renderer.height_scale = 0.1
-            camera.handle_event(event)
-
-        keys = pygame.key.get_pressed()
-        camera.handle_keys(keys)
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        camera.apply()
-        renderer.render()
-
-        # Render 2D HUD overlay using texture
-        glMatrixMode(GL_PROJECTION)
-        glPushMatrix()
-        glLoadIdentity()
-        glOrtho(0, display[0], display[1], 0, -1, 1)
-        glMatrixMode(GL_MODELVIEW)
-        glPushMatrix()
-        glLoadIdentity()
-        glDisable(GL_DEPTH_TEST)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glEnable(GL_TEXTURE_2D)
-
-        def draw_text(text, x, y, is_title=False, cache={}):
-            """Draw text at x,y using cached OpenGL textures."""
-            cache_key = (text, is_title)
-            
-            if cache_key not in cache:
-                if is_title:
-                    text_surface = font_big.render(text, True, (255, 255, 100), (20, 20, 40))
-                else:
-                    text_surface = font.render(text, True, (220, 220, 220), (20, 20, 40))
-                
-                w, h = text_surface.get_size()
-                text_surface = pygame.transform.flip(text_surface, False, True)
-                text_data = pygame.image.tostring(text_surface, "RGBA", True)
-                
-                tex_id = glGenTextures(1)
-                glBindTexture(GL_TEXTURE_2D, tex_id)
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
-                
-                cache[cache_key] = (tex_id, w, h)
-            
-            tex_id, w, h = cache[cache_key]
-            glBindTexture(GL_TEXTURE_2D, tex_id)
-            glColor4f(1, 1, 1, 1)
-            glBegin(GL_QUADS)
-            glTexCoord2f(0, 0); glVertex2f(x, y)
-            glTexCoord2f(1, 0); glVertex2f(x + w, y)
-            glTexCoord2f(1, 1); glVertex2f(x + w, y + h)
-            glTexCoord2f(0, 1); glVertex2f(x, y + h)
-            glEnd()
-            return h
-
-        # Draw help text
-        if show_help:
-            y_pos = 10
-            for i, line in enumerate(help_lines):
-                h = draw_text(line, 10, y_pos, is_title=(i == 0))
-                y_pos += h + 2
-
-        # Draw status line (not cached - changes)
-        glDisable(GL_TEXTURE_2D)
-        status = f"{level.name} | {renderer.width}x{renderer.height} | {len(level.objects)} objs"
-        status_surface = font.render(status, True, (150, 255, 150), (20, 20, 40))
-        status_surface = pygame.transform.flip(status_surface, False, True)
-        w, h = status_surface.get_size()
-        
-        glEnable(GL_TEXTURE_2D)
-        tex_id = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, tex_id)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        text_data = pygame.image.tostring(status_surface, "RGBA", True)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
-        
-        glColor4f(1, 1, 1, 1)
-        glBegin(GL_QUADS)
-        glTexCoord2f(0, 0); glVertex2f(10, display[1] - 25)
-        glTexCoord2f(1, 0); glVertex2f(10 + w, display[1] - 25)
-        glTexCoord2f(1, 1); glVertex2f(10 + w, display[1] - 25 + h)
-        glTexCoord2f(0, 1); glVertex2f(10, display[1] - 25 + h)
-        glEnd()
-        glDeleteTextures([tex_id])
-
-        glDisable(GL_TEXTURE_2D)
-        glDisable(GL_BLEND)
-        glEnable(GL_DEPTH_TEST)
-        glMatrixMode(GL_PROJECTION)
-        glPopMatrix()
-        glMatrixMode(GL_MODELVIEW)
-        glPopMatrix()
-
-        pygame.display.flip()
-        clock.tick(60)
-
-    pygame.quit()
+    fh = level.grid_size * level.layer_count
+    print(
+        f"{level.name}: {level.grid_size}x{fh} ({level.layer_count} layers), {len(level.objects)} objects"
+    )
+    Viewer(level, args.wireframe).run()
     return 0
 
 
