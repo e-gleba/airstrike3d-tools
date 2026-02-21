@@ -131,8 +131,8 @@ __pycache__
 *.out
 *.app
 
-!2.06/**
-!2.71/**
+!2_06/**
+!2_71/**
 !ghidra/dumps/**
 !src/overlay/*.dll
 llvm-mingw/
