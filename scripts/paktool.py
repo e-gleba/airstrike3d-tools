@@ -1,299 +1,429 @@
 #!/usr/bin/env python3
-"""
-paktool - .apk archive utility (Pack & Unpack)
-"""
-import sys
-import struct
-import argparse
-from pathlib import Path
-from typing import Generator, Tuple, List
+"""paktool — .apk archive utility (Pack & Unpack)
 
-# --- Configuration ---
-MAGIC = b"\x00\x00\x80\x3f\x99\x99\x00\x00"  # Float 1.0 + padding
-ENTRY_SIZE = 76
-CIPHER_SZ = 1024
-MAX_NAME = 64
+Requires: Python >= 3.14
+Usage:
+    paktool list   archive.apk
+    paktool extract archive.apk [-o outdir] [-v]
+    paktool pack    input_dir output.apk
+    paktool inspect archive.apk
+"""
+
+from __future__ import annotations
+
+import argparse
+import struct
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Final, Generator
+
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+MAGIC: Final[bytes] = b"\x00\x00\x80\x3f\x99\x99\x00\x00"  # float 1.0 + padding
+HEADER_SIZE: Final[int] = 16  # 8 magic + 4 tbl_offset + 4 count
+ENTRY_SIZE: Final[int] = 76
+CIPHER_SIZE: Final[int] = 1024
+MAX_NAME_LEN: Final[int] = 64
+ENTRY_STRUCT: Final[str] = "<64sIII"  # name(64) + offset(4) + size(4) + reserved(4)
+COPY_CHUNK: Final[int] = 1 << 16  # 64 KiB streaming chunk
+DATA_START: Final[int] = 8 + 8 + CIPHER_SIZE  # magic + header fields + cipher = 1040
+
+# ─── Type Aliases ─────────────────────────────────────────────────────────────
+
+type EntryTuple = tuple[str, int, int]  # (name, offset, size)
+type FilePair = tuple[str, Path]  # (archive_name, local_path)
+
+# ─── Terminal Styling ─────────────────────────────────────────────────────────
 
 
 class Style:
-    R = "\033[31m"  # Red
-    G = "\033[32m"  # Green
-    Y = "\033[33m"  # Yellow
-    B = "\033[1m"  # Bold
-    D = "\033[2m"  # Dim
-    X = "\033[0m"  # Reset
+    """ANSI escape helpers for terminal output."""
+
+    R: Final[str] = "\033[31m"
+    G: Final[str] = "\033[32m"
+    Y: Final[str] = "\033[33m"
+    B: Final[str] = "\033[1m"
+    D: Final[str] = "\033[2m"
+    X: Final[str] = "\033[0m"
 
     @staticmethod
-    def err(msg):
+    def err(msg: str) -> None:
         print(f"{Style.B}{Style.R}error:{Style.X} {msg}", file=sys.stderr)
 
     @staticmethod
-    def warn(msg):
+    def warn(msg: str) -> None:
         print(f"{Style.B}{Style.Y}warning:{Style.X} {msg}", file=sys.stderr)
 
     @staticmethod
-    def ok(msg):
+    def ok(msg: str) -> None:
         print(f"{Style.B}{Style.G}success:{Style.X} {msg}", file=sys.stderr)
 
 
+# ─── Cipher ───────────────────────────────────────────────────────────────────
+
+
 def gen_cipher() -> bytes:
-    """Generates the standard 1KB XOR key used by this format."""
-    return bytes((i * 17 + 42) % 256 for i in range(CIPHER_SZ))
+    """Generate the standard 1 KB XOR key used by this archive format."""
+    return bytes((i * 17 + 42) % 256 for i in range(CIPHER_SIZE))
+
+
+def xor_block(data: bytes | bytearray, cipher: bytes, key_offset: int = 0) -> bytes:
+    """XOR `data` against `cipher`, starting at `key_offset` into the key.
+
+    Uses a pre-built memoryview for zero-copy slicing and processes the
+    entire block in one pass via a bytes-XOR comprehension.
+    """
+    cipher_len: int = len(cipher)
+    return bytes(b ^ cipher[(key_offset + i) % cipher_len] for i, b in enumerate(data))
+
+
+# ─── Hex Dump Helper ─────────────────────────────────────────────────────────
 
 
 def hex_line(data: bytes, addr: int) -> str:
-    h = " ".join(f"{b:02x}" for b in data).ljust(48)
-    a = "".join(chr(b) if 32 <= b <= 126 else "." for b in data)
-    return f"{Style.D}{addr:08x}{Style.X}  {h}  {Style.D}|{a}|{Style.X}"
+    """Format up to 16 bytes as a hex + ASCII dump line."""
+    hex_part: str = " ".join(f"{b:02x}" for b in data).ljust(48)
+    ascii_part: str = "".join(chr(b) if 32 <= b <= 126 else "." for b in data)
+    return f"{Style.D}{addr:08x}{Style.X}  {hex_part}  {Style.D}|{ascii_part}|{Style.X}"
 
 
-# --- Reading / Unpacking ---
+# ─── Reader / Unpacker ───────────────────────────────────────────────────────
 
 
+@dataclass(slots=True)
 class PakReader:
-    def __init__(self, path: Path):
-        self.path = path
-        if not path.exists():
-            Style.err(f"'{path}' not found")
+    """Reads and decrypts entries from an .apk archive."""
+
+    path: Path
+
+    def __post_init__(self) -> None:
+        if not self.path.exists():
+            Style.err(f"'{self.path}' not found")
             sys.exit(1)
 
-    def _decrypt_entry(self, data: bytes, idx: int, cipher: bytes) -> bytes:
-        # XOR based on position relative to the start of the file table
-        offset_base = idx * ENTRY_SIZE
-        out = bytearray(len(data))
-        for i in range(len(data)):
-            key_idx = (offset_base + i) % CIPHER_SZ
-            out[i] = data[i] ^ cipher[key_idx]
-        return bytes(out)
+    def _decrypt_entry(self, raw: bytes, index: int, cipher: bytes) -> bytes:
+        """Decrypt a single file-table entry using positional XOR."""
+        return xor_block(raw, cipher, key_offset=index * ENTRY_SIZE)
 
-    def stream_entries(self) -> Generator[Tuple[str, int, int], None, None]:
+    def stream_entries(self) -> Generator[EntryTuple, None, None]:
+        """Yield (name, offset, size) for every valid entry in the archive."""
         with open(self.path, "rb") as f:
             if f.read(8) != MAGIC:
                 Style.err("invalid magic number")
                 sys.exit(1)
 
             tbl_offset, count = struct.unpack("<II", f.read(8))
-            cipher = f.read(CIPHER_SZ)
+            cipher: bytes = f.read(CIPHER_SIZE)
 
             f.seek(tbl_offset)
             for i in range(count):
-                raw = f.read(ENTRY_SIZE)
+                raw: bytes = f.read(ENTRY_SIZE)
                 if len(raw) != ENTRY_SIZE:
                     break
 
-                dec = self._decrypt_entry(raw, i, cipher)
-                name_bytes, off, sz, _ = struct.unpack("<64sIII", dec)
+                dec: bytes = self._decrypt_entry(raw, i, cipher)
+                name_bytes, off, sz, _ = struct.unpack(ENTRY_STRUCT, dec)
 
-                name = (
-                    name_bytes.split(b"\0", 1)[0]
-                    .decode("ascii", "ignore")
+                name: str = (
+                    name_bytes.split(b"\x00", 1)[0]
+                    .decode("ascii", errors="ignore")
                     .replace("\\", "/")
                 )
                 if name:
                     yield name, off, sz
 
-    def inspect(self):
+    def inspect(self) -> None:
+        """Print a debug dump of the archive header, cipher, and first entry."""
         with open(self.path, "rb") as f:
+            # Header
             print(f"{Style.B}--- Header ---{Style.X}")
-            raw_hdr = f.read(16)
+            raw_hdr: bytes = f.read(HEADER_SIZE)
             print(hex_line(raw_hdr, 0))
             tbl_off, count = struct.unpack("<II", raw_hdr[8:16])
             print(f"Table Offset: 0x{tbl_off:08x} | Files: {count}")
 
-            print(f"\n{Style.B}--- Cipher (Start) ---{Style.X}")
-            cipher = f.read(CIPHER_SZ)
-            print(hex_line(cipher[:16], 16))
+            # Cipher preview
+            print(f"\n{Style.B}--- Cipher (first 16 bytes) ---{Style.X}")
+            cipher: bytes = f.read(CIPHER_SIZE)
+            print(hex_line(cipher[:16], HEADER_SIZE))
 
+            # First entry
             print(f"\n{Style.B}--- First Entry ---{Style.X}")
-            if tbl_off > self.path.stat().st_size:
-                Style.err("Table offset out of bounds")
+            file_size: int = self.path.stat().st_size
+            if tbl_off > file_size:
+                Style.err(
+                    f"table offset 0x{tbl_off:08x} exceeds file size {file_size:,}"
+                )
                 return
+
             f.seek(tbl_off)
-            raw = f.read(ENTRY_SIZE)
+            raw: bytes = f.read(ENTRY_SIZE)
+            if len(raw) < ENTRY_SIZE:
+                Style.err("file table truncated")
+                return
+
             print("Encrypted:")
             print(hex_line(raw[:16], tbl_off))
 
-            dec = self._decrypt_entry(raw, 0, cipher)
+            dec: bytes = self._decrypt_entry(raw, 0, cipher)
             print("Decrypted:")
             print(hex_line(dec[:16], 0))
-            name, off, sz, _ = struct.unpack("<64sIII", dec)
-            print(f"Name: {name.split(b'\\0')[0].decode('ascii', 'ignore')}")
+
+            name_bytes, off, sz, _ = struct.unpack(ENTRY_STRUCT, dec)
+            name: str = name_bytes.split(b"\x00", 1)[0].decode("ascii", errors="ignore")
+            print(f"Name: {name!r}  Offset: 0x{off:08x}  Size: {sz:,}")
 
 
-# --- Writing / Packing ---
+# ─── Builder / Packer ────────────────────────────────────────────────────────
 
 
+@dataclass(slots=True)
 class PakBuilder:
-    def __init__(self):
-        self.files: List[Tuple[str, Path]] = []
+    """Scans a directory and packs it into an .apk archive."""
 
-    def scan_directory(self, input_dir: Path):
-        input_dir = input_dir.resolve()
-        for path in input_dir.rglob("*"):
-            if path.is_file():
-                # Create relative path with Windows separators
-                rel_path = path.relative_to(input_dir)
-                name_str = str(rel_path).replace("/", "\\")
+    files: list[FilePair] = field(default_factory=list)
 
-                if len(name_str.encode("ascii", "ignore")) >= MAX_NAME:
-                    Style.warn(f"skipping '{name_str}' (name too long)")
-                    continue
+    def scan_directory(self, input_dir: Path) -> None:
+        """Recursively collect files, converting paths to Windows separators."""
+        resolved: Path = input_dir.resolve()
+        for path in sorted(resolved.rglob("*")):
+            if not path.is_file():
+                continue
+            rel: Path = path.relative_to(resolved)
+            name_str: str = str(rel).replace("/", "\\")
 
-                self.files.append((name_str, path))
+            if len(name_str.encode("ascii", errors="ignore")) >= MAX_NAME_LEN:
+                Style.warn(f"skipping '{name_str}' (name ≥ {MAX_NAME_LEN} bytes)")
+                continue
 
-    def write(self, output_file: Path):
-        cipher = gen_cipher()
-        file_entries_meta = []  # Stores (name, offset, size)
+            self.files.append((name_str, path))
 
-        # Header size: 8 (magic) + 8 (offsets) + 1024 (cipher) = 1040
-        current_offset = 1040
+    def write(self, output_file: Path) -> None:
+        """Write the packed archive to `output_file`."""
+        cipher: bytes = gen_cipher()
+        entries_meta: list[EntryTuple] = []
+        current_offset: int = DATA_START
 
         try:
             with open(output_file, "wb") as f:
-                # 1. Write Placeholder Header
+                # 1. Placeholder header
                 f.write(MAGIC)
-                f.write(bytes(8))  # Placeholder for tbl_offset, count
+                f.write(b"\x00" * 8)  # tbl_offset + count placeholders
                 f.write(cipher)
 
-                # 2. Write File Data
-                print(f"Writing {len(self.files)} files...")
-                for name, path in self.files:
-                    size = path.stat().st_size
-                    file_entries_meta.append((name, current_offset, size))
+                # 2. File data
+                file_count: int = len(self.files)
+                print(f"Writing {file_count} file{'s' if file_count != 1 else ''}...")
 
-                    # Stream file content
+                for name, path in self.files:
+                    size: int = path.stat().st_size
+                    entries_meta.append((name, current_offset, size))
+
                     with open(path, "rb") as src:
-                        while chunk := src.read(65536):
+                        while chunk := src.read(COPY_CHUNK):
                             f.write(chunk)
 
                     current_offset += size
 
-                # 3. Write File Table
-                table_start_offset = f.tell()
+                # 3. Encrypted file table
+                table_offset: int = f.tell()
 
-                for i, (name, off, sz) in enumerate(file_entries_meta):
-                    # Construct entry
-                    name_bytes = name.encode("ascii", "ignore").ljust(MAX_NAME, b"\0")
-                    raw_struct = struct.pack("<64sIII", name_bytes, off, sz, 0)
+                for i, (name, off, sz) in enumerate(entries_meta):
+                    name_bytes: bytes = name.encode("ascii", errors="ignore").ljust(
+                        MAX_NAME_LEN, b"\x00"
+                    )
+                    raw_entry: bytes = struct.pack(ENTRY_STRUCT, name_bytes, off, sz, 0)
+                    encrypted: bytes = xor_block(
+                        raw_entry, cipher, key_offset=i * ENTRY_SIZE
+                    )
+                    f.write(encrypted)
 
-                    # Encrypt entry
-                    # XOR key index depends on entry index * entry size + byte position
-                    base_idx = i * ENTRY_SIZE
-                    enc_struct = bytearray(len(raw_struct))
-                    for b_i, byte in enumerate(raw_struct):
-                        enc_struct[b_i] = byte ^ cipher[(base_idx + b_i) % CIPHER_SZ]
-
-                    f.write(enc_struct)
-
-                # 4. Update Header
+                # 4. Patch header with real values
                 f.seek(8)
-                f.write(struct.pack("<II", table_start_offset, len(self.files)))
+                f.write(struct.pack("<II", table_offset, file_count))
 
-            Style.ok(f"Created '{output_file}' ({output_file.stat().st_size:,} bytes)")
+            final_size: int = output_file.stat().st_size
+            Style.ok(f"created '{output_file}' ({final_size:,} bytes)")
 
-        except OSError as e:
-            Style.err(f"I/O Error: {e}")
+        except OSError as exc:
+            Style.err(f"I/O error: {exc}")
             sys.exit(1)
 
 
-# --- CLI Commands ---
+# ─── CLI Commands ─────────────────────────────────────────────────────────────
 
 
-def cmd_list(args):
-    pak = PakReader(args.input)
+def cmd_list(args: argparse.Namespace) -> None:
+    """List archive contents with sizes and offsets."""
+    pak: PakReader = PakReader(args.input)
+
     print(f"{Style.B}{'SIZE':>10}  {'OFFSET':>10}  {'NAME'}{Style.X}")
-    print(f"{Style.D}{'-'*10}  {'-'*10}  {'-'*20}{Style.X}")
+    print(f"{Style.D}{'-' * 10}  {'-' * 10}  {'-' * 40}{Style.X}")
+
+    total_files: int = 0
+    total_bytes: int = 0
+
     for name, off, sz in pak.stream_entries():
         print(f"{sz:>10,}  0x{off:08x}  {name}")
+        total_files += 1
+        total_bytes += sz
+
+    print(f"{Style.D}{'-' * 10}  {'-' * 10}  {'-' * 40}{Style.X}")
+    print(
+        f"{Style.B}{total_bytes:>10,}  {'':>10}  "
+        f"{total_files} file{'s' if total_files != 1 else ''}{Style.X}"
+    )
 
 
-def cmd_extract(args):
-    pak = PakReader(args.input)
-    out_dir = args.output or Path(args.input.stem)
+def cmd_extract(args: argparse.Namespace) -> None:
+    """Extract all files from the archive."""
+    pak: PakReader = PakReader(args.input)
+    out_dir: Path = args.output or Path(args.input.stem)
 
     print(f"Extracting to '{out_dir}'...")
+
+    ok: int = 0
+    fail: int = 0
+
     with open(pak.path, "rb") as f:
-        ok, fail = 0, 0
         for name, off, sz in pak.stream_entries():
-            dest = out_dir / name
-            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest: Path = out_dir / name
             try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 f.seek(off)
-                dest.write_bytes(f.read(sz))
+
+                # Stream extraction for large files
+                with open(dest, "wb") as out:
+                    remaining: int = sz
+                    while remaining > 0:
+                        chunk_size: int = min(COPY_CHUNK, remaining)
+                        chunk: bytes = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        remaining -= len(chunk)
+
                 ok += 1
                 if args.verbose:
-                    print(f"extracted: {name}")
+                    print(f"  {Style.G}✓{Style.X} {name}")
                 elif ok % 100 == 0:
-                    sys.stdout.write(f"\r{ok} files...")
+                    sys.stdout.write(f"\r  {ok} files...")
                     sys.stdout.flush()
-            except Exception as e:
-                Style.err(f"failed {name}: {e}")
+
+            except OSError as exc:
+                Style.err(f"failed '{name}': {exc}")
                 fail += 1
+
+    if not args.verbose and ok >= 100:
+        sys.stdout.write("\r")
+        sys.stdout.flush()
+
     print(f"\n{Style.G}Done.{Style.X} {ok} extracted, {fail} failed.")
 
 
-def cmd_pack(args):
-    builder = PakBuilder()
+def cmd_pack(args: argparse.Namespace) -> None:
+    """Pack a directory into an archive."""
+    builder: PakBuilder = PakBuilder()
+
     print(f"Scanning '{args.input}'...")
     builder.scan_directory(args.input)
 
     if not builder.files:
-        Style.err("No files found to pack.")
+        Style.err("no files found to pack")
         sys.exit(1)
 
+    print(f"Found {len(builder.files)} file{'s' if len(builder.files) != 1 else ''}.")
     builder.write(args.output)
 
 
-def cmd_inspect(args):
+def cmd_inspect(args: argparse.Namespace) -> None:
+    """Inspect archive internals."""
     PakReader(args.input).inspect()
 
 
-def main():
-    parser = argparse.ArgumentParser(description="pak file utility", add_help=False)
-    base = argparse.ArgumentParser(add_help=False)
-    base.add_argument("-v", "--verbose", action="store_true")
+# ─── CLI Entry Point ──────────────────────────────────────────────────────────
+
+# Command dispatch table
+_COMMANDS: Final[dict[str, tuple[str, callable, list[tuple[list[str], dict]]]]] = {
+    "list": (
+        "List archive contents",
+        cmd_list,
+        [
+            (["input"], {"type": Path, "help": "Archive file (.apk)"}),
+        ],
+    ),
+    "extract": (
+        "Extract archive contents",
+        cmd_extract,
+        [
+            (["input"], {"type": Path, "help": "Archive file (.apk)"}),
+            (
+                ["-o", "--output"],
+                {"type": Path, "default": None, "help": "Output directory"},
+            ),
+        ],
+    ),
+    "inspect": (
+        "Debug archive structure",
+        cmd_inspect,
+        [
+            (["input"], {"type": Path, "help": "Archive file (.apk)"}),
+        ],
+    ),
+    "pack": (
+        "Create archive from directory",
+        cmd_pack,
+        [
+            (["input"], {"type": Path, "help": "Input directory"}),
+            (["output"], {"type": Path, "help": "Output .apk file"}),
+        ],
+    ),
+}
+
+
+def main() -> int:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="paktool — .apk archive utility",
+        add_help=True,
+    )
+    base: argparse.ArgumentParser = argparse.ArgumentParser(add_help=False)
+    base.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     subs = parser.add_subparsers(dest="cmd", metavar="COMMAND")
 
-    # Unpack/View
-    p_list = subs.add_parser("list", parents=[base], help="List contents")
-    p_list.add_argument("input", type=Path)
-
-    p_ext = subs.add_parser("extract", parents=[base], help="Extract archive")
-    p_ext.add_argument("input", type=Path)
-    p_ext.add_argument("-o", "--output", type=Path)
-
-    p_insp = subs.add_parser("inspect", parents=[base], help="Debug structure")
-    p_insp.add_argument("input", type=Path)
-
-    # Pack
-    p_pack = subs.add_parser("pack", parents=[base], help="Create archive")
-    p_pack.add_argument("input", type=Path, help="Input directory")
-    p_pack.add_argument("output", type=Path, help="Output .apk file")
+    # Register all commands from the dispatch table
+    handlers: dict[str, callable] = {}
+    for cmd_name, (help_text, handler, arguments) in _COMMANDS.items():
+        sub: argparse.ArgumentParser = subs.add_parser(
+            cmd_name, parents=[base], help=help_text
+        )
+        for args_names, kwargs in arguments:
+            sub.add_argument(*args_names, **kwargs)
+        handlers[cmd_name] = handler
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(1)
+        return 1
 
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
+
+    if args.cmd not in handlers:
+        parser.print_help()
+        return 1
 
     try:
-        if args.cmd == "list":
-            cmd_list(args)
-        elif args.cmd == "extract":
-            cmd_extract(args)
-        elif args.cmd == "inspect":
-            cmd_inspect(args)
-        elif args.cmd == "pack":
-            cmd_pack(args)
+        handlers[args.cmd](args)
     except KeyboardInterrupt:
-        sys.exit(130)
-    except Exception as e:
-        Style.err(str(e))
+        return 130
+    except Exception as exc:
+        Style.err(str(exc))
         if getattr(args, "verbose", False):
             raise
-        sys.exit(1)
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
