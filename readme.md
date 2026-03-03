@@ -14,6 +14,112 @@ My nostalgic journey into reverse engineering AirStrike 3D - the first PC game t
 
 ![overlay wireframe](.github/overlay_wireframe.png)
 
+## 🕵️ About the Game
+
+[AirStrike 3D](https://en.wikipedia.org/wiki/AirStrike_3D) is a helicopter shoot-em-up series developed by **[DivoGames](https://web.archive.org/web/2006/http://divogames.com/)** (Nizhny Novgorod, Russia) and published through **[Alawar Entertainment](https://en.wikipedia.org/wiki/Alawar)**. The engine and all three franchise titles were built by a two-person team.
+
+### developers
+
+| Name | Role | Links |
+|------|------|-------|
+| **Anton Petrov** | Engine architect, CTO & co-founder | [LinkedIn](https://www.linkedin.com/in/anton-petrov-cto/) |
+| **Dmitry Zakharov** | Co-founder | — |
+
+Both names are embedded as string literals (`{Anton Petrov}`, `{Dmitry Zakharov}`) in the Gulf Thunder executable's credits data. Petrov describes the engine on LinkedIn as _"my first game engine featuring a custom scripting language and hardware-accelerated 3D graphics — powered three titles in the Air Strike 3D franchise"_.
+
+After DivoGames, Petrov became CTO at **Game Insight** (2012–2019, Nizhny Novgorod department), then co-founded **Colossi Games** in Cyprus (2020–present).
+
+### deaddybear → divogames
+
+Before DivoGames was officially founded (~2004), the initial AirStrike chapters were developed under a group called **Deaddybear**. Community [research on r/airstrike3d](https://www.reddit.com/r/airstrike3d/comments/16k254c/about_divogames_earlier_development_projects/) found that Deaddybear's earlier game _Treasure Mole_ used a nearly identical `.pak` archive format — confirming shared codebase ancestry. Deaddybear also released _Bomberman vs Digger_ (2002).
+
+### franchise timeline
+
+| Year | Title | Engine Version |
+|------|-------|---------------|
+| 2002 | AirStrike 3D: Operation W.A.T. | v1.x (OpenGL, Deaddybear era) |
+| 2004 | AirStrike 2 | v2.06 (OpenGL 1.1, MSVC 7.0) |
+| 2005–2007 | AirStrike II: Gulf Thunder | v2.71 (Direct3D 8, MSVC 8.0) |
+
+## 🔬 Engine Internals
+
+Custom C++ engine with no third-party framework. Uses Quake-style subsystem prefixes:
+
+| Subsystem | Prefix | Examples |
+|-----------|--------|----------|
+| Game logic | `G_` | `G_LoadBin`, `G_LoadLevelList` |
+| Renderer | `R_` | `R_LoadModel`, `R_RegisterModel`, `R_RegisterShadow` |
+| Sound | `S_` | `S_Init`, `S_RegisterSound` |
+| Window | `MW_` | `MW_CreateWindow` |
+
+### graphics api evolution
+
+| Version | API | Compiler | Compile timestamp | Rich header |
+|---------|-----|----------|-------------------|-------------|
+| v2.06 (`as3d2.exe`) | OpenGL 1.1 (`opengl32.dll`, `glu32.dll`) | MSVC 7.0 (.NET 2002/2003) | `2004-05-15 10:12:58 UTC` | ✅ |
+| v2.71 (`Gulf.exe`) | Direct3D 8 (`d3d8.dll`) | MSVC 8.0 (VS2005) | `2007-05-15 13:49:28 UTC` | ✅ |
+
+### third-party libraries
+
+- **[BASS](https://www.un4seen.com/)** — Audio library. 3D positional audio, EAX effects, MO3/tracker module playback.
+- **libjpeg** — `Copyright (C) 1996, Thomas G. Lane` (found in Gulf exe strings).
+- **zlib + libpng** — PNG texture support.
+- **Custom scripting language** — Confirmed by Petrov on LinkedIn, no public documentation survived.
+
+### asset formats
+
+| Format | Extension | Description |
+|--------|-----------|-------------|
+| Archives | `.apk` | Custom encrypted containers (XOR, 1024-byte key table). **Not** Android APK. |
+| Models | `.mdl` | Custom 3D format with version checks (`R_LoadModel: Illegal model version.`) |
+| Textures | `.tga` | Standard Targa. Organized in `gfx/`, `menu/`, `tiles/` dirs. |
+| Levels | `maps/levels.txt` | Plaintext level list (encrypted inside `.apk`) |
+| Audio | `.mo3` | Tracker modules via BASS library |
+| Config | `config.ini` | Plaintext, stored alongside the executable |
+
+### rtti / c++ details
+
+MSVC RTTI type descriptors found in the Gulf binary (e.g. `.?AVIntroPageDivoGames@@`), confirming C++ with virtual inheritance and RTTI enabled. `Divo Master` string suggests an internal tool or debug mode.
+
+## 🔒 ASProtect 1.0 Analysis
+
+The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.0](http://asprotect.net)** by Alexey Solodovnikov.
+
+### identification
+
+| Indicator | Value | Meaning |
+|-----------|-------|---------|
+| Entry point | `.data` section (`0x1DB3001`) | Packer stub, not original code |
+| EP signature | `60 E8 01 00 00 00` | `PUSHAD` + `CALL +1` — textbook ASProtect 1.0 |
+| Section flags | All `0xC0000040` (RWX) | Packer rewrites all section attributes |
+| `.text` entropy | **8.00** (maximum) | Fully encrypted/compressed |
+| Visible IAT | 3 imports: `GetProcAddress`, `GetModuleHandleA`, `LoadLibraryA` | Real IAT resolved at runtime |
+| Compression | aPLib (LZ77 variant) | See [`scripts/static_exe_unpacker.py`](scripts/static_exe_unpacker.py) |
+| Hashes | `MD5: 1ba6f0187c43d07587e5212f1cb14190` | `SHA256: bc68bf37...81fb1a` |
+
+### how it works
+
+1. **Section wiping** — Original section names erased, all flags set to `0xC0000040`. Two `.data` stubs appended.
+2. **aPLib decompression** — Compressed `.text` stored in oversized `.data` (VirtSize 30 MB, RawSize 4 KB).
+3. **OEP byte stealing** — First bytes of Original Entry Point executed inside the stub before jumping to `OEP+N`.
+4. **IAT redirection** — Import calls routed through ASProtect memory; executes first instructions of real API in-place, then jumps mid-body.
+5. **Anti-debug** — `IsDebuggerPresent()`, RDTSC timing, SEH breakpoint detection, debugger driver `CreateFile()` probes.
+6. **Checksums** — Code integrity verification to detect runtime patching.
+7. **Anti-disasm** — Junk bytes after `CALL` instructions break linear-sweep disassemblers (W32DASM, SOURCER); IDA handles fine.
+
+### v2.71 — no protection
+
+Gulf Thunder ships **completely unprotected**: EP in `.text`, entropy 6.83, full IAT, developer credits and error strings plainly readable. Much better target for engine analysis.
+
+## 🔗 Related Resources
+
+- [r/airstrike3d](https://www.reddit.com/r/airstrike3d/) — community research & modding
+- [Ithamar's APK scripts](https://gist.github.com/Ithamar/85f1f71d179c354fad483a8c48767daf) — updated extraction with text decryption
+- [QindieGL](https://github.com/nicedrak/QindieGL) — OpenGL-to-D3D wrapper for running on modern Windows
+- [PCGamingWiki: AirStrike 2](https://www.pcgamingwiki.com/wiki/AirStrike_2) — compatibility fixes
+- [xakep.ru: ASProtect taming](https://xakep.ru/2003/07/10/19112/) — technical packer analysis (Russian)
+- [ASProtect homepage](http://asprotect.net) — Alexey Solodovnikov's official site
+
 ## 🔧 Tools
 
 ### APK Archive Extraction
@@ -81,12 +187,14 @@ Add this to the game's launch options in Steam.
 ### build
 
 1. download llvm-mingw from <https://github.com/mstorsjo/llvm-mingw/releases>:
+
 - `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for win10+ (ucrt)
 - `llvm-mingw-YYYYMMDD-msvcrt-ubuntu-20.04-x86_64.tar.xz` for win7+ (legacy crt)
 
-2. extract to repository root in dir `llvm-mingw`
+1. extract to repository root in dir `llvm-mingw`
 
-3. Run
+2. Run
+
 ```bash
 cmake --preset llvm-mingw-i686
 cmake --build --preset llvm-mingw-i686
