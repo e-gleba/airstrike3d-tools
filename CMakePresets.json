@@ -26,11 +26,11 @@
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
       "architecture": {
-        "value": "x64",
+        "value": "x86",
         "strategy": "set"
       },
       "toolset": {
-        "value": "host=x64",
+        "value": "host=x86",
         "strategy": "set"
       },
       "condition": {
@@ -182,10 +182,6 @@
           "name": "msvc"
         },
         {
-          "type": "test",
-          "name": "msvc"
-        },
-        {
           "type": "package",
           "name": "msvc-package"
         }
@@ -205,10 +201,6 @@
           "name": "llvm-mingw-i686"
         },
         {
-          "type": "test",
-          "name": "llvm-mingw-i686"
-        },
-        {
           "type": "package",
           "name": "llvm-mingw-i686-package"
         }
@@ -225,10 +217,6 @@
         },
         {
           "type": "build",
-          "name": "llvm-mingw-x86_64"
-        },
-        {
-          "type": "test",
           "name": "llvm-mingw-x86_64"
         },
         {
