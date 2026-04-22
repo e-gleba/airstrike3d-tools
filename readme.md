@@ -35,11 +35,22 @@ Before DivoGames was officially founded (~2004), the initial AirStrike chapters 
 
 ### franchise timeline
 
-| Year | Title | Engine Version |
-|------|-------|---------------|
-| 2002 | AirStrike 3D: Operation W.A.T. | v1.x (OpenGL, Deaddybear era) |
-| 2004 | AirStrike 2 | v2.06 (OpenGL 1.1, MSVC 7.0) |
-| 2005–2007 | AirStrike II: Gulf Thunder | v2.71 (Direct3D 8, MSVC 8.0) |
+| Year | Title | Publisher | Genre | Engine | Known Alias |
+|------|-------|-----------|-------|--------|-------------|
+| 2002 | AirStrike 3D: Operation W.A.T. | Alawar | Helicopter shooter | v1.x (OpenGL, Deaddybear era) | *Air Assault 3D*, *Air Hawk* |
+| 2004 | AirStrike 2 | Alawar / self | Helicopter shooter | v2.06 (OpenGL 1.1, MSVC 7.0) | *АвиаНалет 2* (ru) |
+| 2005 | AirStrike II: Gulf Thunder | Alawar | Helicopter shooter | v2.71 (Direct3D 8, MSVC 8.0) | *Desert Hawk* |
+| 2007 | Air Force Missions | MyPlayCity | Helicopter shooter | v2.50 (unconfirmed, same engine lineage) | — |
+| 2007 | Space Strike | MyPlayCity | Space shooter | unknown | *Galaxy Strike*, *Звёздный Удар* |
+
+> **Known retail rebrands** (same binary, different publisher skin):
+> - *AirStrike 3D: Operation W.A.T.* → **"Air Assault 3D"** / **"Air Hawk"**
+> - *AirStrike II: Gulf Thunder* → **"Desert Hawk"**
+> - *Space Strike* → **"Galaxy Strike"**
+>
+> **Air Force Missions** and **Space Strike** are distinct DivoGames titles — separate from the Alawar-published trilogy — released in 2007 under a MyPlayCity distribution deal. Air Force Missions is a helicopter shooter sharing visible engine DNA with Operation W.A.T. (version string `2.50` observed in binary); Space Strike is a space shooter, unrelated gameplay-wise. Neither title's asset format compatibility with v2.06/v2.71 tooling has been confirmed — requires binary diff. Issue tracked at [#1](https://github.com/e-gleba/airstrike3d-tools/issues/1).
+>
+> DivoGames was acquired by **Game Insight** in 2012; both 2007 titles are now part of that catalog.
 
 ## 🔬 Engine Internals
 
