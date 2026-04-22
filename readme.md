@@ -52,6 +52,120 @@ Before DivoGames was officially founded (~2004), the initial AirStrike chapters 
 >
 > DivoGames was acquired by **Game Insight** in 2012; both 2007 titles are now part of that catalog.
 
+```mermaid
+graph TD
+    %% People
+    AP["👤 Anton Petrov\nEngine Architect · CTO · Co-founder"]
+    DZ["👤 Dmitry Zakharov\nCo-founder"]
+
+    %% Orgs / Groups
+    DB["🐻 Deaddybear\n~2000–2004"]
+    DG["🏢 DivoGames Ltd.\nNizhny Novgorod · 2004–2012"]
+    GI["🏢 Game Insight NN\nNizhny Novgorod · 2012–2019"]
+    CG["🏢 Colossi Games\nCyprus · 2020–present"]
+    AL["📦 Alawar Entertainment\nPublisher"]
+    MPC["📦 MyPlayCity\nPublisher"]
+
+    %% Engine lineage
+    ENG1["⚙️ Engine v1.x\nOpenGL · Deaddybear era"]
+    ENG206["⚙️ Engine v2.06\nOpenGL 1.1 · MSVC 7.0\ncompiled 2004-05-15"]
+    ENG250["⚙️ Engine v2.50\nunconfirmed · same lineage"]
+    ENG271["⚙️ Engine v2.71\nDirect3D 8 · MSVC 8.0\ncompiled 2007-05-15"]
+
+    %% Games
+    TM["🎮 Treasure Mole\n.pak format — shared codebase"]
+    BVD["🎮 Bomberman vs Digger\n2002"]
+    AS1["🎮 AirStrike 3D: Op. W.A.T.\n2002"]
+    AS2["🎮 AirStrike 2\n2004"]
+    GT["🎮 AirStrike II: Gulf Thunder\n2005"]
+    AFM["🎮 Air Force Missions\n2007"]
+    SS["🎮 Space Strike\n2007"]
+
+    %% Aliases
+    AA["🏷️ Air Assault 3D\nAir Hawk"]
+    DH["🏷️ Desert Hawk"]
+    GS["🏷️ Galaxy Strike\nЗвёздный Удар"]
+
+    %% Evidence nodes
+    EV1["🔍 EVIDENCE\nString literals in Gulf.exe:\n{Anton Petrov} {Dmitry Zakharov}"]
+    EV2["🔍 EVIDENCE\nLinkedIn: 'my first game engine\npowered three titles'"]
+    EV3["🔍 EVIDENCE\nMSVC RTTI: .?AVIntroPageDivoGames@@\nDivo Master debug string"]
+    EV4["🔍 EVIDENCE\nr/airstrike3d research:\n.pak format shared with Treasure Mole"]
+
+    %% Acquisition
+    ACQ["📋 Acquisition 2012\nGame Insight buys DivoGames"]
+
+    %% People → Orgs
+    AP --> DB
+    DZ --> DB
+    DB -->|"~2004 rebranded/founded"| DG
+    AP -->|"CTO · co-founder"| DG
+    DZ -->|"co-founder"| DG
+    AP -->|"CTO 2012–2019"| GI
+    AP -->|"co-founded 2020"| CG
+    DG -->|"acquired by"| ACQ
+    ACQ --> GI
+
+    %% Evidence links
+    EV1 -.->|"confirms"| AP
+    EV1 -.->|"confirms"| DZ
+    EV2 -.->|"confirms"| AP
+    EV3 -.->|"confirms"| DG
+    EV4 -.->|"confirms"| DB
+
+    %% Engine lineage
+    ENG1 -->|"evolved to"| ENG206
+    ENG206 -->|"evolved to"| ENG271
+    ENG206 -.->|"possible fork"| ENG250
+
+    %% Games → Engine
+    AS1 --> ENG1
+    AS2 --> ENG206
+    GT --> ENG271
+    AFM --> ENG250
+    SS -.->|"engine unknown"| DG
+
+    %% Deaddybear games
+    DB --> TM
+    DB --> BVD
+    DB --> AS1
+
+    %% DivoGames games
+    DG --> AS2
+    DG --> GT
+    DG --> AFM
+    DG --> SS
+
+    %% Publishers
+    AL -->|"published"| AS1
+    AL -->|"published"| AS2
+    AL -->|"published"| GT
+    MPC -->|"published"| AFM
+    MPC -->|"published"| SS
+
+    %% Aliases
+    AS1 -.->|"rebrand"| AA
+    GT -.->|"rebrand"| DH
+    SS -.->|"rebrand"| GS
+
+    %% Styling
+    classDef person fill:#1a3a5c,stroke:#4a9eda,color:#e8f4fd
+    classDef org fill:#1a2a1a,stroke:#4aaa4a,color:#e8fde8
+    classDef engine fill:#2a1a3a,stroke:#9a4aed,color:#f0e8fd
+    classDef game fill:#2a1a1a,stroke:#ed6a4a,color:#fde8e8
+    classDef alias fill:#1a2a2a,stroke:#4aaaaa,color:#e8fdfd,stroke-dasharray:4 2
+    classDef evidence fill:#2a2a1a,stroke:#aaa04a,color:#fdfde8,stroke-dasharray:2 2
+    classDef event fill:#2a1a2a,stroke:#aa4a6a,color:#fde8f0
+
+    class AP,DZ person
+    class DB,DG,GI,CG,AL,MPC org
+    class ENG1,ENG206,ENG250,ENG271 engine
+    class TM,BVD,AS1,AS2,GT,AFM,SS game
+    class AA,DH,GS alias
+    class EV1,EV2,EV3,EV4 evidence
+    class ACQ event
+```
+
 ## 🔬 Engine Internals
 
 Custom C++ engine with no third-party framework. Uses Quake-style subsystem prefixes:
