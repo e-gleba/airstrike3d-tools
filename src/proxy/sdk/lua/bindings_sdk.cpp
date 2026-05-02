@@ -1,7 +1,7 @@
 
 #include "sdk/core/context.hpp"
 #include "sdk/util/win32.hpp"
-#include <GL/gl.h>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
