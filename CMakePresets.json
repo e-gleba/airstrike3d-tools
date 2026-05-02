@@ -9,7 +9,7 @@
   "configurePresets": [
     {
       "name": "base",
-      "description": "Ninja Multi-Config, compile_commands.json, color diagnostics, bass proxy enabled, unity build.",
+      "description": "Ninja Multi-Config, compile_commands.json, color diagnostics, bass proxy enabled.",
       "hidden": true,
       "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/${presetName}",
@@ -17,8 +17,7 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_COLOR_DIAGNOSTICS": "ON",
         "USE_BASS_PROXY_LIB": "ON",
-        "FETCHCONTENT_QUIET": "OFF",
-        "CMAKE_UNITY_BUILD": "ON"
+        "FETCHCONTENT_QUIET": "OFF"
       }
     },
     {
