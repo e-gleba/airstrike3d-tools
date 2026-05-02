@@ -1,16 +1,22 @@
 function(generate_proxy_def input_dll output_var)
-    # toolchain auto-downloads to llvm_mingw (underscore);
+    # Toolchain auto-downloads to llvm_mingw (underscore);
     # local setup may use llvm-mingw (hyphen) per README instructions.
-    # Use NO_DEFAULT_PATH so we never silently fall back to GNU objdump
-    # in /usr/bin — it cannot parse PE exports.
+    # Step 1: search the known toolchain locations first (no system fallback).
     find_program(
         objdump_bin
         NAMES llvm-objdump objdump
         HINTS
             "${CMAKE_SOURCE_DIR}/llvm_mingw/bin"
             "${CMAKE_SOURCE_DIR}/llvm-mingw/bin"
-        NO_DEFAULT_PATH
-        REQUIRED)
+        NO_DEFAULT_PATH)
+
+    # Step 2: if the toolchain wasn't found locally, fall back to PATH.
+    # On Windows (MSVC) there is no local toolchain, but Git-for-Windows
+    # ships a PE-capable objdump in PATH.  On Linux we prefer
+    # llvm-objdump from PATH (which understands PE) over GNU objdump.
+    if(NOT objdump_bin)
+        find_program(objdump_bin NAMES llvm-objdump objdump REQUIRED)
+    endif()
 
     cmake_path(
         GET
