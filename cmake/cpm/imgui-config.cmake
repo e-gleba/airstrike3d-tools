@@ -2,13 +2,14 @@ cpmaddpackage(
     NAME
     imgui
     VERSION
-    1.92.6
+    1.92.7
     GITHUB_REPOSITORY
     ocornut/imgui
     DOWNLOAD_ONLY
     TRUE)
 
 add_library(imgui STATIC)
+add_library(imgui::imgui ALIAS imgui)
 
 target_sources(
     imgui
@@ -21,21 +22,15 @@ target_sources(
             ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
 
 target_include_directories(
-    imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/misc/cpp
-                        ${imgui_SOURCE_DIR}/misc/freetype)
+    imgui SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
+                        $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/misc/cpp>
+                        $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/misc/freetype>)
 
+target_compile_features(imgui PUBLIC cxx_std_23)
 target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
-
 target_link_libraries(imgui PRIVATE freetype)
 
-# Adding backend implementations
-#
-# OpenGL installation commands:
-#   - Windows:   vcpkg install opengl --triplet=x64-windows
-#   - Fedora:    sudo dnf install mesa-libGL-devel mesa-libGLU-devel
-#   - Arch:      sudo pacman -S mesa glu
-#   - Ubuntu:    sudo apt-get install libgl1-mesa-dev libglu1-mesa-dev
-
+# OpenGL backend for Win32 (used by bass_proxy overlay)
 add_library(imgui_opengl3 STATIC)
 
 target_sources(
@@ -43,6 +38,6 @@ target_sources(
                           ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 
 target_include_directories(imgui_opengl3 SYSTEM
-                           PUBLIC ${imgui_SOURCE_DIR}/backends)
+                           PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
 
-target_link_libraries(imgui_opengl3 PUBLIC imgui glad opengl32)
+target_link_libraries(imgui_opengl3 PUBLIC imgui::imgui glad opengl32)

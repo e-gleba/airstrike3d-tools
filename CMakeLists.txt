@@ -7,8 +7,6 @@ project(
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
 
-include(CMakePrintHelpers)
-
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 
 list(
@@ -17,19 +15,17 @@ list(
     ${CMAKE_CURRENT_LIST_DIR}/cmake
     ${CMAKE_CURRENT_LIST_DIR}/cmake/code_quality)
 
-list(
-    APPEND
-    CMAKE_FIND_ROOT_PATH
-    ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/code-quality)
-
-cmake_print_variables(
-    CMAKE_PREFIX_PATH
-    CMAKE_FIND_ROOT_PATH
-    CMAKE_CROSSCOMPILING
-    CMAKE_SYSTEM_NAME
-    CMAKE_CXX_COMPILER_ID
-    CMAKE_CXX_COMPILER_VERSION)
+# When cross-compiling, CMAKE_FIND_ROOT_PATH_MODE_PACKAGE is typically set to
+# ONLY in the toolchain file. That restricts find_package() to searching only
+# under CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT — our local cmake/ dirs
+# wouldn't be found. Adding them to CMAKE_FIND_ROOT_PATH fixes this.
+if(CMAKE_CROSSCOMPILING)
+    list(
+        APPEND
+        CMAKE_FIND_ROOT_PATH
+        ${CMAKE_CURRENT_LIST_DIR}/cmake
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/code_quality)
+endif()
 
 find_package(warnings CONFIG REQUIRED)
 
