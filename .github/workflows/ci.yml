@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  llvm_mingw_clang_i686:
+    name: LLVM-MinGW Clang i686
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3
+          pip3 install "cmake>=3.31"
+
+      - name: Configure, build, package
+        run: cmake --workflow --preset llvm-mingw-i686-release
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: airstrike3d-tools-llvm-mingw-i686
+          path: build/llvm-mingw-i686/*.tar.xz
+          if-no-files-found: warn
+
+  msvc_x86:
+    name: MSVC x86
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure, build, package
+        run: cmake --workflow --preset msvc-release
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: airstrike3d-tools-msvc-x86
+          path: build/msvc/*.zip
+          if-no-files-found: warn
