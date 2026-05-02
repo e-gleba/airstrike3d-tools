@@ -100,15 +100,14 @@ end
 -- -----------------------------------------------------------------------
 
 --- Movement key → { axis selector, sign }.
---- Using a table-driven approach avoids repetitive if-blocks.
 ---@type { key: integer, axis: string, sign: number }[]
 local move_bindings = {
-    { key = VK.W, axis = "front", sign = 1 },
-    { key = VK.S, axis = "front", sign = -1 },
-    { key = VK.D, axis = "right", sign = 1 },
-    { key = VK.A, axis = "right", sign = -1 },
-    { key = VK.SPACE, axis = "up", sign = 1 },
-    { key = VK.CONTROL, axis = "up", sign = -1 },
+    { key = VK.W,       axis = "front", sign = 1 },
+    { key = VK.S,       axis = "front", sign = -1 },
+    { key = VK.D,       axis = "right", sign = 1 },
+    { key = VK.A,       axis = "right", sign = -1 },
+    { key = VK.SPACE,   axis = "up",    sign = 1 },
+    { key = VK.CONTROL, axis = "up",    sign = -1 },
 }
 
 local function process_input()
@@ -144,11 +143,10 @@ local function process_input()
 
     local fx, fy, fz, rx, ry, rz = calc_vectors()
 
-    -- Map axis name → components for the table-driven bindings.
     local axes = {
         front = { fx, fy, fz },
         right = { rx, ry, rz },
-        up = { 0, 1, 0 },
+        up    = { 0, 1, 0 },
     }
 
     for _, bind in ipairs(move_bindings) do
@@ -163,34 +161,30 @@ end
 -- Hook callbacks
 -- -----------------------------------------------------------------------
 
--- Called every wglSwapBuffers (before overlay)
 sdk.on_frame(process_input)
 
--- Called on glLoadIdentity when matrix mode is GL_MODELVIEW
 sdk.on_gl_identity(function()
     if cam.enabled and cam.hook_identity then
         apply_camera_transform()
     end
 end)
 
--- Called on gluLookAt — return true to suppress the original call
 sdk.on_glu_lookat(function(_ex, _ey, _ez, _cx, _cy, _cz, _ux, _uy, _uz)
     if not cam.enabled then
         return false
     end
     apply_camera_transform()
-    return true -- consume the original gluLookAt
+    return true
 end)
 
--- on_key_down stub (mouse buttons are polled separately below)
 sdk.on_key_down(function(_vk)
     return false
 end)
 
 -- -----------------------------------------------------------------------
--- Right-click mouse look toggle (polled because WM_RBUTTONDOWN
--- doesn't go through on_key_down)
+-- Right-click mouse look toggle
 -- -----------------------------------------------------------------------
+
 local was_rbutton_down = false
 
 --- Release mouse look, restoring the saved cursor position.
@@ -212,12 +206,10 @@ sdk.on_frame(function()
     local rbutton_down = sdk.is_key_down(VK.RBUTTON)
 
     if rbutton_down and not was_rbutton_down then
-        -- Just pressed
         cam.cursor_save_x, cam.cursor_save_y = sdk.get_cursor_pos()
         cam.mouse_look = true
         sdk.show_cursor(false)
     elseif not rbutton_down and was_rbutton_down then
-        -- Just released
         release_mouse_look()
     end
 
@@ -225,84 +217,66 @@ sdk.on_frame(function()
 end)
 
 -- -----------------------------------------------------------------------
--- Overlay UI
+-- UI Panel
 -- -----------------------------------------------------------------------
 
---- Helper: bind a drag_float widget to a cam field.
----@param label string
----@param field string   key into `cam`
----@param v_speed number
----@param v_min   number
----@param v_max   number
-local function cam_drag_float(label, field, v_speed, v_min, v_max)
-    local new_val, changed =
-        ui.drag_float(label, cam[field], v_speed, v_min, v_max)
-    if changed then
-        cam[field] = new_val
-    end
-end
+local function draw_panel()
+    TOOLS_UI.header("Freecam")
+    TOOLS_UI.status_badge(cam.enabled)
+    ui.same_line()
+    ui.text("freecam state")
+    ui.spacing()
 
---- Helper: bind a checkbox widget to a cam field.
----@param label string
----@param field string
-local function cam_checkbox(label, field)
-    local new_val, changed = ui.checkbox(label, cam[field])
-    if changed then
-        cam[field] = new_val
-    end
-end
+    TOOLS_UI.checkbox("Enable Freecam", cam, "enabled",
+        "Override the game camera with custom WASD + mouse look")
 
-sdk.on_overlay(function()
-    ui.set_next_window_pos(20, 20)
-    ui.set_next_window_size(450, 550)
-
-    if not ui.begin_window("airstrike 3d tools") then
-        ui.end_window()
+    if not cam.enabled then
         return
     end
 
-    if ui.collapsing_header("freecam", true) then
-        cam_checkbox("enabled##cam", "enabled")
-
-        ui.same_line()
-        if cam.enabled then
-            ui.text_colored(0, 1, 0, 1, "[active]")
-        else
-            ui.text_colored(1, 0, 0, 1, "[off]")
-        end
-
-        if cam.enabled then
-            cam_drag_float("sensitivity", "sensitivity", 0.005, 0.01, 2.0)
-            cam_drag_float("speed", "base_speed", 0.5, 0.1, 1000.0)
-            cam_drag_float("sprint mult", "sprint_mult", 0.1, 1.0, 50.0)
-            cam_checkbox("hook identity", "hook_identity")
-
-            ui.text(
-                string.format(
-                    "pos: %.2f %.2f %.2f",
-                    cam.pos_x,
-                    cam.pos_y,
-                    cam.pos_z
-                )
-            )
-            ui.text(string.format("rot: %.1f / %.1f", cam.yaw, cam.pitch))
-
-            if ui.button("reset camera") then
-                cam.pos_x = DEFAULT_POS_X
-                cam.pos_y = DEFAULT_POS_Y
-                cam.pos_z = DEFAULT_POS_Z
-                cam.yaw = DEFAULT_YAW
-                cam.pitch = DEFAULT_PITCH
-            end
-        end
+    if ui.collapsing_header("Movement Settings", true) then
+        TOOLS_UI.drag_float("Mouse Sensitivity", cam, "sensitivity", 0.005, 0.01, 2.0,
+            "Hold right-click and move mouse to look around")
+        TOOLS_UI.drag_float("Movement Speed", cam, "base_speed", 0.5, 0.1, 1000.0,
+            "WASD movement speed. Hold SHIFT to sprint")
+        TOOLS_UI.drag_float("Sprint Multiplier", cam, "sprint_mult", 0.1, 1.0, 50.0,
+            "Speed multiplier applied while holding SHIFT")
+        TOOLS_UI.checkbox("Hook Identity", cam, "hook_identity",
+            "Intercept glLoadIdentity to inject the custom camera matrix")
     end
 
-    ui.end_window()
-end)
+    if ui.collapsing_header("Transform", false) then
+        TOOLS_UI.drag_float("Position X", cam, "pos_x", 0.5, -5000, 5000)
+        TOOLS_UI.drag_float("Position Y", cam, "pos_y", 0.5, -5000, 5000)
+        TOOLS_UI.drag_float("Position Z", cam, "pos_z", 0.5, -5000, 5000)
+        TOOLS_UI.drag_float("Yaw", cam, "yaw", 0.5, -360, 360)
+        TOOLS_UI.drag_float("Pitch", cam, "pitch", 0.5, -89, 89)
+    end
+
+    if ui.collapsing_header("Info", false) then
+        ui.text(string.format("Position: %.2f  %.2f  %.2f", cam.pos_x, cam.pos_y, cam.pos_z))
+        ui.text(string.format("Rotation: %.1f°  %.1f°", cam.yaw, cam.pitch))
+    end
+
+    if ui.button("Reset Camera") then
+        cam.pos_x = DEFAULT_POS_X
+        cam.pos_y = DEFAULT_POS_Y
+        cam.pos_z = DEFAULT_POS_Z
+        cam.yaw = DEFAULT_YAW
+        cam.pitch = DEFAULT_PITCH
+    end
+    ui.same_line()
+    ui.text_disabled("Restore default position and rotation")
+end
+
+if _G.TOOLS_UI then
+    TOOLS_UI.register_panel("freecam", "Freecam", draw_panel)
+end
 
 -- -----------------------------------------------------------------------
 -- Lifecycle
 -- -----------------------------------------------------------------------
+
 sdk.on_load(function()
     sdk.log_info("freecam plugin loaded")
 end)

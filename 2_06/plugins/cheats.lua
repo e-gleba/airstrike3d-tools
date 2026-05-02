@@ -2,13 +2,13 @@
 
 ---@type { label: string, code: string }[]
 local cheats = {
-    { label = "10 lives", code = "igonnaliveforever" },
-    { label = "all weapons", code = "showmetheweapons" },
-    { label = "all missiles", code = "moremoreweapons" },
-    { label = "all power-ups", code = "glitteringprizes" },
-    { label = "god mode", code = "invulnerability" },
-    { label = "win mission", code = "deadlineisnear" },
-    { label = "lose mission", code = "diediediemydarling" },
+    { label = "10 lives",        code = "igonnaliveforever" },
+    { label = "All weapons",     code = "showmetheweapons" },
+    { label = "All missiles",    code = "moremoreweapons" },
+    { label = "All power-ups",   code = "glitteringprizes" },
+    { label = "God mode",        code = "invulnerability" },
+    { label = "Win mission",     code = "deadlineisnear" },
+    { label = "Lose mission",    code = "diediediemydarling" },
 }
 
 --- Activate a cheat by sending its key sequence and logging the event.
@@ -18,28 +18,30 @@ local function activate_cheat(cheat)
     sdk.log_info(string.format("cheat activated: %s", cheat.label))
 end
 
-sdk.on_overlay(function()
-    -- We share the same window opened by 01_freecam.lua.
-    -- ImGui::Begin with the same title reuses the window, so we just call
-    -- begin again with the same name. If freecam didn't open it, we open it.
-    if not ui.begin_window("airstrike 3d tools") then
-        ui.end_window()
-        return
-    end
+-- ---------------------------------------------------------------------------
+-- UI Panel
+-- ---------------------------------------------------------------------------
 
-    if ui.collapsing_header("cheat codes (airstrike 2)", true) then
-        ui.text_wrapped("click buttons to activate cheats")
-        ui.separator()
+local function draw_panel()
+    TOOLS_UI.header("Cheat Codes")
+    ui.text_wrapped("Click any button to activate the corresponding cheat in Airstrike 2.")
+    ui.spacing()
 
-        for _, cheat in ipairs(cheats) do
-            if ui.button(cheat.label) then
-                activate_cheat(cheat)
-            end
+    for _, cheat in ipairs(cheats) do
+        if ui.button(cheat.label) then
+            activate_cheat(cheat)
         end
+        ui.tooltip(cheat.code)
     end
+end
 
-    ui.end_window()
-end)
+if _G.TOOLS_UI then
+    TOOLS_UI.register_panel("cheats", "Cheats", draw_panel)
+end
+
+-- ---------------------------------------------------------------------------
+-- Lifecycle
+-- ---------------------------------------------------------------------------
 
 sdk.on_load(function()
     sdk.log_info(string.format("cheats plugin loaded (%d cheats)", #cheats))

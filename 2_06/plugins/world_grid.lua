@@ -26,11 +26,9 @@ local cfg = {
     axes_len = 50,
 }
 
---- Toggle key for the entire grid overlay.
 local TOGGLE_VK = VK.F7
 
---- World-axis definitions: { label (for comments), color rgba, endpoint }.
---- Table-driven so adding a fourth axis is a one-liner.
+--- World-axis definitions.
 ---@type { r: number, g: number, b: number, a: number, dx: number, dy: number, dz: number }[]
 local AXIS_DEFS = {
     { r = 1, g = 0, b = 0, a = 0.9, dx = 1, dy = 0, dz = 0 }, -- X = red
@@ -42,7 +40,6 @@ local AXIS_DEFS = {
 -- GL state helpers
 -- -----------------------------------------------------------------------
 
---- Push a clean GL state suitable for overlay-style line drawing.
 local function push_line_state()
     sdk.gl_push_attrib(GL.ALL_ATTRIB_BITS)
     sdk.gl_push_matrix()
@@ -54,7 +51,6 @@ local function push_line_state()
     sdk.gl_blend_func(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 end
 
---- Pop the GL state pushed by `push_line_state`.
 local function pop_line_state()
     sdk.gl_pop_matrix()
     sdk.gl_pop_attrib()
@@ -64,7 +60,6 @@ end
 -- Drawing
 -- -----------------------------------------------------------------------
 
---- Draw the flat reference grid at the configured Y level.
 local function draw_grid()
     local half = cfg.grid_size * 0.5
     local step = cfg.grid_step
@@ -75,13 +70,11 @@ local function draw_grid()
     sdk.gl_color4f(gc[1], gc[2], gc[3], gc[4])
     sdk.gl_begin(GL.LINES)
 
-    -- Lines along X
     for x = -half, half, step do
         sdk.gl_vertex3f(x, y, -half)
         sdk.gl_vertex3f(x, y, half)
     end
 
-    -- Lines along Z
     for z = -half, half, step do
         sdk.gl_vertex3f(-half, y, z)
         sdk.gl_vertex3f(half, y, z)
@@ -90,7 +83,6 @@ local function draw_grid()
     sdk.gl_end()
 end
 
---- Draw coloured world-axes from the origin at the configured Y level.
 local function draw_axes()
     local len = cfg.axes_len
     local y = cfg.grid_y
@@ -136,74 +128,43 @@ sdk.on_gl_identity(function()
 end)
 
 -- -----------------------------------------------------------------------
--- Overlay UI helpers
+-- UI Panel
 -- -----------------------------------------------------------------------
 
---- Bind a slider_int widget directly to a `cfg` field.
----@param label string
----@param field string
----@param v_min integer
----@param v_max integer
-local function cfg_slider_int(label, field, v_min, v_max)
-    cfg[field] = ui.slider_int(label, cfg[field], v_min, v_max)
-end
+local function draw_panel()
+    TOOLS_UI.header("World Grid")
+    TOOLS_UI.status_badge(cfg.enabled)
+    ui.same_line()
+    ui.text("grid overlay")
 
---- Bind a slider_float widget directly to a `cfg` field.
----@param label string
----@param field string
----@param v_min number
----@param v_max number
-local function cfg_slider_float(label, field, v_min, v_max)
-    cfg[field] = ui.slider_float(label, cfg[field], v_min, v_max)
-end
+    TOOLS_UI.checkbox("Enable Grid", cfg, "enabled",
+        "Draw a reference grid and world axes in the game world")
 
---- Bind a checkbox widget directly to a `cfg` field.
----@param label string
----@param field string
-local function cfg_checkbox(label, field)
-    cfg[field] = ui.checkbox(label, cfg[field])
-end
-
--- -----------------------------------------------------------------------
--- Overlay UI
--- -----------------------------------------------------------------------
-
-sdk.on_overlay(function()
     if not cfg.enabled then
         return
     end
 
-    ui.set_next_window_pos(10, 300)
-    ui.set_next_window_size(220, 0)
+    TOOLS_UI.slider_int("Grid Size", cfg, "grid_size", 10, 500,
+        "Total span of the grid in world units")
+    TOOLS_UI.slider_int("Grid Step", cfg, "grid_step", 1, 50,
+        "Distance between grid lines")
+    TOOLS_UI.slider_float("Y Level", cfg, "grid_y", -100, 100,
+        "Height at which the grid is drawn")
+    TOOLS_UI.checkbox("Show Axes", cfg, "axes",
+        "Draw colored X/Y/Z axes at the grid origin")
+    TOOLS_UI.slider_float("Axes Length", cfg, "axes_len", 10, 200,
+        "Length of each world axis line")
 
-    if not ui.begin_window("World Grid") then
-        ui.end_window()
-        return
-    end
+    ui.spacing()
+    TOOLS_UI.color_edit4("Grid Color", "Grid Alpha", cfg.grid_color)
 
-    cfg_slider_int("Size", "grid_size", 10, 500)
-    cfg_slider_int("Step", "grid_step", 1, 50)
-    cfg_slider_float("Y Level", "grid_y", -100, 100)
-    cfg_checkbox("Show Axes", "axes")
-    cfg_slider_float("Axes Length", "axes_len", 10, 200)
+    ui.spacing()
+    TOOLS_UI.keybind("F7", "Toggle grid on / off")
+end
 
-    local r, g, b, changed = ui.color_edit3(
-        "Grid Color",
-        cfg.grid_color[1],
-        cfg.grid_color[2],
-        cfg.grid_color[3]
-    )
-    if changed then
-        cfg.grid_color[1] = r
-        cfg.grid_color[2] = g
-        cfg.grid_color[3] = b
-    end
-
-    cfg.grid_color[4] =
-        ui.slider_float("Grid Alpha", cfg.grid_color[4], 0.05, 1.0)
-
-    ui.end_window()
-end)
+if _G.TOOLS_UI then
+    TOOLS_UI.register_panel("world_grid", "World Grid", draw_panel)
+end
 
 -- -----------------------------------------------------------------------
 -- Lifecycle
