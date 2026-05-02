@@ -84,28 +84,24 @@
     },
     {
       "name": "msvc-build-release",
-      "hidden": true,
       "displayName": "MSVC Release Build",
       "configurePreset": "msvc",
       "inherits": "build-release"
     },
     {
       "name": "msvc-build-debug",
-      "hidden": true,
       "displayName": "MSVC Debug Build",
       "configurePreset": "msvc",
       "inherits": "build-debug"
     },
     {
       "name": "llvm-mingw-i686-build-release",
-      "hidden": true,
       "displayName": "LLVM-MinGW Win32 Release Build",
       "configurePreset": "llvm-mingw-i686",
       "inherits": "build-release"
     },
     {
       "name": "llvm-mingw-i686-build-debug",
-      "hidden": true,
       "displayName": "LLVM-MinGW Win32 Debug Build",
       "configurePreset": "llvm-mingw-i686",
       "inherits": "build-debug"
@@ -115,7 +111,6 @@
   "packagePresets": [
     {
       "name": "msvc-package",
-      "hidden": true,
       "displayName": "MSVC Package",
       "configurePreset": "msvc",
       "configurations": [
@@ -127,7 +122,6 @@
     },
     {
       "name": "llvm-mingw-i686-package",
-      "hidden": true,
       "displayName": "LLVM-MinGW Win32 Package",
       "configurePreset": "llvm-mingw-i686",
       "configurations": [
