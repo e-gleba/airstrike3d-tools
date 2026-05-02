@@ -25,18 +25,18 @@ namespace
 void init_imgui(HDC dc)
 {
     spdlog::info("[overlay] init_imgui start dc={:p}", reinterpret_cast<void*>(dc));
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 
     g_ctx.window = WindowFromDC(dc);
     if (g_ctx.window == nullptr)
     {
         spdlog::warn("[overlay] WindowFromDC returned null — aborting imgui init");
-        spdlog::flush();
+        spdlog::default_logger()->flush();
         return;
     }
 
     spdlog::info("[overlay] window={:p}", reinterpret_cast<void*>(g_ctx.window));
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 
     g_ctx.original_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
         g_ctx.window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(hk_wnd_proc)));
@@ -53,7 +53,7 @@ void init_imgui(HDC dc)
 
     g_ctx.imgui_initialized.store(true, std::memory_order::release);
     spdlog::info("[sdk] imgui initialized OK");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 }
 
 } // namespace
