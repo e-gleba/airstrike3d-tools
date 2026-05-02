@@ -39,14 +39,6 @@ local MODE_NAMES = {
     "Z-Bias only",
 }
 
---- ImGui Combo expects a 0-indexed array of strings.
-local MODE_OPTIONS = {
-    "X-Ray (depth disable)",
-    "Wireframe overlay",
-    "Ghost (transparent + wireframe)",
-    "Z-Bias only",
-}
-
 --- Hotkeys
 local VK_TOGGLE = VK.F2
 local VK_CYCLE  = VK.F3
@@ -164,8 +156,24 @@ local function draw_panel()
         return
     end
 
-    TOOLS_UI.combo("Mode", cfg, "mode", MODE_OPTIONS,
-        "Select the active wallhack rendering mode")
+    -- Mode selector (button-based; avoids C++ combo binding crash)
+    TOOLS_UI.header("Mode")
+    ui.text("Active:")
+    ui.same_line()
+    ui.text_colored(0.26, 0.59, 0.98, 1.0, MODE_NAMES[cfg.mode])
+    ui.tooltip("Current wallhack rendering mode")
+
+    if ui.button("Previous##wallhack") then
+        cfg.mode = ((cfg.mode - 2 + #MODE_NAMES) % #MODE_NAMES) + 1
+    end
+    ui.tooltip("Switch to the previous mode")
+    ui.same_line()
+    if ui.button("Next##wallhack") then
+        cfg.mode = (cfg.mode % #MODE_NAMES) + 1
+    end
+    ui.tooltip("Switch to the next mode")
+    ui.same_line()
+    ui.text_disabled("or press F3")
 
     ui.spacing()
 
