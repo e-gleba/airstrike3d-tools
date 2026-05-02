@@ -42,36 +42,38 @@ jobs:
           name: airstrike3d-tools-linux-cross
           path: airstrike3d-tools-linux-cross.zip
 
-  build-windows-msvc:
+  build-windows-clang:
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Ensure CMake
-        run: pip install cmake
+        run: |
+          pip install cmake
+          cmake --version
 
-      - name: Configure (MSVC native 32-bit)
-        run: cmake -B build/msvc -G "Visual Studio 17 2022" -A Win32 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
+      - name: Configure (ClangCL native 32-bit)
+        run: cmake -B build/win-clang -G "Visual Studio 17 2022" -A Win32 -T ClangCL -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
 
-      - name: Build (MSVC Release)
-        run: cmake --build build/msvc --config Release
+      - name: Build (ClangCL Release)
+        run: cmake --build build/win-clang --config Release
 
       - name: Package artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item -Path "build/msvc/2_06" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
-          Compress-Archive -Path "dist/airstrike3d-tools-windows-msvc" -DestinationPath "airstrike3d-tools-windows-msvc.zip" -Force
+          Copy-Item -Path "build/win-clang/2_06" -Destination "dist/airstrike3d-tools-windows-clang" -Recurse -Force
+          Compress-Archive -Path "dist/airstrike3d-tools-windows-clang" -DestinationPath "airstrike3d-tools-windows-clang.zip" -Force
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: airstrike3d-tools-windows-msvc
-          path: airstrike3d-tools-windows-msvc.zip
+          name: airstrike3d-tools-windows-clang
+          path: airstrike3d-tools-windows-clang.zip
 
   release:
-    needs: [build-linux-cross, build-windows-msvc]
+    needs: [build-linux-cross, build-windows-clang]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -98,7 +100,7 @@ jobs:
       - name: Download Windows artifacts
         uses: actions/download-artifact@v7
         with:
-          name: airstrike3d-tools-windows-msvc
+          name: airstrike3d-tools-windows-clang
           path: artifacts/
 
       - name: Create GitHub Release
