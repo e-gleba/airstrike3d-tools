@@ -63,7 +63,7 @@ Examples:
 ```
 scripts: add v2.50 pak format decryption
 docs: update engine internals with D3D caps
-cmake: add MSVC ARM64 preset
+cmake: add Windows ARM64 preset
 ```
 
 ## Areas Needing Help
