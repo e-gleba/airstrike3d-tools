@@ -133,18 +133,43 @@ jobs:
             cp .github/screenshots/* screenshots/ 2>/dev/null || true
           fi
 
+      - name: generate_and_prepend_release_notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          generated_body=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="${{ inputs.version }}" \
+            -f target_commitish="main" \
+            --jq '.body')
+
+          cat > release_notes.md << 'HEADER'
+          ## 🔧 Utility / Maintenance Release
+
+          This is a tooling and dependency maintenance release — no breaking changes.
+          Highlights include CI/CD action version bumps, a professional Lua tabbed UI framework, README badge polish, and crash fixes in the wallhack overlay.
+
+          ---
+
+          HEADER
+
+          echo "$generated_body" >> release_notes.md
+          echo "notes_file=release_notes.md" >> "$GITHUB_OUTPUT"
+
       - name: create_github_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           args=(
             "${{ inputs.version }}"
-            --generate-notes
             --title "${{ inputs.version }}"
+            --notes-file release_notes.md
           )
 
+          extra=()
           if [ -d screenshots ] && [ "$(ls -A screenshots)" ]; then
-            gh release create "${args[@]}" artifacts/* screenshots/*
-          else
-            gh release create "${args[@]}" artifacts/*
+            extra+=(screenshots/*)
           fi
+          extra+=(artifacts/*)
+
+          gh release create "${args[@]}" "${extra[@]}"
