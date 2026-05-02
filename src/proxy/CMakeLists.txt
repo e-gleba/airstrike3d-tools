@@ -72,7 +72,12 @@ file(
 add_library(bass_proxy SHARED ${bass_proxy_definitions} ${sdk_sources})
 target_include_directories(bass_proxy PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 
-target_compile_features(bass_proxy PRIVATE cxx_std_26)
+# target_compile_features does not support generator expressions.
+# Use compiler-specific flags instead: /std:c++latest for MSVC,
+# -std=c++26 for Clang/GCC.
+target_compile_options(bass_proxy PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
 
 set_target_properties(bass_proxy PROPERTIES CXX_EXTENSIONS OFF PREFIX "")
 
