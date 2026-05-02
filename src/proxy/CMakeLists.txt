@@ -1,6 +1,6 @@
 function(generate_proxy_def input_dll output_var)
     find_program(objdump_bin NAMES llvm-objdump objdump
-                 HINTS "${CMAKE_SOURCE_DIR}/llvm-mingw/bin" REQUIRED)
+                 HINTS "${CMAKE_SOURCE_DIR}/llvm_mingw/bin" REQUIRED)
 
     cmake_path(
         GET

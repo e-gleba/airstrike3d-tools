@@ -9,13 +9,16 @@
   "configurePresets": [
     {
       "name": "base",
-      "description": "Common settings: Ninja Multi-Config, compile_commands.json, bass proxy enabled.",
+      "displayName": "Base Configuration",
+      "description": "Ninja Multi-Config, compile_commands.json, color diagnostics, C++ module scanning disabled",
       "hidden": true,
       "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_COLOR_DIAGNOSTICS": "ON",
+        "CMAKE_CXX_SCAN_FOR_MODULES": "OFF",
+        "FETCHCONTENT_QUIET": "OFF",
         "USE_BASS_PROXY_LIB": "ON"
       }
     },
@@ -24,7 +27,7 @@
       "displayName": "MSVC x86",
       "description": "VS2022 native 32-bit. host=x86 forces 32-bit cl.exe to avoid WoW64 edge cases.",
       "inherits": "base",
-      "generator": "Visual Studio 18 2026",
+      "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "Win32",
         "strategy": "set"
@@ -40,103 +43,144 @@
       }
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW i686",
-      "description": "Linux => Windows i686 cross via llvm-mingw toolchain. Auto-downloads toolchain if missing.",
+      "name": "llvm-mingw-base",
+      "displayName": "LLVM-MinGW Base",
+      "description": "Cross-compilation from Linux to Windows via llvm-mingw toolchain",
+      "hidden": true,
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchains/llvm_mingw.cmake",
-      "cacheVariables": {
-        "CMAKE_SYSTEM_NAME": "Windows",
-        "CMAKE_SYSTEM_PROCESSOR": "i686",
-        "DOWNLOAD_LLVM_MINGW_IF_NOT_EXIST": "ON"
-      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "llvm-mingw-i686",
+      "displayName": "LLVM-MinGW Win32 (i686)",
+      "description": "Cross-compile for Windows 32-bit x86 (legacy game targets)",
+      "inherits": "llvm-mingw-base",
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "Windows",
+        "CMAKE_SYSTEM_PROCESSOR": "i686"
+      }
+    },
+    {
+      "name": "llvm-mingw-x86_64",
+      "displayName": "LLVM-MinGW Win64 (x86_64)",
+      "description": "Cross-compile for Windows 64-bit x86",
+      "inherits": "llvm-mingw-base",
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "Windows",
+        "CMAKE_SYSTEM_PROCESSOR": "x86_64"
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "msvc",
-      "displayName": "MSVC Release",
-      "configurePreset": "msvc",
+      "name": "build-release",
+      "hidden": true,
       "configuration": "Release"
+    },
+    {
+      "name": "build-debug",
+      "hidden": true,
+      "configuration": "Debug"
+    },
+    {
+      "name": "msvc-release",
+      "displayName": "MSVC (Release)",
+      "configurePreset": "msvc",
+      "inherits": "build-release"
     },
     {
       "name": "msvc-debug",
-      "displayName": "MSVC Debug",
+      "displayName": "MSVC (Debug)",
       "configurePreset": "msvc",
-      "configuration": "Debug"
+      "inherits": "build-debug"
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW Release",
-      "configurePreset": "llvm-mingw",
-      "configuration": "Release"
+      "name": "llvm-mingw-i686-release",
+      "displayName": "LLVM-MinGW Win32 (Release)",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "build-release",
+      "jobs": 1
     },
     {
-      "name": "llvm-mingw-debug",
-      "displayName": "LLVM-MinGW Debug",
-      "configurePreset": "llvm-mingw",
-      "configuration": "Debug"
+      "name": "llvm-mingw-i686-debug",
+      "displayName": "LLVM-MinGW Win32 (Debug)",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "build-debug",
+      "jobs": 1
+    },
+    {
+      "name": "llvm-mingw-x86_64-release",
+      "displayName": "LLVM-MinGW Win64 (Release)",
+      "configurePreset": "llvm-mingw-x86_64",
+      "inherits": "build-release",
+      "jobs": 1
+    },
+    {
+      "name": "llvm-mingw-x86_64-debug",
+      "displayName": "LLVM-MinGW Win64 (Debug)",
+      "configurePreset": "llvm-mingw-x86_64",
+      "inherits": "build-debug",
+      "jobs": 1
     }
   ],
   "testPresets": [],
   "packagePresets": [
     {
-      "name": "msvc",
+      "name": "msvc-package",
       "displayName": "MSVC Package",
       "configurePreset": "msvc",
-      "generators": [
-        "ZIP"
-      ]
+      "configurations": ["Release"],
+      "generators": ["ZIP"]
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW Package",
-      "configurePreset": "llvm-mingw",
-      "generators": [
-        "TXZ"
-      ]
+      "name": "llvm-mingw-i686-package",
+      "displayName": "LLVM-MinGW Win32 Package",
+      "configurePreset": "llvm-mingw-i686",
+      "configurations": ["Release"],
+      "generators": ["TXZ"]
+    },
+    {
+      "name": "llvm-mingw-x86_64-package",
+      "displayName": "LLVM-MinGW Win64 Package",
+      "configurePreset": "llvm-mingw-x86_64",
+      "configurations": ["Release"],
+      "generators": ["TXZ"]
     }
   ],
   "workflowPresets": [
     {
-      "name": "msvc",
+      "name": "msvc-full",
       "displayName": "MSVC Pipeline",
+      "description": "Configure, build, and package with MSVC",
       "steps": [
-        {
-          "type": "configure",
-          "name": "msvc"
-        },
-        {
-          "type": "build",
-          "name": "msvc"
-        },
-        {
-          "type": "package",
-          "name": "msvc"
-        }
+        { "type": "configure", "name": "msvc" },
+        { "type": "build", "name": "msvc-release" },
+        { "type": "package", "name": "msvc-package" }
       ]
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW Pipeline",
+      "name": "llvm-mingw-i686-full",
+      "displayName": "LLVM-MinGW Win32 Pipeline",
+      "description": "Configure, build, and package for Windows 32-bit (jobs=1 due to LLD deadlock under parallel linking)",
       "steps": [
-        {
-          "type": "configure",
-          "name": "llvm-mingw"
-        },
-        {
-          "type": "build",
-          "name": "llvm-mingw"
-        },
-        {
-          "type": "package",
-          "name": "llvm-mingw"
-        }
+        { "type": "configure", "name": "llvm-mingw-i686" },
+        { "type": "build", "name": "llvm-mingw-i686-release" },
+        { "type": "package", "name": "llvm-mingw-i686-package" }
+      ]
+    },
+    {
+      "name": "llvm-mingw-x86_64-full",
+      "displayName": "LLVM-MinGW Win64 Pipeline",
+      "description": "Configure, build, and package for Windows 64-bit (jobs=1 due to LLD deadlock under parallel linking)",
+      "steps": [
+        { "type": "configure", "name": "llvm-mingw-x86_64" },
+        { "type": "build", "name": "llvm-mingw-x86_64-release" },
+        { "type": "package", "name": "llvm-mingw-x86_64-package" }
       ]
     }
   ]
