@@ -15,18 +15,19 @@ jobs:
     name: LLVM-MinGW Clang i686
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build python3
           pip3 install "cmake>=3.31"
 
-      - name: Configure, build, package
+      - name: Workflow
         run: cmake --workflow --preset llvm-mingw-i686-release
 
-      - name: Upload package artifact
+      - name: Artifact
         uses: actions/upload-artifact@v4
         with:
           name: airstrike3d-tools-llvm-mingw-i686
@@ -37,12 +38,13 @@ jobs:
     name: MSVC x86
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Configure, build, package
+      - name: Workflow
         run: cmake --workflow --preset msvc-release
 
-      - name: Upload package artifact
+      - name: Artifact
         uses: actions/upload-artifact@v4
         with:
           name: airstrike3d-tools-msvc-x86
