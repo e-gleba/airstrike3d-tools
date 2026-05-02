@@ -1,10 +1,10 @@
 #pragma once
 
+#include <windows.h>
 #include <GL/gl.h>
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include <windows.h>
 
 #include <safetyhook.hpp>
 #include <sol/sol.hpp>
