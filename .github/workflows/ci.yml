@@ -40,7 +40,7 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p dist
-          cp -r build/llvm-mingw/2_06/Release dist/airstrike3d-tools-linux-cross
+          cp -r build/llvm-mingw/2_06 dist/airstrike3d-tools-linux-cross
           cd dist && zip -r ../airstrike3d-tools-linux-cross.zip airstrike3d-tools-linux-cross
 
       - name: Upload artifacts
@@ -70,7 +70,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item -Path "build/msvc/2_06/Release" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
+          Copy-Item -Path "build/msvc/2_06" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
           Compress-Archive -Path "dist/airstrike3d-tools-windows-msvc" -DestinationPath "airstrike3d-tools-windows-msvc.zip" -Force
 
       - name: Upload artifacts
