@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.2.3)'
+        required: true
+      prerelease:
+        description: 'Mark as prerelease?'
+        type: boolean
+        default: false
+
+jobs:
+  build-linux-cross:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build zip
+          pip install cmake
+
+      - name: Configure (llvm-mingw cross)
+        run: cmake --preset llvm-mingw
+
+      - name: Build (llvm-mingw cross)
+        run: cmake --build --preset llvm-mingw -- -j1
+
+      - name: Package artifacts
+        run: |
+          mkdir -p dist
+          cp -r build/llvm-mingw/2_06/Release dist/airstrike3d-tools-linux-cross
+          cd dist && zip -r ../airstrike3d-tools-linux-cross.zip airstrike3d-tools-linux-cross
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d-tools-linux-cross
+          path: airstrike3d-tools-linux-cross.zip
+
+  build-windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure CMake
+        run: pip install cmake
+
+      - name: Configure (MSVC native 32-bit)
+        run: cmake -B build/msvc -G "Visual Studio 17 2022" -A Win32 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
+
+      - name: Build (MSVC Release)
+        run: cmake --build build/msvc --config Release
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item -Path "build/msvc/2_06/Release" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
+          Compress-Archive -Path "dist/airstrike3d-tools-windows-msvc" -DestinationPath "airstrike3d-tools-windows-msvc.zip" -Force
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d-tools-windows-msvc
+          path: airstrike3d-tools-windows-msvc.zip
+
+  release:
+    needs: [build-linux-cross, build-windows-msvc]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.tag }}" -m "Release ${{ inputs.tag }}" || true
+          git push origin "${{ inputs.tag }}" || true
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: airstrike3d-tools-linux-cross
+          path: artifacts/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: airstrike3d-tools-windows-msvc
+          path: artifacts/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS=()
+          if [ "${{ inputs.prerelease }}" == "true" ]; then
+            ARGS+=(--prerelease)
+          fi
+          gh release create "${{ inputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "Release ${{ inputs.tag }}" \
+            --generate-notes \
+            "${ARGS[@]}" \
+            artifacts/*
