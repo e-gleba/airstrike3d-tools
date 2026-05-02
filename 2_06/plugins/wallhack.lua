@@ -7,15 +7,15 @@
 ---@field [4] number  alpha
 
 ---@class WallhackConfig
----@field enabled      boolean
----@field mode         integer
+---@field enabled       boolean
+---@field mode          integer
 ---@field depth_disable boolean
----@field wireframe    boolean
----@field wire_color   WireColor
----@field wire_width   number
----@field z_bias       boolean
----@field bias_amount  number
----@field xray_alpha   number
+---@field wireframe     boolean
+---@field wire_color    WireColor
+---@field wire_width    number
+---@field z_bias        boolean
+---@field bias_amount   number
+---@field xray_alpha    number
 
 ---@type WallhackConfig
 local cfg = {
@@ -30,7 +30,7 @@ local cfg = {
     xray_alpha = 0.3,
 }
 
---- Human-readable names for each wallhack mode, indexed 1–4.
+--- Human-readable names for each wallhack mode.
 ---@type string[]
 local MODE_NAMES = {
     "X-Ray (depth disable)",
@@ -39,26 +39,30 @@ local MODE_NAMES = {
     "Z-Bias only",
 }
 
+--- ImGui Combo expects a 0-indexed array of strings.
+local MODE_OPTIONS = {
+    "X-Ray (depth disable)",
+    "Wireframe overlay",
+    "Ghost (transparent + wireframe)",
+    "Z-Bias only",
+}
+
 --- Hotkeys
 local VK_TOGGLE = VK.F2
-local VK_CYCLE = VK.F3
+local VK_CYCLE  = VK.F3
 
 -- -----------------------------------------------------------------------
 -- Mode applicators
 -- -----------------------------------------------------------------------
--- Each mode is a function that sets up the required GL state.
--- Table-driven so adding a new mode is: append a name + an applicator.
 
 ---@type (fun())[]
 local mode_applicators = {}
 
--- Mode 1: X-Ray — disable depth test so everything draws on top
 mode_applicators[1] = function()
     sdk.gl_disable(GL.DEPTH_TEST)
     sdk.gl_depth_mask(false)
 end
 
--- Mode 2: Wireframe — polygon mode to lines
 mode_applicators[2] = function()
     sdk.gl_polygon_mode(GL.FRONT_AND_BACK, GL.LINE)
     sdk.gl_line_width(cfg.wire_width)
@@ -68,7 +72,6 @@ mode_applicators[2] = function()
     sdk.gl_color4f(wc[1], wc[2], wc[3], wc[4])
 end
 
--- Mode 3: Ghost — transparent + wireframe
 mode_applicators[3] = function()
     sdk.gl_disable(GL.DEPTH_TEST)
     sdk.gl_depth_mask(false)
@@ -79,34 +82,20 @@ mode_applicators[3] = function()
     sdk.gl_line_width(cfg.wire_width)
 end
 
--- Mode 4: Z-Bias — subtle depth bias to see overlapping geometry
 mode_applicators[4] = function()
     sdk.gl_push_matrix()
     sdk.gl_mult_matrix_d({
-        1,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        cfg.bias_amount,
-        1,
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, cfg.bias_amount, 1,
     })
 end
 
 -- -----------------------------------------------------------------------
--- GL state teardown (per-frame)
+-- GL state teardown
 -- -----------------------------------------------------------------------
 
---- Restore GL state pushed during on_gl_identity.
 local function restore_state()
     sdk.gl_pop_attrib()
     if cfg.mode == 4 then
@@ -121,9 +110,7 @@ end
 sdk.on_key_down(function(vk)
     if vk == VK_TOGGLE then
         cfg.enabled = not cfg.enabled
-        sdk.log_info(
-            string.format("wallhack: %s", cfg.enabled and "ON" or "OFF")
-        )
+        sdk.log_info(string.format("wallhack: %s", cfg.enabled and "ON" or "OFF"))
         return true
     end
 
@@ -161,84 +148,56 @@ sdk.on_frame(function()
 end)
 
 -- -----------------------------------------------------------------------
--- Overlay UI helpers
+-- UI Panel
 -- -----------------------------------------------------------------------
 
---- Bind a slider_float widget directly to a `cfg` field.
----@param label string
----@param field string
----@param v_min number
----@param v_max number
-local function cfg_slider_float(label, field, v_min, v_max)
-    cfg[field] = ui.slider_float(label, cfg[field], v_min, v_max)
-end
+local function draw_panel()
+    TOOLS_UI.header("Wallhack")
+    TOOLS_UI.status_badge(cfg.enabled)
+    ui.same_line()
+    ui.text("wallhack state")
 
---- Returns true when the current mode uses wireframe parameters.
----@return boolean
-local function mode_has_wireframe()
-    return cfg.mode == 2 or cfg.mode == 3
-end
+    TOOLS_UI.checkbox("Enable Wallhack", cfg, "enabled",
+        "Visual overlay modes for seeing through geometry")
 
--- -----------------------------------------------------------------------
--- Overlay UI
--- -----------------------------------------------------------------------
-
-sdk.on_overlay(function()
     if not cfg.enabled then
         return
     end
 
-    ui.set_next_window_pos(10, 500)
-    ui.set_next_window_size(250, 0)
+    TOOLS_UI.combo("Mode", cfg, "mode", MODE_OPTIONS,
+        "Select the active wallhack rendering mode")
 
-    if not ui.begin_window("Wallhack") then
-        ui.end_window()
-        return
+    ui.spacing()
+
+    if cfg.mode == 2 or cfg.mode == 3 then
+        TOOLS_UI.slider_float("Line Width", cfg, "wire_width", 0.5, 5.0,
+            "Thickness of wireframe lines")
+        TOOLS_UI.color_edit4("Wire Color", "Wire Alpha", cfg.wire_color)
     end
 
-    ui.text(string.format("Mode: %s", MODE_NAMES[cfg.mode]))
-    ui.text_disabled("F2 = Toggle | F3 = Cycle")
-    ui.separator()
-
-    -- Wireframe controls (modes 2 & 3)
-    if mode_has_wireframe() then
-        cfg_slider_float("Line Width", "wire_width", 0.5, 5.0)
-
-        local r, g, b, changed = ui.color_edit3(
-            "Wire Color",
-            cfg.wire_color[1],
-            cfg.wire_color[2],
-            cfg.wire_color[3]
-        )
-        if changed then
-            cfg.wire_color[1] = r
-            cfg.wire_color[2] = g
-            cfg.wire_color[3] = b
-        end
-
-        cfg.wire_color[4] =
-            ui.slider_float("Wire Alpha", cfg.wire_color[4], 0.1, 1.0)
-    end
-
-    -- Ghost-specific controls (mode 3)
     if cfg.mode == 3 then
-        cfg_slider_float("Ghost Alpha", "xray_alpha", 0.05, 0.8)
+        TOOLS_UI.slider_float("Ghost Alpha", cfg, "xray_alpha", 0.05, 0.8,
+            "Transparency of the ghost overlay")
     end
 
-    -- Z-Bias controls (mode 4)
     if cfg.mode == 4 then
-        cfg_slider_float("Z Bias", "bias_amount", -1.0, 0.0)
+        TOOLS_UI.slider_float("Z Bias", cfg, "bias_amount", -1.0, 0.0,
+            "Subtle depth offset to reveal overlapping geometry")
     end
 
-    ui.end_window()
-end)
+    ui.spacing()
+    TOOLS_UI.keybind("F2", "Toggle wallhack on / off")
+    TOOLS_UI.keybind("F3", "Cycle mode (while enabled)")
+end
+
+if _G.TOOLS_UI then
+    TOOLS_UI.register_panel("wallhack", "Wallhack", draw_panel)
+end
 
 -- -----------------------------------------------------------------------
 -- Lifecycle
 -- -----------------------------------------------------------------------
 
 sdk.on_load(function()
-    sdk.log_info(
-        string.format("wallhack plugin loaded (%d modes)", #MODE_NAMES)
-    )
+    sdk.log_info(string.format("wallhack plugin loaded (%d modes)", #MODE_NAMES))
 end)
