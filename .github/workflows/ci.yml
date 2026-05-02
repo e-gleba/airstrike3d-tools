@@ -68,6 +68,19 @@ jobs:
             echo "bass.dll not found in build tree"
           fi
 
+      - name: Verify proxy DLL arch + size
+        if: always()
+        run: |
+          DLL=$(find build/linux_llvm-mingw_i686/src/proxy -name "bass.dll" | head -n 1)
+          if [ -n "$DLL" ]; then
+            echo "=== bass.dll architecture ==="
+            file "$DLL"
+            echo "=== bass.dll size ==="
+            ls -lh "$DLL"
+          else
+            echo "bass.dll not found"
+          fi
+
       - name: Package artifacts
         run: |
           mkdir -p dist
@@ -133,6 +146,20 @@ jobs:
             & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-exports $dll.FullName | Select-Object -First 25
           } else {
             echo "bass.dll not found in build tree"
+          }
+
+      - name: Verify proxy DLL arch + size
+        if: always()
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "build/windows_msvc_x86/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
+          if ($dll) {
+            echo "=== bass.dll architecture ==="
+            & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-file-header $dll.FullName | Select-String "Machine:"
+            echo "=== bass.dll size ==="
+            "{0:N0} bytes  ({1:N2} MB)" -f $dll.Length, ($dll.Length / 1MB)
+          } else {
+            echo "bass.dll not found"
           }
 
       - name: Package artifacts
@@ -202,6 +229,20 @@ jobs:
             & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-exports $dll.FullName | Select-Object -First 25
           } else {
             echo "bass.dll not found in build tree"
+          }
+
+      - name: Verify proxy DLL arch + size
+        if: always()
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "build/windows_clang_x64/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
+          if ($dll) {
+            echo "=== bass.dll architecture ==="
+            & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-file-header $dll.FullName | Select-String "Machine:"
+            echo "=== bass.dll size ==="
+            "{0:N0} bytes  ({1:N2} MB)" -f $dll.Length, ($dll.Length / 1MB)
+          } else {
+            echo "bass.dll not found"
           }
 
       - name: Package artifacts
