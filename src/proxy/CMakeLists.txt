@@ -1,6 +1,16 @@
 function(generate_proxy_def input_dll output_var)
-    find_program(objdump_bin NAMES llvm-objdump objdump
-                 HINTS "${CMAKE_SOURCE_DIR}/llvm-mingw/bin" REQUIRED)
+    # toolchain auto-downloads to llvm_mingw (underscore);
+    # local setup may use llvm-mingw (hyphen) per README instructions.
+    # Use NO_DEFAULT_PATH so we never silently fall back to GNU objdump
+    # in /usr/bin — it cannot parse PE exports.
+    find_program(
+        objdump_bin
+        NAMES llvm-objdump objdump
+        HINTS
+            "${CMAKE_SOURCE_DIR}/llvm_mingw/bin"
+            "${CMAKE_SOURCE_DIR}/llvm-mingw/bin"
+        NO_DEFAULT_PATH
+        REQUIRED)
 
     cmake_path(
         GET
