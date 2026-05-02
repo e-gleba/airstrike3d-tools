@@ -37,39 +37,79 @@ void install_hooks()
 
     using namespace win32;
 
-    // Hook definitions: { target_hook, dll, export_name, detour }
     struct hook_def final
     {
         safetyhook::InlineHook& target;
         const wchar_t*          dll;
         const char*             proc;
         void*                   detour;
+        bool                    required;
     };
 
     auto hooks = std::array{
-        hook_def{ .target = g_ctx.hooks.wgl_swap,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "wglSwapBuffers",
-                  .detour = reinterpret_cast<void*>(hk_wgl_swap) },
-        hook_def{ .target = g_ctx.hooks.gl_matrix_mode,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "glMatrixMode",
-                  .detour = reinterpret_cast<void*>(gl::hk_gl_matrix_mode) },
-        hook_def{ .target = g_ctx.hooks.gl_load_identity,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "glLoadIdentity",
-                  .detour = reinterpret_cast<void*>(gl::hk_gl_load_identity) },
-        hook_def{ .target = g_ctx.hooks.glu_look_at,
-                  .dll    = L"glu32.dll",
-                  .proc   = "gluLookAt",
-                  .detour = reinterpret_cast<void*>(gl::hk_glu_look_at) },
+        hook_def{ .target   = g_ctx.hooks.wgl_swap,
+                  .dll      = L"opengl32.dll",
+                  .proc     = "wglSwapBuffers",
+                  .detour   = reinterpret_cast<void*>(hk_wgl_swap),
+                  .required = true },
+        hook_def{ .target   = g_ctx.hooks.gl_matrix_mode,
+                  .dll      = L"opengl32.dll",
+                  .proc     = "glMatrixMode",
+                  .detour   = reinterpret_cast<void*>(gl::hk_gl_matrix_mode),
+                  .required = true },
+        hook_def{ .target   = g_ctx.hooks.gl_load_identity,
+                  .dll      = L"opengl32.dll",
+                  .proc     = "glLoadIdentity",
+                  .detour   = reinterpret_cast<void*>(gl::hk_gl_load_identity),
+                  .required = true },
+        hook_def{ .target   = g_ctx.hooks.glu_look_at,
+                  .dll      = L"glu32.dll",
+                  .proc     = "gluLookAt",
+                  .detour   = reinterpret_cast<void*>(gl::hk_glu_look_at),
+                  .required = false },
     };
 
-    for (auto& [target, dll, proc, detour] : hooks)
+    for (auto& [target, dll, proc, detour, required] : hooks)
     {
-        target = safetyhook::create_inline(proc_addr(dll, proc), detour);
-        spdlog::info("[sdk] hooked {} -> trampoline={:p}", proc, target.trampoline().address());
-        spdlog::default_logger()->flush();
+        void* addr = proc_addr(dll, proc);
+
+        if (addr == nullptr)
+        {
+            HMODULE hmod = LoadLibraryW(dll);
+            if (hmod != nullptr)
+            {
+                addr = reinterpret_cast<void*>(GetProcAddress(hmod, proc));
+            }
+        }
+
+        if (addr == nullptr)
+        {
+            if (required)
+            {
+                spdlog::error("[sdk] REQUIRED hook target not found: {} — aborting install", proc);
+                spdlog::default_logger()->flush();
+                return;
+            }
+            spdlog::warn("[sdk] optional hook target not found: {} — skipping", proc);
+            spdlog::default_logger()->flush();
+            continue;
+        }
+
+        try
+        {
+            target = safetyhook::create_inline(addr, detour);
+            spdlog::info("[sdk] hooked {} -> trampoline={:p}", proc, target.trampoline().address());
+            spdlog::default_logger()->flush();
+        }
+        catch (const std::exception& e)
+        {
+            spdlog::error("[sdk] failed to hook {}: {}", proc, e.what());
+            spdlog::default_logger()->flush();
+            if (required)
+            {
+                return;
+            }
+        }
     }
 
     spdlog::info("[sdk] hooks installed, loading plugins...");
