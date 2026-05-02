@@ -23,12 +23,12 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
             spdlog::flush_on(spdlog::level::info);
             spdlog::info("[bass_proxy] DLL_PROCESS_ATTACH pid={}", GetCurrentProcessId());
             spdlog::info("[bass_proxy] h_module={:p}", reinterpret_cast<void*>(h_module));
-            spdlog::flush();
+            spdlog::default_logger()->flush();
 
             // Install hooks on a separate thread to avoid loader lock issues.
             std::jthread([]() static {
                 spdlog::info("[bass_proxy] hook installer thread started");
-                spdlog::flush();
+                spdlog::default_logger()->flush();
                 try
                 {
                     sdk::install_hooks();
@@ -42,7 +42,7 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
                 {
                     spdlog::error("[bass_proxy] install_hooks threw: unknown exception");
                 }
-                spdlog::flush();
+                spdlog::default_logger()->flush();
             }).detach();
             break;
         }
@@ -50,7 +50,7 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
         case DLL_PROCESS_DETACH:
         {
             spdlog::info("[bass_proxy] DLL_PROCESS_DETACH");
-            spdlog::flush();
+            spdlog::default_logger()->flush();
             try
             {
                 sdk::uninstall_hooks();
@@ -61,7 +61,7 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
                 spdlog::error("[bass_proxy] uninstall_hooks threw");
             }
             spdlog::info("[bass_proxy] detached");
-            spdlog::flush();
+            spdlog::default_logger()->flush();
 
             sdk::logging::shutdown();
             break;
