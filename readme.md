@@ -1,24 +1,133 @@
-# AirStrike 3D Reverse Engineering
+<p align="center">
+  <img src=".github/logo.jpg" width="180" alt="AirStrike 3D Logo">
+</p>
 
-**Reverse engineering the AirStrike 3D game series**
+<h1 align="center">AirStrike 3D — Reverse Engineering Toolkit</h1>
 
-![gamelogo](.github/logo.jpg)
+<p align="center">
+  <strong>Reverse engineering the AirStrike 3D game series</strong>
+</p>
 
-[PCGamingWiki](https://www.pcgamingwiki.com/wiki/AirStrike_2) - [Original Game](https://en.wikipedia.org/wiki/AirStrike_3D)
+<p align="center">
+  <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT">
+  </a>
+  <a href="#build--development">
+    <img src="https://img.shields.io/badge/CMake-3.31+-064F8C?logo=cmake&logoColor=white" alt="CMake 3.31+">
+  </a>
+  <a href="#engine-internals">
+    <img src="https://img.shields.io/badge/C++-26-00599C?logo=c%2B%2B&logoColor=white" alt="C++26">
+  </a>
+  <a href="#toolkit">
+    <img src="https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white" alt="Python 3.x">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/issues">
+    <img src="https://img.shields.io/github/issues/e-gleba/airstrike3d-tools" alt="GitHub Issues">
+  </a>
+</p>
 
-## 🎮 About
+<p align="center">
+  <a href="https://www.pcgamingwiki.com/wiki/AirStrike_2">PCGamingWiki</a> ·
+  <a href="https://en.wikipedia.org/wiki/AirStrike_3D">Original Game</a> ·
+  <a href="https://www.reddit.com/r/airstrike3d/">Community (Reddit)</a>
+</p>
 
-My nostalgic journey into reverse engineering AirStrike 3D - the first PC game that captured my imagination as a kid. This repository contains tools and research for understanding the game's internals.
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Project Status](#project-status)
+- [Repository Structure](#repository-structure)
+- [About the Game](#about-the-game)
+  - [Developers](#developers)
+  - [Deaddybear → DivoGames](#deaddybear--divogames)
+  - [Franchise Timeline](#franchise-timeline)
+- [Engine Internals](#engine-internals)
+  - [Subsystem Naming](#subsystem-naming)
+  - [Graphics API Evolution](#graphics-api-evolution)
+  - [Third-Party Libraries](#third-party-libraries)
+  - [Asset Formats](#asset-formats)
+  - [RTTI / C++ Details](#rtti--c-details)
+- [ASProtect 1.0 Analysis](#asprotect-10-analysis)
+  - [Identification](#identification)
+  - [How It Works](#how-it-works)
+  - [v2.71 — No Protection](#v271--no-protection)
+- [Toolkit](#toolkit)
+  - [APK Archive Extraction](#apk-archive-extraction)
+  - [MDL ↔ OBJ Converter](#mdl--obj-converter)
+  - [Save Previewer](#save-previewer)
+  - [Audio Conversion](#audio-conversion)
+  - [Graphics Viewing](#graphics-viewing)
+  - [Linux Compatibility](#linux-compatibility)
+  - [Technical Notes](#technical-notes)
+- [Build & Development](#build--development)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+  - [Building C++ Components](#building-c-components)
+- [Ghidra Project](#ghidra-project)
+- [Contributing](#contributing)
+- [Legal Notice](#legal-notice)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+---
+
+## Overview
+
+My nostalgic journey into reverse engineering AirStrike 3D — the first PC game that captured my imagination as a kid. This repository contains tools and research for understanding the game's internals.
 
 ![overlay preview](.github/overlay.png)
 
 ![overlay wireframe](.github/overlay_wireframe.png)
 
-## 🕵️ About the Game
+---
+
+## Project Status
+
+> **Active research & tooling.**  
+> This project is a living archive. Engine analysis is ongoing, new tools are added as formats are documented, and the Ghidra database is updated with fresh discoveries. Contributions from fellow reverse engineers and preservationists are welcome.
+
+| Milestone | Status |
+|-----------|--------|
+| `.apk` archive format | ✅ Documented & tooling complete |
+| `.mdl` model format | ✅ Bidirectional converter |
+| Save file format | ✅ Decryption + preview |
+| ASProtect 1.0 unpacking | ✅ Static unpacker + manual guide |
+| Engine v2.06 analysis | 🔄 In progress (Ghidra) |
+| Engine v2.71 analysis | 🔄 In progress (Ghidra) |
+| v2.50 / Air Force Missions | ⏳ Pending (tracked in [#1](https://github.com/e-gleba/airstrike3d-tools/issues/1)) |
+
+---
+
+## Repository Structure
+
+```
+airstrike3d-tools/
+├── .github/              # Branding assets & templates
+├── 2_06/                 # AirStrike 2 (engine v2.06) binaries & data
+├── 2_71/                 # Gulf Thunder (engine v2.71) binaries & data
+├── cmake/                # CMake modules, toolchains & code-quality configs
+├── external/             # Vendored dependencies (GLAD, etc.)
+├── ghidra/               # Ghidra project files for both game versions
+├── scripts/              # Python tooling
+│   ├── level_viewer.py
+│   ├── mdl_obj_converter.py
+│   ├── paktool.py
+│   ├── save_editor.py
+│   └── static_exe_unpacker.py
+└── src/                  # C++ source code
+    ├── game/             # Decompiled/reconstructed game logic (C)
+    └── proxy/            # BASS proxy DLL for runtime injection & overlay
+```
+
+---
+
+## About the Game
 
 [AirStrike 3D](https://en.wikipedia.org/wiki/AirStrike_3D) is a helicopter shoot-em-up series developed by **[DivoGames](https://web.archive.org/web/2006/http://divogames.com/)** (Nizhny Novgorod, Russia) and published through **[Alawar Entertainment](https://en.wikipedia.org/wiki/Alawar)**. The engine and all three franchise titles were built by a two-person team.
 
-### developers
+### Developers
 
 | Name | Role | Links |
 |------|------|-------|
@@ -29,11 +138,11 @@ Both names are embedded as string literals (`{Anton Petrov}`, `{Dmitry Zakharov}
 
 After DivoGames, Petrov became CTO at **Game Insight** (2012–2019, Nizhny Novgorod department), then co-founded **Colossi Games** in Cyprus (2020–present).
 
-### deaddybear → divogames
+### Deaddybear → DivoGames
 
 Before DivoGames was officially founded (~2004), the initial AirStrike chapters were developed under a group called **Deaddybear**. Community [research on r/airstrike3d](https://www.reddit.com/r/airstrike3d/comments/16k254c/about_divogames_earlier_development_projects/) found that Deaddybear's earlier game _Treasure Mole_ used a nearly identical `.pak` archive format — confirming shared codebase ancestry. Deaddybear also released _Bomberman vs Digger_ (2002).
 
-### franchise timeline
+### Franchise Timeline
 
 | Year | Title | Publisher | Genre | Engine | Known Alias |
 |------|-------|-----------|-------|--------|-------------|
@@ -166,9 +275,13 @@ graph TD
     class ACQ event
 ```
 
-## 🔬 Engine Internals
+---
+
+## Engine Internals
 
 Custom C++ engine with no third-party framework. Uses Quake-style subsystem prefixes:
+
+### Subsystem Naming
 
 | Subsystem | Prefix | Examples |
 |-----------|--------|----------|
@@ -177,21 +290,21 @@ Custom C++ engine with no third-party framework. Uses Quake-style subsystem pref
 | Sound | `S_` | `S_Init`, `S_RegisterSound` |
 | Window | `MW_` | `MW_CreateWindow` |
 
-### graphics api evolution
+### Graphics API Evolution
 
 | Version | API | Compiler | Compile timestamp | Rich header |
 |---------|-----|----------|-------------------|-------------|
 | v2.06 (`as3d2.exe`) | OpenGL 1.1 (`opengl32.dll`, `glu32.dll`) | MSVC 7.0 (.NET 2002/2003) | `2004-05-15 10:12:58 UTC` | ✅ |
 | v2.71 (`Gulf.exe`) | Direct3D 8 (`d3d8.dll`) | MSVC 8.0 (VS2005) | `2007-05-15 13:49:28 UTC` | ✅ |
 
-### third-party libraries
+### Third-Party Libraries
 
 - **[BASS](https://www.un4seen.com/)** — Audio library. 3D positional audio, EAX effects, MO3/tracker module playback.
 - **libjpeg** — `Copyright (C) 1996, Thomas G. Lane` (found in Gulf exe strings).
 - **zlib + libpng** — PNG texture support.
 - **Custom scripting language** — Confirmed by Petrov on LinkedIn, no public documentation survived.
 
-### asset formats
+### Asset Formats
 
 | Format | Extension | Description |
 |--------|-----------|-------------|
@@ -202,15 +315,17 @@ Custom C++ engine with no third-party framework. Uses Quake-style subsystem pref
 | Audio | `.mo3` | Tracker modules via BASS library |
 | Config | `config.ini` | Plaintext, stored alongside the executable |
 
-### rtti / c++ details
+### RTTI / C++ Details
 
 MSVC RTTI type descriptors found in the Gulf binary (e.g. `.?AVIntroPageDivoGames@@`), confirming C++ with virtual inheritance and RTTI enabled. `Divo Master` string suggests an internal tool or debug mode.
 
-## 🔒 ASProtect 1.0 Analysis
+---
+
+## ASProtect 1.0 Analysis
 
 The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.0](http://asprotect.net)** by Alexey Solodovnikov.
 
-### identification
+### Identification
 
 | Indicator | Value | Meaning |
 |-----------|-------|---------|
@@ -222,7 +337,7 @@ The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.
 | Compression | aPLib (LZ77 variant) | See [`scripts/static_exe_unpacker.py`](scripts/static_exe_unpacker.py) |
 | Hashes | `MD5: 1ba6f0187c43d07587e5212f1cb14190` | `SHA256: bc68bf37...81fb1a` |
 
-### how it works
+### How It Works
 
 1. **Section wiping** — Original section names erased, all flags set to `0xC0000040`. Two `.data` stubs appended.
 2. **aPLib decompression** — Compressed `.text` stored in oversized `.data` (VirtSize 30 MB, RawSize 4 KB).
@@ -232,20 +347,13 @@ The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.
 6. **Checksums** — Code integrity verification to detect runtime patching.
 7. **Anti-disasm** — Junk bytes after `CALL` instructions break linear-sweep disassemblers (W32DASM, SOURCER); IDA handles fine.
 
-### v2.71 — no protection
+### v2.71 — No Protection
 
 Gulf Thunder ships **completely unprotected**: EP in `.text`, entropy 6.83, full IAT, developer credits and error strings plainly readable. Much better target for engine analysis.
 
-## 🔗 Related Resources
+---
 
-- [r/airstrike3d](https://www.reddit.com/r/airstrike3d/) — community research & modding
-- [Ithamar's APK scripts](https://gist.github.com/Ithamar/85f1f71d179c354fad483a8c48767daf) — updated extraction with text decryption
-- [QindieGL](https://github.com/nicedrak/QindieGL) — OpenGL-to-D3D wrapper for running on modern Windows
-- [PCGamingWiki: AirStrike 2](https://www.pcgamingwiki.com/wiki/AirStrike_2) — compatibility fixes
-- [xakep.ru: ASProtect taming](https://xakep.ru/2003/07/10/19112/) — technical packer analysis (Russian)
-- [ASProtect homepage](http://asprotect.net) — Alexey Solodovnikov's official site
-
-## 🔧 Tools
+## Toolkit
 
 ### APK Archive Extraction
 
@@ -255,14 +363,14 @@ python extract_apk.py pak0.apk        # Extracts all files
 python pack_apk.py extracted_dir/ new.apk  # Repack modified assets
 ```
 
-### mdl to obj and vice versa
+### MDL ↔ OBJ Converter
 
 ```bash
 python mdl_obj_converter.py some_file.mdl
 python mdl_obj_converter.py some_file.obj
 ```
 
-### Save previewer (+imhex struct preview)
+### Save Previewer (+ ImHex Struct Preview)
 
 ```bash
 python decrypt_save.py decrypt game.bin -o decrypted.bin
@@ -284,9 +392,9 @@ openmpt123 --render file.mo3 --output file.wav
 tacentview texture.tga
 ```
 
-## 🐧 Linux Compatibility
+### Linux Compatibility
 
-### Running via Steam Proton (Fedora + AMD GPU)
+#### Running via Steam Proton (Fedora + AMD GPU)
 
 ```bash
 # Fix OpenGL extension issues for old games
@@ -295,66 +403,112 @@ MESA_EXTENSION_MAX_YEAR=2003 %command%
 
 Add this to the game's launch options in Steam.
 
-## 📋 Technical Notes
+### Technical Notes
 
 - **Archive Format:** Custom encrypted APK containers (not Android APK)
 - **Executable:** ASProtect v1.0 packed (detected via YARA rules)
 - **Assets:** TGA textures, MDL 3D models, MO3 audio modules
 - **Encryption:** XOR cipher with 1024-byte key table
 
-## 🚀 Quick Start
+---
+
+## Build & Development
+
+### Prerequisites
+
+- **CMake** 3.31 or newer
+- **Python** 3.x
+- **Ninja** (used by presets)
+- **LLVM-MinGW** (for Linux → Windows cross-compilation) or **Visual Studio 2022** (for native Windows builds)
+
+### Quick Start
 
 1. Clone this repository
 2. Extract game assets: `python extract_pak.py /path/to/pak0.apk`
 3. Browse extracted files in the created directory
 4. Convert audio files as needed
 
-### build
+### Building C++ Components
 
-1. download llvm-mingw from <https://github.com/mstorsjo/llvm-mingw/releases>:
+1. Download **llvm-mingw** from [mstorsjo/llvm-mingw releases](https://github.com/mstorsjo/llvm-mingw/releases):
+   - `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for Windows 10+ (UCRT)
+   - `llvm-mingw-YYYYMMDD-msvcrt-ubuntu-20.04-x86_64.tar.xz` for Windows 7+ (legacy CRT)
 
-- `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for win10+ (ucrt)
-- `llvm-mingw-YYYYMMDD-msvcrt-ubuntu-20.04-x86_64.tar.xz` for win7+ (legacy crt)
+2. Extract to repository root in directory `llvm-mingw`
 
-1. extract to repository root in dir `llvm-mingw`
-
-2. Run
+3. Run:
 
 ```bash
 cmake --preset llvm-mingw-i686
 cmake --build --preset llvm-mingw-i686
 ```
 
-> **note**: preset uses `jobs=1` due to lld linker deadlock on parallel linking in mingw context
+> **Note:** The preset uses `jobs=1` due to an LLD linker deadlock on parallel linking in the MinGW context.
 
-## 🏴‍☠️ Ghidra Project
+For native Windows builds with Visual Studio 2022:
+
+```bash
+cmake --preset msvc
+cmake --build --preset msvc
+```
+
+---
+
+## Ghidra Project
 
 🔒 Since the project uses **ASProtect 1.0**, I decided on Linux using a simple debugger to just walk until we get some kind of loop. The game seems to unpack itself creating some thread, so even the debugger detaches at some moment in `ntdll` magic 🪄, so we need just to pause at any moment and get the address of the desired function (loop).
 
-🎯 The next step is using **x64dbg** with **DumpEx** plugin—dump with the address of main loop function. And that's all!
+🎯 The next step is using **x64dbg** with **DumpEx** plugin — dump with the address of main loop function. And that's all!
 
 📊 **Stats:**
 
 - 📦 Game weights: **31.2 MB**
-- 🔍 In Ghidra project I've marked some of the interesting places:
+- 🔍 In the Ghidra project I have marked some of the interesting places:
   - 🎮 Loading models
   - 💾 Working with saves
   - 🔧 Core game mechanics
 
 🚀 **Usage:**
 
-> Just clone and open with Ghidra—the project is ready to explore yourself!
+> Just clone and open with Ghidra — the project is ready to explore yourself!
 
 Maybe some time someone will reverse it completely 😏 🦀⚡
 
-## ⚖️ Legal
+---
 
-Educational and preservation purposes only. Respect original copyrights.
+## Contributing
 
-## 📄 License
+We welcome contributions from reverse engineers, preservationists, and enthusiasts. Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines on coding standards, commit conventions, and the pull request workflow.
 
-MIT - Because knowledge should be free, just like the joy of playing games.
+---
 
-## 🙏 Acknowledgments
+## Legal Notice
+
+**Educational and preservation purposes only. Respect original copyrights.**
+
+This project is intended for research, education, and game preservation. All game binaries, assets, and trademarks are property of their respective owners (DivoGames / Game Insight / Alawar Entertainment / MyPlayCity). Do not use these tools to circumvent copy protection for commercial gain or to distribute copyrighted material without authorization.
+
+---
+
+## License
+
+This repository is licensed under the [MIT License](license).
+
+> *Because knowledge should be free, just like the joy of playing games.*
+
+---
+
+## Acknowledgments
 
 To that old PC that could barely run the game but somehow made it magical anyway.
+
+---
+
+## Related Resources
+
+- [r/airstrike3d](https://www.reddit.com/r/airstrike3d/) — community research & modding
+- [Ithamar's APK scripts](https://gist.github.com/Ithamar/85f1f71d179c354fad483a8c48767daf) — updated extraction with text decryption
+- [QindieGL](https://github.com/nicedrak/QindieGL) — OpenGL-to-D3D wrapper for running on modern Windows
+- [PCGamingWiki: AirStrike 2](https://www.pcgamingwiki.com/wiki/AirStrike_2) — compatibility fixes
+- [xakep.ru: ASProtect taming](https://xakep.ru/2003/07/10/19112/) — technical packer analysis (Russian)
+- [ASProtect homepage](http://asprotect.net) — Alexey Solodovnikov's official site
