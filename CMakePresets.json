@@ -34,9 +34,9 @@
     {
       "name": "msvc",
       "displayName": "MSVC x86",
-      "description": "VS2022 native 32-bit. Win32 platform, x86 host toolset.",
+      "description": "VS2026 native 32-bit. Win32 platform, x86 host toolset.",
       "inherits": "base",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "cacheVariables": {
         "CMAKE_GENERATOR_PLATFORM": "Win32",
         "CMAKE_GENERATOR_TOOLSET": "host=x86"
@@ -101,16 +101,14 @@
       "hidden": true,
       "displayName": "LLVM-MinGW Win32 Release Build",
       "configurePreset": "llvm-mingw-i686",
-      "inherits": "build-release",
-      "jobs": 1
+      "inherits": "build-release"
     },
     {
       "name": "llvm-mingw-i686-build-debug",
       "hidden": true,
       "displayName": "LLVM-MinGW Win32 Debug Build",
       "configurePreset": "llvm-mingw-i686",
-      "inherits": "build-debug",
-      "jobs": 1
+      "inherits": "build-debug"
     }
   ],
   "testPresets": [],
@@ -120,16 +118,24 @@
       "hidden": true,
       "displayName": "MSVC Package",
       "configurePreset": "msvc",
-      "configurations": ["Release"],
-      "generators": ["ZIP"]
+      "configurations": [
+        "Release"
+      ],
+      "generators": [
+        "ZIP"
+      ]
     },
     {
       "name": "llvm-mingw-i686-package",
       "hidden": true,
       "displayName": "LLVM-MinGW Win32 Package",
       "configurePreset": "llvm-mingw-i686",
-      "configurations": ["Release"],
-      "generators": ["TXZ"]
+      "configurations": [
+        "Release"
+      ],
+      "generators": [
+        "TXZ"
+      ]
     }
   ],
   "workflowPresets": [
@@ -138,9 +144,18 @@
       "displayName": "MSVC Release",
       "description": "Configure, build, and package MSVC x86 Release",
       "steps": [
-        { "type": "configure", "name": "msvc" },
-        { "type": "build", "name": "msvc-build-release" },
-        { "type": "package", "name": "msvc-package" }
+        {
+          "type": "configure",
+          "name": "msvc"
+        },
+        {
+          "type": "build",
+          "name": "msvc-build-release"
+        },
+        {
+          "type": "package",
+          "name": "msvc-package"
+        }
       ]
     },
     {
@@ -148,8 +163,14 @@
       "displayName": "MSVC Debug",
       "description": "Configure and build MSVC x86 Debug",
       "steps": [
-        { "type": "configure", "name": "msvc" },
-        { "type": "build", "name": "msvc-build-debug" }
+        {
+          "type": "configure",
+          "name": "msvc"
+        },
+        {
+          "type": "build",
+          "name": "msvc-build-debug"
+        }
       ]
     },
     {
@@ -157,9 +178,18 @@
       "displayName": "LLVM-MinGW Win32 Release",
       "description": "Configure, build, and package for Windows 32-bit (jobs=1 due to LLD deadlock)",
       "steps": [
-        { "type": "configure", "name": "llvm-mingw-i686" },
-        { "type": "build", "name": "llvm-mingw-i686-build-release" },
-        { "type": "package", "name": "llvm-mingw-i686-package" }
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-release"
+        },
+        {
+          "type": "package",
+          "name": "llvm-mingw-i686-package"
+        }
       ]
     },
     {
@@ -167,8 +197,14 @@
       "displayName": "LLVM-MinGW Win32 Debug",
       "description": "Configure and build for Windows 32-bit (jobs=1 due to LLD deadlock)",
       "steps": [
-        { "type": "configure", "name": "llvm-mingw-i686" },
-        { "type": "build", "name": "llvm-mingw-i686-build-debug" }
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-debug"
+        }
       ]
     }
   ]
