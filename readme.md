@@ -9,20 +9,32 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/build_and_package.yml?style=flat-square&label=CI&logo=githubactions&logoColor=white&color=2088FF" alt="CI Status">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/publish_release.yml?style=flat-square&label=Release&logo=githubactions&logoColor=white&color=FF6F61" alt="Release Status">
+  </a>
   <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license.md">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT">
+    <img src="https://img.shields.io/badge/License-MIT-00C853?style=flat-square&logo=open-source-initiative&logoColor=white" alt="License MIT">
   </a>
   <a href="#build--development">
-    <img src="https://img.shields.io/badge/CMake-3.31+-064F8C?logo=cmake&logoColor=white" alt="CMake 3.31+">
+    <img src="https://img.shields.io/badge/CMake-3.31+-064F8C?style=flat-square&logo=cmake&logoColor=white" alt="CMake 3.31+">
   </a>
   <a href="#engine-internals">
-    <img src="https://img.shields.io/badge/C++-26-00599C?logo=c%2B%2B&logoColor=white" alt="C++26">
+    <img src="https://img.shields.io/badge/C++-26-00599C?style=flat-square&logo=c%2B%2B&logoColor=white" alt="C++26">
   </a>
   <a href="#toolkit">
-    <img src="https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white" alt="Python 3.x">
+    <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.13">
   </a>
   <a href="https://github.com/e-gleba/airstrike3d-tools/issues">
-    <img src="https://img.shields.io/github/issues/e-gleba/airstrike3d-tools" alt="GitHub Issues">
+    <img src="https://img.shields.io/github/issues/e-gleba/airstrike3d-tools?style=flat-square&logo=github&logoColor=white&color=F44336" alt="GitHub Issues">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/stargazers">
+    <img src="https://img.shields.io/github/stars/e-gleba/airstrike3d-tools?style=flat-square&logo=github&logoColor=white&color=FFB300" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/commits/main/">
+    <img src="https://img.shields.io/github/last-commit/e-gleba/airstrike3d-tools/main?style=flat-square&logo=git&logoColor=white&color=7E57C2" alt="Last Commit">
   </a>
 </p>
 
@@ -417,9 +429,10 @@ Add this to the game's launch options in Steam.
 ### Prerequisites
 
 - **CMake** 3.31 or newer
-- **Python** 3.x
-- **Ninja** (used by presets)
-- **LLVM-MinGW** (for Linux → Windows cross-compilation) or **Visual Studio 2022** (for native Windows builds)
+- **Python** 3.13
+- **Ninja** (used by non-MSVC presets)
+- **Clang** (for native Windows builds) or **LLVM-MinGW** (for Linux → Windows cross-compilation)
+- **Visual Studio 2022** (optional, for local MSVC builds)
 
 ### Quick Start
 
@@ -429,6 +442,8 @@ Add this to the game's launch options in Steam.
 4. Convert audio files as needed
 
 ### Building C++ Components
+
+#### Linux → Windows (cross-compile via LLVM-MinGW)
 
 1. Download **llvm-mingw** from [mstorsjo/llvm-mingw releases](https://github.com/mstorsjo/llvm-mingw/releases):
    - `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for Windows 10+ (UCRT)
@@ -440,17 +455,28 @@ Add this to the game's launch options in Steam.
 
 ```bash
 cmake --preset llvm-mingw-i686
-cmake --build --preset llvm-mingw-i686
+cmake --workflow --preset llvm-mingw-i686-release
 ```
 
 > **Note:** The preset uses `jobs=1` due to an LLD linker deadlock on parallel linking in the MinGW context.
 
-For native Windows builds with Visual Studio 2022:
+#### Windows (native Clang)
+
+```bash
+cmake --preset clang_windows_x86
+cmake --workflow --preset clang_windows_x86-release
+```
+
+Uses pure **Clang** (`clang`/`clang++` GNU driver) targeting 32-bit Windows with the **Ninja Multi-Config** generator. This is the recommended fast path for CI and local Windows builds.
+
+#### Windows (optional, Visual Studio 2022)
 
 ```bash
 cmake --preset msvc
-cmake --build --preset msvc
+cmake --workflow --preset msvc-release
 ```
+
+Available for local development when Visual Studio 2022 is preferred. Not used in CI.
 
 ---
 
