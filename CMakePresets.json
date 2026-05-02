@@ -32,15 +32,11 @@
       }
     },
     {
-      "name": "msvc",
-      "displayName": "MSVC x86",
-      "description": "VS2026 native 32-bit. Win32 platform, x86 host toolset.",
-      "inherits": "base",
-      "generator": "Visual Studio 17 2022",
-      "cacheVariables": {
-        "CMAKE_GENERATOR_PLATFORM": "Win32",
-        "CMAKE_GENERATOR_TOOLSET": "host=x86"
-      },
+      "name": "clang_windows_x86",
+      "displayName": "Clang Windows x86",
+      "description": "Pure Clang (GCC-style driver) targeting 32-bit Windows with Ninja + LLD. Requires MSVC/Windows SDK for standard libraries.",
+      "inherits": "ninja-base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/clang_windows_x86.cmake",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -83,15 +79,15 @@
       "configuration": "Debug"
     },
     {
-      "name": "msvc-build-release",
-      "displayName": "MSVC Release Build",
-      "configurePreset": "msvc",
+      "name": "clang_windows_x86-build-release",
+      "displayName": "Clang Windows x86 Release Build",
+      "configurePreset": "clang_windows_x86",
       "inherits": "build-release"
     },
     {
-      "name": "msvc-build-debug",
-      "displayName": "MSVC Debug Build",
-      "configurePreset": "msvc",
+      "name": "clang_windows_x86-build-debug",
+      "displayName": "Clang Windows x86 Debug Build",
+      "configurePreset": "clang_windows_x86",
       "inherits": "build-debug"
     },
     {
@@ -110,9 +106,9 @@
   "testPresets": [],
   "packagePresets": [
     {
-      "name": "msvc-package",
-      "displayName": "MSVC Package",
-      "configurePreset": "msvc",
+      "name": "clang_windows_x86-package",
+      "displayName": "Clang Windows x86 Package",
+      "configurePreset": "clang_windows_x86",
       "configurations": [
         "Release"
       ],
@@ -134,36 +130,36 @@
   ],
   "workflowPresets": [
     {
-      "name": "msvc-release",
-      "displayName": "MSVC Release",
-      "description": "Configure, build, and package MSVC x86 Release",
+      "name": "clang_windows_x86-release",
+      "displayName": "Clang Windows x86 Release",
+      "description": "Configure, build, and package Clang Windows x86 Release",
       "steps": [
         {
           "type": "configure",
-          "name": "msvc"
+          "name": "clang_windows_x86"
         },
         {
           "type": "build",
-          "name": "msvc-build-release"
+          "name": "clang_windows_x86-build-release"
         },
         {
           "type": "package",
-          "name": "msvc-package"
+          "name": "clang_windows_x86-package"
         }
       ]
     },
     {
-      "name": "msvc-debug",
-      "displayName": "MSVC Debug",
-      "description": "Configure and build MSVC x86 Debug",
+      "name": "clang_windows_x86-debug",
+      "displayName": "Clang Windows x86 Debug",
+      "description": "Configure and build Clang Windows x86 Debug",
       "steps": [
         {
           "type": "configure",
-          "name": "msvc"
+          "name": "clang_windows_x86"
         },
         {
           "type": "build",
-          "name": "msvc-build-debug"
+          "name": "clang_windows_x86-build-debug"
         }
       ]
     },
