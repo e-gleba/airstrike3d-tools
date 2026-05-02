@@ -36,7 +36,7 @@
       "displayName": "MSVC x86",
       "description": "VS2026 native 32-bit. Win32 platform, x86 host toolset.",
       "inherits": "base",
-      "generator": "Visual Studio 18 2026",
+      "generator": "Visual Studio 17 2022",
       "cacheVariables": {
         "CMAKE_GENERATOR_PLATFORM": "Win32",
         "CMAKE_GENERATOR_TOOLSET": "host=x86"
