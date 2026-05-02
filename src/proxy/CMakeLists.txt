@@ -35,7 +35,7 @@ function(generate_proxy_def input_dll def_out_var msvc_out_var)
     endif()
 
     # .def for GNU ld / lld (MinGW, llvm-mingw, lld-link)
-    set(def_content "EXPORTS\n")
+    set(def_content "LIBRARY \"${dll_stem}.dll\"\nEXPORTS\n")
     # MSVC pragma file — ordinals must be explicit so the game loader finds
     # the right entries (it imports BASS by ordinal).
     set(msvc_content "// Auto-generated proxy exports for MSVC. Do not edit.\n")
@@ -45,7 +45,7 @@ function(generate_proxy_def input_dll def_out_var msvc_out_var)
                "\\2" sym_name "${row}")
         string(REGEX REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
                "\\1" ordinal "${row}")
-        string(APPEND def_content "    ${sym_name} = original.${sym_name} @${ordinal}\n")
+        string(APPEND def_content "    ${sym_name}=original.${sym_name} @${ordinal}\n")
         string(APPEND msvc_content "#pragma comment(linker, \"/export:${sym_name}=original.${sym_name},@${ordinal}\")\n")
     endforeach()
 

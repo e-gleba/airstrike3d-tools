@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+#include <GL/gl.h>
 #include <format>
 #include <ranges>
 #include <sol/sol.hpp>
