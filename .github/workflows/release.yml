@@ -121,7 +121,7 @@ jobs:
           name: airstrike3d-tools-windows-msvc
           path: airstrike3d-tools-windows-msvc.zip
 
-  windows_clang_x64:
+  windows_clang_x86:
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -145,14 +145,14 @@ jobs:
       - name: Install dependencies
         run: pip install cmake ninja
 
-      - name: Build (windows_clang_x64 workflow)
-        run: cmake --workflow --preset windows_clang_x64
+      - name: Build (windows_clang_x86 workflow)
+        run: cmake --workflow --preset windows_clang_x86
 
       - name: Verify proxy exports
         if: always()
         shell: pwsh
         run: |
-          $dll = Get-ChildItem -Path "build/windows_clang_x64/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
+          $dll = Get-ChildItem -Path "build/windows_clang_x86/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
           if ($dll) {
             echo "=== Proxy DLL exports (first 25) ==="
             & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-exports $dll.FullName | Select-Object -First 25
@@ -164,7 +164,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item -Path "build/windows_clang_x64/2_06" -Destination "dist/airstrike3d-tools-windows-clang" -Recurse -Force
+          Copy-Item -Path "build/windows_clang_x86/2_06" -Destination "dist/airstrike3d-tools-windows-clang" -Recurse -Force
           Compress-Archive -Path "dist/airstrike3d-tools-windows-clang" -DestinationPath "airstrike3d-tools-windows-clang.zip" -Force
 
       - name: Upload artifacts
@@ -174,7 +174,7 @@ jobs:
           path: airstrike3d-tools-windows-clang.zip
 
   release:
-    needs: [linux_llvm-mingw_i686, windows_msvc_x86, windows_clang_x64]
+    needs: [linux_llvm-mingw_i686, windows_msvc_x86, windows_clang_x86]
     runs-on: ubuntu-latest
     permissions:
       contents: write

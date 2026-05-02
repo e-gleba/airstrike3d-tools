@@ -62,10 +62,9 @@ generate_proxy_def("${CMAKE_SOURCE_DIR}/2_06/bass.dll" bass_proxy_def bass_proxy
 
 file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/*.cpp")
 
-# Native Windows builds (MSVC or Clang on Windows) use #pragma comment linker
-# directives because MSVC LINK.EXE does not correctly parse forwarders in .def
-# files (LNK2001).  Cross-compiles from Linux use the .def file with GNU ld / ld.lld.
-if(WIN32 AND NOT CMAKE_CROSSCOMPILING)
+# MSVC (cl.exe) cannot parse .def forwarders (LNK2001), so it uses pragma directives.
+# Clang, MinGW, and every other linker (lld-link, GNU ld) handle the .def file fine.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_library(bass_proxy SHARED ${bass_proxy_msvc_cpp} ${sdk_sources})
 else()
     add_library(bass_proxy SHARED ${bass_proxy_def} ${sdk_sources})

@@ -41,13 +41,17 @@
       }
     },
     {
-      "name": "windows_clang_x64",
-      "displayName": "Windows Clang x64",
-      "description": "Native build with system Clang/Clang++ (x64 host arch).",
+      "name": "windows_clang_x86",
+      "displayName": "Windows Clang x86",
+      "description": "Native build with real Clang/Clang++ targeting x86 (i686-pc-windows-msvc).",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_FLAGS": "-m32 --target=i686-pc-windows-msvc",
+        "CMAKE_CXX_FLAGS": "-m32 --target=i686-pc-windows-msvc",
+        "CMAKE_SHARED_LINKER_FLAGS": "-m32",
+        "CMAKE_EXE_LINKER_FLAGS": "-m32"
       },
       "condition": {
         "type": "equals",
@@ -96,15 +100,15 @@
       "inherits": "build-debug"
     },
     {
-      "name": "windows_clang_x64-release",
-      "displayName": "Windows Clang x64 (Release)",
-      "configurePreset": "windows_clang_x64",
+      "name": "windows_clang_x86-release",
+      "displayName": "Windows Clang x86 (Release)",
+      "configurePreset": "windows_clang_x86",
       "inherits": "build-release"
     },
     {
-      "name": "windows_clang_x64-debug",
-      "displayName": "Windows Clang x64 (Debug)",
-      "configurePreset": "windows_clang_x64",
+      "name": "windows_clang_x86-debug",
+      "displayName": "Windows Clang x86 (Debug)",
+      "configurePreset": "windows_clang_x86",
       "inherits": "build-debug"
     },
     {
@@ -129,9 +133,9 @@
       "generators": ["ZIP"]
     },
     {
-      "name": "windows_clang_x64-package",
-      "displayName": "Windows Clang x64 Package",
-      "configurePreset": "windows_clang_x64",
+      "name": "windows_clang_x86-package",
+      "displayName": "Windows Clang x86 Package",
+      "configurePreset": "windows_clang_x86",
       "configurations": ["Release"],
       "generators": ["ZIP"]
     },
@@ -154,12 +158,12 @@
       ]
     },
     {
-      "name": "windows_clang_x64",
-      "displayName": "Windows Clang x64 Pipeline",
+      "name": "windows_clang_x86",
+      "displayName": "Windows Clang x86 Pipeline",
       "steps": [
-        { "type": "configure", "name": "windows_clang_x64" },
-        { "type": "build", "name": "windows_clang_x64-release" },
-        { "type": "package", "name": "windows_clang_x64-package" }
+        { "type": "configure", "name": "windows_clang_x86" },
+        { "type": "build", "name": "windows_clang_x86-release" },
+        { "type": "package", "name": "windows_clang_x86-package" }
       ]
     },
     {
