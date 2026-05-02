@@ -51,11 +51,22 @@ jobs:
       - name: Build (linux_llvm-mingw_i686 workflow)
         run: cmake --workflow --preset linux_llvm-mingw_i686
 
-      - name: Inspect proxy .def (info)
+      - name: Inspect proxy .def
         if: always()
         run: |
           echo "=== bass.def (first 20 lines) ==="
           cat build/linux_llvm-mingw_i686/src/proxy/bass.def 2>/dev/null | head -n 20 || echo "bass.def not found"
+
+      - name: Verify proxy exports
+        if: always()
+        run: |
+          DLL=$(find build/linux_llvm-mingw_i686/src/proxy -name "bass.dll" | head -n 1)
+          if [ -n "$DLL" ]; then
+            echo "=== Proxy DLL exports (first 25) ==="
+            ./llvm_mingw/bin/objdump -p "$DLL" | grep -A 200 "The Export Tables" | head -n 25
+          else
+            echo "bass.dll not found in build tree"
+          fi
 
       - name: Package artifacts
         run: |
@@ -105,12 +116,24 @@ jobs:
       - name: Build (windows_msvc_x86 workflow)
         run: cmake --workflow --preset windows_msvc_x86
 
-      - name: Inspect proxy .def (info)
+      - name: Inspect proxy msvc exports
         if: always()
         shell: cmd
         run: |
-          echo === bass.def (first 20 lines) ===
-          type build\windows_msvc_x86\src\proxy\bass.def 2>nul || echo bass.def not found
+          echo === bass_msvc_exports.cpp (first 20 lines) ===
+          type build\windows_msvc_x86\src\proxy\bass_msvc_exports.cpp 2>nul || echo bass_msvc_exports.cpp not found
+
+      - name: Verify proxy exports
+        if: always()
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "build/windows_msvc_x86/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
+          if ($dll) {
+            echo "=== Proxy DLL exports (first 25) ==="
+            & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-exports $dll.FullName | Select-Object -First 25
+          } else {
+            echo "bass.dll not found in build tree"
+          }
 
       - name: Package artifacts
         shell: pwsh
@@ -162,12 +185,24 @@ jobs:
       - name: Build (windows_clang_x64 workflow)
         run: cmake --workflow --preset windows_clang_x64
 
-      - name: Inspect proxy .def (info)
+      - name: Inspect proxy msvc exports
         if: always()
         shell: cmd
         run: |
-          echo === bass.def (first 20 lines) ===
-          type build\windows_clang_x64\src\proxy\bass.def 2>nul || echo bass.def not found
+          echo === bass_msvc_exports.cpp (first 20 lines) ===
+          type build\windows_clang_x64\src\proxy\bass_msvc_exports.cpp 2>nul || echo bass_msvc_exports.cpp not found
+
+      - name: Verify proxy exports
+        if: always()
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "build/windows_clang_x64/src/proxy" -Recurse -Filter "bass.dll" | Select-Object -First 1
+          if ($dll) {
+            echo "=== Proxy DLL exports (first 25) ==="
+            & 'C:\Program Files\LLVM\bin\llvm-readobj.exe' --coff-exports $dll.FullName | Select-Object -First 25
+          } else {
+            echo "bass.dll not found in build tree"
+          }
 
       - name: Package artifacts
         shell: pwsh
