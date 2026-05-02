@@ -20,8 +20,7 @@ target_sources(
             ${imgui_SOURCE_DIR}/imgui_draw.cpp
             ${imgui_SOURCE_DIR}/imgui_tables.cpp
             ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-            ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
-            ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
+            ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp)
 
 target_include_directories(
     imgui SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
@@ -29,27 +28,22 @@ target_include_directories(
 
 target_compile_features(imgui PUBLIC cxx_std_23)
 
-if(Freetype_FOUND)
-    if(NOT TARGET Freetype::Freetype)
-        message(
-            FATAL_ERROR
-                "find_package(Freetype) succeeded but the imported target "
-                "Freetype::Freetype is missing. Your FreeType install may be "
-                "too old or its CMake config is incomplete.")
-    endif()
+# FreeType is fetched via CPM (add_subdirectory), not find_package, so we check
+# for the target name instead of Freetype_FOUND / Freetype::Freetype.
+if(TARGET freetype)
+    target_sources(
+        imgui PRIVATE ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
 
-    target_sources(imgui
-                   PRIVATE ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
-
-    # PUBLIC because imgui_freetype.h exposes FreeType types to consumers.
-    target_link_libraries(imgui PUBLIC Freetype::Freetype)
+    target_link_libraries(imgui PUBLIC freetype)
     target_include_directories(
         imgui SYSTEM
         PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/misc/freetype>)
     target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
 else()
     message(
-        STATUS "imgui: FreeType not found — custom font rasterizer disabled.")
+        STATUS
+        "imgui: freetype target not available — custom font rasterizer disabled."
+    )
 endif()
 
 # Windows + OpenGL backend for the BASS proxy overlay.
@@ -59,7 +53,8 @@ target_sources(
     imgui_opengl3 PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
                           ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 
-target_include_directories(imgui_opengl3 SYSTEM
-                           PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
+target_include_directories(
+    imgui_opengl3 SYSTEM
+    PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
 
 target_link_libraries(imgui_opengl3 PUBLIC imgui::imgui glad opengl32)
