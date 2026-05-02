@@ -17,7 +17,27 @@ BOOL APIENTRY DllMain(HMODULE  h_module,
         case DLL_PROCESS_ATTACH:
         {
             DisableThreadLibraryCalls(h_module);
-            sdk::logging::init("logs");
+
+            // If logging init throws here, the exception propagates out of
+            // DllMain. Windows treats that as a failed load and immediately
+            // unloads the DLL, giving the user the confusing "detached right
+            // after attach" symptom.  Wrap it so we can log the failure and
+            // still continue with hooks (the file sink is optional).
+            try
+            {
+                sdk::logging::init("logs");
+            }
+            catch (const std::exception& e)
+            {
+                // spdlog is not ready — write to MSVC debug output at least
+                OutputDebugStringA("[bass_proxy] logging init failed: ");
+                OutputDebugStringA(e.what());
+                OutputDebugStringA("\n");
+            }
+            catch (...)
+            {
+                OutputDebugStringA("[bass_proxy] logging init failed: unknown\n");
+            }
 
             spdlog::set_level(spdlog::level::info);
             spdlog::flush_on(spdlog::level::info);
