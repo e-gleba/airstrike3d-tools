@@ -8,9 +8,9 @@
 // bass_proxy.hpp presumably handles the actual DLL proxy forwarding.
 // DllMain just calls our SDK install/uninstall.
 
-BOOL APIENTRY DllMain(HMODULE                 h_module,
-                      DWORD                   reason,
-                      [[maybe_unused]] LPVOID lp_reserved)
+BOOL APIENTRY DllMain(HMODULE  h_module,
+                      DWORD    reason,
+                      LPVOID   lp_reserved)
 {
     switch (reason)
     {
@@ -51,15 +51,28 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
         {
             spdlog::info("[bass_proxy] DLL_PROCESS_DETACH");
             spdlog::default_logger()->flush();
-            try
+
+            // lp_reserved == nullptr  → FreeLibrary() call (dynamic unload).
+            // lp_reserved != nullptr  → process is terminating. In that state
+            // other threads are dead and the heap may be gone; calling
+            // uninstall_hooks() is undefined behaviour.
+            if (lp_reserved == nullptr)
             {
-                sdk::uninstall_hooks();
-                spdlog::info("[bass_proxy] uninstall_hooks completed OK");
+                try
+                {
+                    sdk::uninstall_hooks();
+                    spdlog::info("[bass_proxy] uninstall_hooks completed OK");
+                }
+                catch (...)
+                {
+                    spdlog::error("[bass_proxy] uninstall_hooks threw");
+                }
             }
-            catch (...)
+            else
             {
-                spdlog::error("[bass_proxy] uninstall_hooks threw");
+                spdlog::info("[bass_proxy] process terminating — skipping uninstall");
             }
+
             spdlog::info("[bass_proxy] detached");
             spdlog::default_logger()->flush();
 
