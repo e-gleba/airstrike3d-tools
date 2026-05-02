@@ -26,7 +26,7 @@ function(generate_proxy_def input_dll def_out_var msvc_out_var)
         COMMAND_ERROR_IS_FATAL ANY
         COMMAND_ECHO STDOUT)
 
-    string(REGEX MATCHALL "[0-9]+[ \t]+0x[0-9a-fA-F]+[ \t]+[^ \t\r\n]+" raw_exports
+    string(REGEX MATCHALL "[0-9]+[ \\t]+0x[0-9a-fA-F]+[ \\t]+[^ \\t\\r\\n]+" raw_exports
            "${dump_output}")
 
     list(LENGTH raw_exports export_count)
@@ -35,18 +35,18 @@ function(generate_proxy_def input_dll def_out_var msvc_out_var)
     endif()
 
     # .def for GNU ld / lld (MinGW, llvm-mingw, lld-link)
-    set(def_content "LIBRARY \"${dll_stem}.dll\"\nEXPORTS\n")
+    set(def_content "LIBRARY \"${dll_stem}.dll\"\\nEXPORTS\\n")
     # MSVC pragma file — ordinals must be explicit so the game loader finds
     # the right entries (it imports BASS by ordinal).
-    set(msvc_content "// Auto-generated proxy exports for MSVC. Do not edit.\n")
+    set(msvc_content "// Auto-generated proxy exports for MSVC. Do not edit.\\n")
 
     foreach(row IN LISTS raw_exports)
-        string(REGEX REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
-               "\\2" sym_name "${row}")
-        string(REGEX REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
-               "\\1" ordinal "${row}")
-        string(APPEND def_content "    ${sym_name}=original.${sym_name} @${ordinal}\n")
-        string(APPEND msvc_content "#pragma comment(linker, \"/export:${sym_name}=original.${sym_name},@${ordinal}\")\n")
+        string(REGEX REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\\r\\n]+)"
+               "\\\\2" sym_name "${row}")
+        string(REGEX REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\\r\\n]+)"
+               "\\\\1" ordinal "${row}")
+        string(APPEND def_content "    ${sym_name}=original.${sym_name} @${ordinal}\\n")
+        string(APPEND msvc_content "#pragma comment(linker, \\\"/export:${sym_name}=original.${sym_name},@${ordinal}\\\")\\n")
     endforeach()
 
     file(WRITE "${def_file}" "${def_content}")
@@ -81,11 +81,30 @@ target_compile_definitions(
             GLM_FORCE_RADIANS
             GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
+# ── link opts ────────────────────────────────────────────────────────────────
+# v1.0.5 had -static -s unconditionally.  MSVC link.exe ignores -s (unknown
+# option), while MinGW/Clang use it to strip symbols and static-link the CRT.
+# Keeping the unconditional form preserves the old proven behaviour.
 target_link_options(
     bass_proxy
     PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
-    $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
+    -static
+    -s)
+
+# Size optimisations: the proxy grew from ~1.7 MB (v1.0.5 single-file proxy)
+# to ~3.7 MB because of the modular SDK (lua/sol2 scripting, spdlog,
+# imgui+freetype backends, zydis/zycore via safetyhook).
+# /OPT:REF,ICF (MSVC) and --gc-sections (GNU/Clang) remove unreachable code.
+if(MSVC)
+    target_link_options(bass_proxy PRIVATE /OPT:REF /OPT:ICF)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+        bass_proxy
+        PRIVATE
+        -ffunction-sections
+        -fdata-sections)
+    target_link_options(bass_proxy PRIVATE -Wl,--gc-sections)
+endif()
 
 target_link_libraries(
     bass_proxy
