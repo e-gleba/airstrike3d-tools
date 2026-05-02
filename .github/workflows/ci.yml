@@ -10,12 +10,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm_cache
+
 jobs:
   build-linux-cross:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Cache deps
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ env.CPM_SOURCE_CACHE }}
+            llvm_mingw
+          key: ${{ runner.os }}-ci-${{ hashFiles('CMakeLists.txt', 'external/**', 'src/**/CMakeLists.txt', 'cmake/**/*.cmake', 'cmake/toolchains/llvm_mingw.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-ci-
 
       - name: Install build dependencies
         run: |
@@ -51,22 +70,80 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  build-windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Cache deps
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\pip\Cache
+            ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-msvc-${{ hashFiles('CMakeLists.txt', 'external/**', 'src/**/CMakeLists.txt', 'cmake/**/*.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-msvc-
+
+      - name: Install dependencies
+        run: pip install cmake
+
+      - name: Configure (MSVC native 32-bit)
+        run: cmake -B build/msvc -G "Visual Studio 17 2022" -A Win32 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
+
+      - name: Build (MSVC Release)
+        run: cmake --build build/msvc --config Release
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item -Path "build/msvc/2_06" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
+          Compress-Archive -Path "dist/airstrike3d-tools-windows-msvc" -DestinationPath "airstrike3d-tools-windows-msvc.zip" -Force
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d-tools-windows-msvc
+          path: airstrike3d-tools-windows-msvc.zip
+          if-no-files-found: warn
+          retention-days: 30
+
   build-windows-clang:
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Ensure CMake
-        run: |
-          pip install cmake
-          cmake --version
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
 
-      - name: Configure (ClangCL native 32-bit)
-        run: cmake -B build/win-clang -G "Visual Studio 17 2022" -A Win32 -T ClangCL -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
+      - name: Cache deps
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\pip\Cache
+            ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-clang-${{ hashFiles('CMakeLists.txt', 'external/**', 'src/**/CMakeLists.txt', 'cmake/**/*.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-clang-
 
-      - name: Build (ClangCL Release)
-        run: cmake --build build/win-clang --config Release
+      - name: Install dependencies
+        run: pip install cmake ninja
+
+      - name: Configure (Clang + Ninja)
+        run: cmake -B build/win-clang -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_BASS_PROXY_LIB=ON
+
+      - name: Build (Clang Release)
+        run: cmake --build build/win-clang
 
       - name: Package artifacts
         shell: pwsh
