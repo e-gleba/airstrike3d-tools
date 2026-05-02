@@ -3,12 +3,49 @@ name: continuous_integration
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'readme.md'
+      - 'license.md'
+      - '.github/contributing.md'
+      - '.github/security.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'scripts/**'
+      - 'ghidra/**'
+      - '.clang*'
+      - '.editorconfig'
+      - '.cursorignore'
+      - '.gitignore'
+      - '2_06/**'
+      - '2_71/**'
+      - '.cmake-format.py'
+      - '.github/workflows/publish_release.yml'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'readme.md'
+      - 'license.md'
+      - '.github/contributing.md'
+      - '.github/security.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'scripts/**'
+      - 'ghidra/**'
+      - '.clang*'
+      - '.editorconfig'
+      - '.cursorignore'
+      - '.gitignore'
+      - '2_06/**'
+      - '2_71/**'
+      - '.cmake-format.py'
+      - '.github/workflows/publish_release.yml'
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in_progress: true
 
 env:
   CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm
@@ -17,6 +54,9 @@ jobs:
   llvm_mingw_clang_i686:
     name: llvm_mingw_clang_i686
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: checkout
         uses: actions/checkout@v6
@@ -51,6 +91,9 @@ jobs:
   msvc_x86:
     name: msvc_x86
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: checkout
         uses: actions/checkout@v6

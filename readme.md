@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license">
+  <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license.md">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT">
   </a>
   <a href="#build--development">
@@ -478,7 +478,7 @@ Maybe some time someone will reverse it completely 😏 🦀⚡
 
 ## Contributing
 
-We welcome contributions from reverse engineers, preservationists, and enthusiasts. Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines on coding standards, commit conventions, and the pull request workflow.
+We welcome contributions from reverse engineers, preservationists, and enthusiasts. Please see [`.github/contributing.md`](.github/contributing.md) for guidelines on coding standards, commit conventions, and the pull request workflow.
 
 ---
 
@@ -492,7 +492,7 @@ This project is intended for research, education, and game preservation. All gam
 
 ## License
 
-This repository is licensed under the [MIT License](license).
+This repository is licensed under the [MIT License](license.md).
 
 > *Because knowledge should be free, just like the joy of playing games.*
 
