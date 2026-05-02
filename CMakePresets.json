@@ -43,7 +43,7 @@
     {
       "name": "windows_clang_x86",
       "displayName": "Windows Clang x86",
-      "description": "Native build with real Clang/Clang++ targeting x86 (i686-pc-windows-msvc).",
+      "description": "Native build with real Clang/Clang++ targeting x86 (i686-pc-windows-msvc). -m32 and --target=i686-pc-windows-msvc force 32-bit output.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
@@ -115,13 +115,15 @@
       "name": "linux_llvm-mingw_i686-release",
       "displayName": "Linux LLVM-MinGW i686 (Release)",
       "configurePreset": "linux_llvm-mingw_i686",
-      "inherits": "build-release"
+      "inherits": "build-release",
+      "jobs": 1
     },
     {
       "name": "linux_llvm-mingw_i686-debug",
       "displayName": "Linux LLVM-MinGW i686 (Debug)",
       "configurePreset": "linux_llvm-mingw_i686",
-      "inherits": "build-debug"
+      "inherits": "build-debug",
+      "jobs": 1
     }
   ],
   "packagePresets": [
