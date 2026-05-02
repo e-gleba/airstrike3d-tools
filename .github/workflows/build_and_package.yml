@@ -45,7 +45,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in_progress: true
+  cancel-in-progress: true
 
 env:
   CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm
