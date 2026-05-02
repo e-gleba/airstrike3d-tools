@@ -1,0 +1,72 @@
+name: continuous_integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm
+
+jobs:
+  llvm_mingw_clang_i686:
+    name: llvm_mingw_clang_i686
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: setup_python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: cache_dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
+
+      - name: install_dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          pip install "cmake>=3.31"
+
+      - name: build_and_package
+        run: cmake --workflow --preset llvm-mingw-i686-release
+
+      - name: upload_artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d_tools_llvm_mingw_i686
+          path: build/llvm-mingw-i686/*.tar.xz
+          if-no-files-found: warn
+
+  msvc_x86:
+    name: msvc_x86
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: cache_dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
+
+      - name: build_and_package
+        run: cmake --workflow --preset msvc-release
+
+      - name: upload_artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d_tools_msvc_x86
+          path: build/msvc/*.zip
+          if-no-files-found: warn
