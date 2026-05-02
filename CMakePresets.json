@@ -9,7 +9,7 @@
   "configurePresets": [
     {
       "name": "base",
-      "description": "Ninja Multi-Config, compile_commands.json, color diagnostics, bass proxy enabled.",
+      "description": "Ninja Multi-Config, compile_commands.json, color diagnostics, bass proxy enabled, unity build.",
       "hidden": true,
       "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/${presetName}",
@@ -17,12 +17,13 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_COLOR_DIAGNOSTICS": "ON",
         "USE_BASS_PROXY_LIB": "ON",
-        "FETCHCONTENT_QUIET": "OFF"
+        "FETCHCONTENT_QUIET": "OFF",
+        "CMAKE_UNITY_BUILD": "ON"
       }
     },
     {
-      "name": "msvc",
-      "displayName": "MSVC x86",
+      "name": "windows_msvc_x86",
+      "displayName": "Windows MSVC x86",
       "description": "Visual Studio 2022 native 32-bit. host=x86 forces 32-bit cl.exe.",
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
@@ -41,18 +42,23 @@
       }
     },
     {
-      "name": "clang",
-      "displayName": "Clang (native)",
-      "description": "Native build with system Clang/Clang++.",
+      "name": "windows_clang_x64",
+      "displayName": "Windows Clang x64",
+      "description": "Native build with system Clang/Clang++ (x64 host arch).",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW i686",
+      "name": "linux_llvm-mingw_i686",
+      "displayName": "Linux LLVM-MinGW i686",
       "description": "Linux => Windows i686 cross via llvm-mingw toolchain. Auto-downloads if missing.",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchains/llvm_mingw.cmake",
@@ -79,91 +85,91 @@
       "configuration": "Debug"
     },
     {
-      "name": "msvc-release",
-      "displayName": "MSVC Release",
-      "configurePreset": "msvc",
+      "name": "windows_msvc_x86-release",
+      "displayName": "Windows MSVC x86 (Release)",
+      "configurePreset": "windows_msvc_x86",
       "inherits": "build-release"
     },
     {
-      "name": "msvc-debug",
-      "displayName": "MSVC Debug",
-      "configurePreset": "msvc",
+      "name": "windows_msvc_x86-debug",
+      "displayName": "Windows MSVC x86 (Debug)",
+      "configurePreset": "windows_msvc_x86",
       "inherits": "build-debug"
     },
     {
-      "name": "clang-release",
-      "displayName": "Clang Release",
-      "configurePreset": "clang",
+      "name": "windows_clang_x64-release",
+      "displayName": "Windows Clang x64 (Release)",
+      "configurePreset": "windows_clang_x64",
       "inherits": "build-release"
     },
     {
-      "name": "clang-debug",
-      "displayName": "Clang Debug",
-      "configurePreset": "clang",
+      "name": "windows_clang_x64-debug",
+      "displayName": "Windows Clang x64 (Debug)",
+      "configurePreset": "windows_clang_x64",
       "inherits": "build-debug"
     },
     {
-      "name": "llvm-mingw-release",
-      "displayName": "LLVM-MinGW Release",
-      "configurePreset": "llvm-mingw",
+      "name": "linux_llvm-mingw_i686-release",
+      "displayName": "Linux LLVM-MinGW i686 (Release)",
+      "configurePreset": "linux_llvm-mingw_i686",
       "inherits": "build-release"
     },
     {
-      "name": "llvm-mingw-debug",
-      "displayName": "LLVM-MinGW Debug",
-      "configurePreset": "llvm-mingw",
+      "name": "linux_llvm-mingw_i686-debug",
+      "displayName": "Linux LLVM-MinGW i686 (Debug)",
+      "configurePreset": "linux_llvm-mingw_i686",
       "inherits": "build-debug"
     }
   ],
   "packagePresets": [
     {
-      "name": "msvc-package",
-      "displayName": "MSVC Package",
-      "configurePreset": "msvc",
+      "name": "windows_msvc_x86-package",
+      "displayName": "Windows MSVC x86 Package",
+      "configurePreset": "windows_msvc_x86",
       "configurations": ["Release"],
       "generators": ["ZIP"]
     },
     {
-      "name": "clang-package",
-      "displayName": "Clang Package",
-      "configurePreset": "clang",
+      "name": "windows_clang_x64-package",
+      "displayName": "Windows Clang x64 Package",
+      "configurePreset": "windows_clang_x64",
       "configurations": ["Release"],
       "generators": ["ZIP"]
     },
     {
-      "name": "llvm-mingw-package",
-      "displayName": "LLVM-MinGW Package",
-      "configurePreset": "llvm-mingw",
+      "name": "linux_llvm-mingw_i686-package",
+      "displayName": "Linux LLVM-MinGW i686 Package",
+      "configurePreset": "linux_llvm-mingw_i686",
       "configurations": ["Release"],
       "generators": ["TXZ"]
     }
   ],
   "workflowPresets": [
     {
-      "name": "msvc",
-      "displayName": "MSVC Pipeline",
+      "name": "windows_msvc_x86",
+      "displayName": "Windows MSVC x86 Pipeline",
       "steps": [
-        { "type": "configure", "name": "msvc" },
-        { "type": "build", "name": "msvc-release" },
-        { "type": "package", "name": "msvc-package" }
+        { "type": "configure", "name": "windows_msvc_x86" },
+        { "type": "build", "name": "windows_msvc_x86-release" },
+        { "type": "package", "name": "windows_msvc_x86-package" }
       ]
     },
     {
-      "name": "clang",
-      "displayName": "Clang Pipeline",
+      "name": "windows_clang_x64",
+      "displayName": "Windows Clang x64 Pipeline",
       "steps": [
-        { "type": "configure", "name": "clang" },
-        { "type": "build", "name": "clang-release" },
-        { "type": "package", "name": "clang-package" }
+        { "type": "configure", "name": "windows_clang_x64" },
+        { "type": "build", "name": "windows_clang_x64-release" },
+        { "type": "package", "name": "windows_clang_x64-package" }
       ]
     },
     {
-      "name": "llvm-mingw",
-      "displayName": "LLVM-MinGW Pipeline",
+      "name": "linux_llvm-mingw_i686",
+      "displayName": "Linux LLVM-MinGW i686 Pipeline",
       "steps": [
-        { "type": "configure", "name": "llvm-mingw" },
-        { "type": "build", "name": "llvm-mingw-release" },
-        { "type": "package", "name": "llvm-mingw-package" }
+        { "type": "configure", "name": "linux_llvm-mingw_i686" },
+        { "type": "build", "name": "linux_llvm-mingw_i686-release" },
+        { "type": "package", "name": "linux_llvm-mingw_i686-package" }
       ]
     }
   ]
