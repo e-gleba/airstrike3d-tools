@@ -67,10 +67,8 @@ void install_hooks()
 
     for (auto& [target, dll, proc, detour] : hooks)
     {
-        spdlog::info("[sdk] hooking {} :: {}", narrow(dll), proc);
-        spdlog::default_logger()->flush();
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
-        spdlog::info("[sdk] hooked {} :: {} -> trampoline={:p}", narrow(dll), proc, target.trampoline().address());
+        spdlog::info("[sdk] hooked {} -> trampoline={:p}", proc, target.trampoline().address());
         spdlog::default_logger()->flush();
     }
 
