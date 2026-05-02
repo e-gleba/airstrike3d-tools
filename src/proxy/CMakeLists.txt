@@ -88,7 +88,7 @@ file(
 add_library(bass_proxy SHARED ${bass_proxy_definitions} ${sdk_sources})
 target_include_directories(bass_proxy PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 
-target_compile_features(bass_proxy PRIVATE cxx_std_26)
+target_compile_features(bass_proxy PRIVATE cxx_std_23)
 
 set_target_properties(bass_proxy PROPERTIES CXX_EXTENSIONS OFF PREFIX "")
 
