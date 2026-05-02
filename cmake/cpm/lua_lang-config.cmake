@@ -1,10 +1,12 @@
 cpmaddpackage(
     NAME
     lua
-    GIT_REPOSITORY
-    https://github.com/lua/lua.git
+    GITHUB_REPOSITORY
+    lua/lua
     VERSION
-    5.4.7
+    5.5.0
+    EXCLUDE_FROM_ALL
+    ON
     DOWNLOAD_ONLY
     YES)
 
@@ -22,14 +24,15 @@ if(lua_ADDED)
         "${lua_SOURCE_DIR}/onelua.c")
     add_library(lua STATIC ${lua_sources})
     target_include_directories(lua PUBLIC $<BUILD_INTERFACE:${lua_SOURCE_DIR}>)
-    # Build as C
     set_target_properties(lua PROPERTIES LINKER_LANGUAGE C)
 endif()
 
 option(SOL2_PATCHED "whether sol2 patch has been applied" OFF)
 
 if(NOT SOL2_PATCHED)
-    set(SOL2_PATCHED ON CACHE BOOL "whether sol2 patch has been applied" FORCE)
+    set(SOL2_PATCHED
+        ON
+        CACHE BOOL "whether sol2 patch has been applied" FORCE)
 
     cpmaddpackage(
         NAME
@@ -38,8 +41,6 @@ if(NOT SOL2_PATCHED)
         https://github.com/ThePhD/sol2.git
         VERSION
         3.3.0
-        EXCLUDE_FROM_ALL
-        YES
         PATCHES
         "${CMAKE_SOURCE_DIR}/cmake/patches/sol2_emplace_fix.patch")
 else()
@@ -49,7 +50,5 @@ else()
         GIT_REPOSITORY
         https://github.com/ThePhD/sol2.git
         VERSION
-        3.3.0
-        EXCLUDE_FROM_ALL
-        YES)
+        3.3.0)
 endif()

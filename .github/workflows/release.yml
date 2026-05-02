@@ -43,11 +43,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends ninja-build zip
           pip install cmake
 
-      - name: Configure (llvm-mingw cross)
-        run: cmake --preset llvm-mingw
-
-      - name: Build (llvm-mingw cross)
-        run: cmake --build --preset llvm-mingw -- -j1
+      - name: Build (llvm-mingw workflow)
+        run: cmake --workflow --preset llvm-mingw
 
       - name: Package artifacts
         run: |
@@ -85,11 +82,8 @@ jobs:
       - name: Install dependencies
         run: pip install cmake
 
-      - name: Configure (MSVC native 32-bit)
-        run: cmake -B build/msvc -G "Visual Studio 17 2022" -A Win32 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
-
-      - name: Build (MSVC Release)
-        run: cmake --build build/msvc --config Release
+      - name: Build (MSVC workflow)
+        run: cmake --workflow --preset msvc
 
       - name: Package artifacts
         shell: pwsh
@@ -128,17 +122,14 @@ jobs:
       - name: Install dependencies
         run: pip install cmake ninja
 
-      - name: Configure (Clang + Ninja)
-        run: cmake -B build/win-clang -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_BASS_PROXY_LIB=ON
-
-      - name: Build (Clang Release)
-        run: cmake --build build/win-clang
+      - name: Build (Clang workflow)
+        run: cmake --workflow --preset clang
 
       - name: Package artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item -Path "build/win-clang/2_06" -Destination "dist/airstrike3d-tools-windows-clang" -Recurse -Force
+          Copy-Item -Path "build/clang/2_06" -Destination "dist/airstrike3d-tools-windows-clang" -Recurse -Force
           Compress-Archive -Path "dist/airstrike3d-tools-windows-clang" -DestinationPath "airstrike3d-tools-windows-clang.zip" -Force
 
       - name: Upload artifacts
