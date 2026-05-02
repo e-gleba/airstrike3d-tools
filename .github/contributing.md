@@ -17,7 +17,7 @@ Be respectful, constructive, and collaborative. Harassment or toxic behavior wil
 
 - Use the [Bug Report](https://github.com/e-gleba/airstrike3d-tools/issues/new?template=bug_report.md) template for crashes, incorrect behavior, or documentation errors.
 - Use the [Feature Request](https://github.com/e-gleba/airstrike3d-tools/issues/new?template=feature_request.md) template for new tools, format support, or enhancements.
-- For security-sensitive matters, see [`SECURITY.md`](SECURITY.md).
+- For security-sensitive matters, see [`.github/security.md`](.github/security.md).
 
 ## Development Guidelines
 
@@ -43,7 +43,7 @@ Be respectful, constructive, and collaborative. Harassment or toxic behavior wil
 
 ### Documentation
 
-- Update `README.md` if your change affects user-facing behavior, build steps, or supported formats.
+- Update `readme.md` if your change affects user-facing behavior, build steps, or supported formats.
 - Keep the Mermaid diagram in sync if you modify engine version or game relationships.
 - Use American English for consistency.
 
@@ -79,4 +79,4 @@ Open a [discussion](https://github.com/e-gleba/airstrike3d-tools/discussions) (i
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same [MIT License](license) as the project.
+By contributing, you agree that your contributions will be licensed under the same [MIT License](license.md) as the project.
