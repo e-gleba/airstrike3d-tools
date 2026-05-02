@@ -33,7 +33,7 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 void install_hooks()
 {
     spdlog::info("[sdk] installing hooks...");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 
     using namespace win32;
 
@@ -68,23 +68,23 @@ void install_hooks()
     for (auto& [target, dll, proc, detour] : hooks)
     {
         spdlog::info("[sdk] hooking {} :: {}", narrow(dll), proc);
-        spdlog::flush();
+        spdlog::default_logger()->flush();
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
         spdlog::info("[sdk] hooked {} :: {} -> trampoline={:p}", narrow(dll), proc, target.trampoline().address());
-        spdlog::flush();
+        spdlog::default_logger()->flush();
     }
 
     spdlog::info("[sdk] hooks installed, loading plugins...");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
     lua::load_plugins();
     spdlog::info("[sdk] plugins loaded OK");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 }
 
 void uninstall_hooks()
 {
     spdlog::info("[sdk] uninstalling...");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
     g_ctx.should_unload.store(true);
 
     lua::unload_plugins();
@@ -99,7 +99,7 @@ void uninstall_hooks()
 
     g_ctx.hooks.reset();
     spdlog::info("[sdk] shutdown complete");
-    spdlog::flush();
+    spdlog::default_logger()->flush();
 }
 
 } // namespace sdk
