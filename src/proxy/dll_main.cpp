@@ -20,20 +20,48 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
             sdk::logging::init("logs");
 
             spdlog::set_level(spdlog::level::info);
-            spdlog::info("[bass_proxy] attached");
+            spdlog::flush_on(spdlog::level::info);
+            spdlog::info("[bass_proxy] DLL_PROCESS_ATTACH pid={}", GetCurrentProcessId());
+            spdlog::info("[bass_proxy] h_module={:p}", reinterpret_cast<void*>(h_module));
+            spdlog::flush();
 
             // Install hooks on a separate thread to avoid loader lock issues.
-            // C++26: std::jthread is preferred, but we detach immediately
-            // so the semantics match the original. Using a plain lambda
-            // with static operator() (P1169, merged for C++23/26).
-            std::jthread([]() static { sdk::install_hooks(); }).detach();
+            std::jthread([]() static {
+                spdlog::info("[bass_proxy] hook installer thread started");
+                spdlog::flush();
+                try
+                {
+                    sdk::install_hooks();
+                    spdlog::info("[bass_proxy] install_hooks completed OK");
+                }
+                catch (const std::exception& e)
+                {
+                    spdlog::error("[bass_proxy] install_hooks threw: {}", e.what());
+                }
+                catch (...)
+                {
+                    spdlog::error("[bass_proxy] install_hooks threw: unknown exception");
+                }
+                spdlog::flush();
+            }).detach();
             break;
         }
 
         case DLL_PROCESS_DETACH:
         {
-            sdk::uninstall_hooks();
+            spdlog::info("[bass_proxy] DLL_PROCESS_DETACH");
+            spdlog::flush();
+            try
+            {
+                sdk::uninstall_hooks();
+                spdlog::info("[bass_proxy] uninstall_hooks completed OK");
+            }
+            catch (...)
+            {
+                spdlog::error("[bass_proxy] uninstall_hooks threw");
+            }
             spdlog::info("[bass_proxy] detached");
+            spdlog::flush();
 
             sdk::logging::shutdown();
             break;

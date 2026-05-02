@@ -1,5 +1,5 @@
 #pragma once
-#include <glad/glad.h>
+#include <GL/gl.h>
 #include <windows.h>
 
 namespace sdk::gl

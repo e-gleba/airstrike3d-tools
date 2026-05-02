@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glad/glad.h>
+#include <GL/gl.h>
 #include <atomic>
 #include <memory>
 #include <mutex>

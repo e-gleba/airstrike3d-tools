@@ -1,7 +1,7 @@
 
 #include "sdk/core/context.hpp"
 #include "sdk/util/win32.hpp"
-#include <glad/glad.h>
+#include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -67,8 +67,8 @@ void register_sdk_bindings(sol::state& sol_state)
     detail::register_callbacks(s);
 
     // ── Raw GL state control ──
-    // Plain lambdas: glad.h defines gl* names as macros expanding to runtime
-    // variables (glad_gl*), so they cannot be used as non-type template args.
+    // Plain lambdas: GL/gl.h declares gl* as direct opengl32.dll imports,
+    // so they work immediately inside the game process without any loader.
     s.set_function("gl_enable", [](int cap) { glEnable(static_cast<GLenum>(cap)); });
     s.set_function("gl_disable", [](int cap) { glDisable(static_cast<GLenum>(cap)); });
     s.set_function("gl_depth_mask",
