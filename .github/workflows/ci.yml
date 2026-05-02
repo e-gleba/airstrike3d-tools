@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux-cross:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build zip
+          pip install cmake
+
+      - name: Configure (llvm-mingw cross)
+        run: cmake --preset llvm-mingw
+
+      - name: Build (llvm-mingw cross)
+        run: cmake --build --preset llvm-mingw -- -j1
+
+      - name: Package artifacts
+        run: |
+          mkdir -p dist
+          cp -r build/llvm-mingw/2_06/Release dist/airstrike3d-tools-linux-cross
+          cd dist && zip -r ../airstrike3d-tools-linux-cross.zip airstrike3d-tools-linux-cross
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d-tools-linux-cross
+          path: airstrike3d-tools-linux-cross.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+  build-windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure CMake
+        run: pip install cmake
+
+      - name: Configure (MSVC native 32-bit)
+        run: cmake -B build/msvc -G "Visual Studio 17 2022" -A Win32 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_BASS_PROXY_LIB=ON
+
+      - name: Build (MSVC Release)
+        run: cmake --build build/msvc --config Release
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item -Path "build/msvc/2_06/Release" -Destination "dist/airstrike3d-tools-windows-msvc" -Recurse -Force
+          Compress-Archive -Path "dist/airstrike3d-tools-windows-msvc" -DestinationPath "airstrike3d-tools-windows-msvc.zip" -Force
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: airstrike3d-tools-windows-msvc
+          path: airstrike3d-tools-windows-msvc.zip
+          if-no-files-found: warn
+          retention-days: 30
