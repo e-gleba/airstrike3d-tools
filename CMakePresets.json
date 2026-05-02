@@ -64,16 +64,6 @@
         "CMAKE_SYSTEM_NAME": "Windows",
         "CMAKE_SYSTEM_PROCESSOR": "i686"
       }
-    },
-    {
-      "name": "llvm-mingw-x86_64",
-      "displayName": "LLVM-MinGW Win64 (x86_64)",
-      "description": "Cross-compile for Windows 64-bit x86",
-      "inherits": "llvm-mingw-base",
-      "cacheVariables": {
-        "CMAKE_SYSTEM_NAME": "Windows",
-        "CMAKE_SYSTEM_PROCESSOR": "x86_64"
-      }
     }
   ],
   "buildPresets": [
@@ -112,20 +102,6 @@
       "configurePreset": "llvm-mingw-i686",
       "inherits": "build-debug",
       "jobs": 1
-    },
-    {
-      "name": "llvm-mingw-x86_64-release",
-      "displayName": "LLVM-MinGW Win64 (Release)",
-      "configurePreset": "llvm-mingw-x86_64",
-      "inherits": "build-release",
-      "jobs": 1
-    },
-    {
-      "name": "llvm-mingw-x86_64-debug",
-      "displayName": "LLVM-MinGW Win64 (Debug)",
-      "configurePreset": "llvm-mingw-x86_64",
-      "inherits": "build-debug",
-      "jobs": 1
     }
   ],
   "testPresets": [],
@@ -141,13 +117,6 @@
       "name": "llvm-mingw-i686-package",
       "displayName": "LLVM-MinGW Win32 Package",
       "configurePreset": "llvm-mingw-i686",
-      "configurations": ["Release"],
-      "generators": ["TXZ"]
-    },
-    {
-      "name": "llvm-mingw-x86_64-package",
-      "displayName": "LLVM-MinGW Win64 Package",
-      "configurePreset": "llvm-mingw-x86_64",
       "configurations": ["Release"],
       "generators": ["TXZ"]
     }
@@ -171,16 +140,6 @@
         { "type": "configure", "name": "llvm-mingw-i686" },
         { "type": "build", "name": "llvm-mingw-i686-release" },
         { "type": "package", "name": "llvm-mingw-i686-package" }
-      ]
-    },
-    {
-      "name": "llvm-mingw-x86_64-full",
-      "displayName": "LLVM-MinGW Win64 Pipeline",
-      "description": "Configure, build, and package for Windows 64-bit (jobs=1 due to LLD deadlock under parallel linking)",
-      "steps": [
-        { "type": "configure", "name": "llvm-mingw-x86_64" },
-        { "type": "build", "name": "llvm-mingw-x86_64-release" },
-        { "type": "package", "name": "llvm-mingw-x86_64-package" }
       ]
     }
   ]
