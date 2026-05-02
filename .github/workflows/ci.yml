@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Dependencies
         run: |
@@ -28,7 +28,7 @@ jobs:
         run: cmake --workflow --preset llvm-mingw-i686-release
 
       - name: Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: airstrike3d-tools-llvm-mingw-i686
           path: build/llvm-mingw-i686/*.tar.xz
@@ -39,13 +39,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Workflow
         run: cmake --workflow --preset msvc-release
 
       - name: Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: airstrike3d-tools-msvc-x86
           path: build/msvc/*.zip
