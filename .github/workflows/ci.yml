@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm
+
 jobs:
   llvm_mingw_clang_i686:
     name: LLVM-MinGW Clang i686
@@ -18,11 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
+
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build python3
-          pip3 install "cmake>=3.31"
+          sudo apt-get install -y ninja-build
+          pip install "cmake>=3.31"
 
       - name: Workflow
         run: cmake --workflow --preset llvm-mingw-i686-release
@@ -40,6 +54,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
 
       - name: Workflow
         run: cmake --workflow --preset msvc-release
