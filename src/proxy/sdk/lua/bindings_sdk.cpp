@@ -15,18 +15,9 @@
 namespace sdk::lua
 {
 
-// ── Helper: bulk-register callbacks via static reflection + pack indexing ──
-
-// C++26 pack indexing & static reflection aren't fully in sol2's API,
-// but we can still leverage structured bindings, constexpr helpers,
-// and placeholder-lambda shorthand where the standard allows.
-
 namespace detail
 {
 
-// Map a compile-time name to its CallbackList member.
-// Uses C++26 `static operator()` on a lambda (P1169) already available,
-// plus constexpr structured bindings improvements.
 inline constexpr auto callback_descriptors = std::tuple{
     std::pair{ "on_frame", &decltype(g_ctx.cb)::on_frame },
     std::pair{ "on_overlay", &decltype(g_ctx.cb)::on_overlay },
@@ -37,12 +28,9 @@ inline constexpr auto callback_descriptors = std::tuple{
     std::pair{ "on_unload", &decltype(g_ctx.cb)::on_unload },
 };
 
-// Register every callback descriptor in one fold over an index sequence.
 template <std::size_t... Is>
 void register_callbacks(sol::table& s, std::index_sequence<Is...>)
 {
-    // C++26 pack indexing: `get<Is>(tuple)` in a fold is cleaner,
-    // but the real win is the terse lambda + guaranteed copy elision.
     (s.set_function(std::get<Is>(callback_descriptors).first,
                     [](sol::protected_function f)
                     {
@@ -52,7 +40,6 @@ void register_callbacks(sol::table& s, std::index_sequence<Is...>)
      ...);
 }
 
-// Thin wrapper so callers don't spell the index_sequence.
 inline void register_callbacks(sol::table& s)
 {
     register_callbacks(
@@ -60,18 +47,6 @@ inline void register_callbacks(sol::table& s)
         std::make_index_sequence<
             std::tuple_size_v<decltype(callback_descriptors)>>{});
 }
-
-// ── GL wrapper helper: auto-cast integral args to GLenum ──
-// Uses C++26 `auto` non-type template parameter packs for the GL function
-// pointer, plus deduced-this where useful.
-
-template <auto GlFn, typename... Args>
-constexpr auto gl_wrap = [](Args... args)
-{
-    GlFn(
-        static_cast<std::conditional_t<std::is_integral_v<Args>, GLenum, Args>>(
-            args)...);
-};
 
 template <typename T, std::size_t N, std::ranges::input_range R>
 constexpr auto to_array_from_range(R&& rng) -> std::array<T, N>
@@ -88,16 +63,19 @@ void register_sdk_bindings(sol::state& sol_state)
 {
     auto s = sol_state.create_named_table("sdk");
 
-    // ── Callbacks (data-driven, zero repetition) ──
+    // ── Callbacks ──
     detail::register_callbacks(s);
 
     // ── Raw GL state control ──
-    // Using the gl_wrap helper eliminates repetitive static_casts.
-    s.set_function("gl_enable", detail::gl_wrap<glEnable, int>);
-    s.set_function("gl_disable", detail::gl_wrap<glDisable, int>);
+    // Plain lambdas: glad.h defines gl* names as macros expanding to runtime
+    // variables (glad_gl*), so they cannot be used as non-type template args.
+    s.set_function("gl_enable", [](int cap) { glEnable(static_cast<GLenum>(cap)); });
+    s.set_function("gl_disable", [](int cap) { glDisable(static_cast<GLenum>(cap)); });
     s.set_function("gl_depth_mask",
                    [](bool flag) { glDepthMask(flag ? GL_TRUE : GL_FALSE); });
-    s.set_function("gl_blend_func", detail::gl_wrap<glBlendFunc, int, int>);
+    s.set_function("gl_blend_func",
+                   [](int sfactor, int dfactor)
+                   { glBlendFunc(static_cast<GLenum>(sfactor), static_cast<GLenum>(dfactor)); });
     s.set_function("gl_line_width", [](float w) { glLineWidth(w); });
     s.set_function("gl_point_size", [](float sz) { glPointSize(sz); });
     s.set_function("gl_color4f",
@@ -105,14 +83,16 @@ void register_sdk_bindings(sol::state& sol_state)
                    { glColor4f(r, g, b, a); });
     s.set_function("gl_color3f",
                    [](float r, float g, float b) { glColor3f(r, g, b); });
-    s.set_function("gl_polygon_mode", detail::gl_wrap<glPolygonMode, int, int>);
+    s.set_function("gl_polygon_mode",
+                   [](int face, int mode)
+                   { glPolygonMode(static_cast<GLenum>(face), static_cast<GLenum>(mode)); });
     s.set_function("gl_push_attrib",
                    [](int mask)
                    { glPushAttrib(static_cast<GLbitfield>(mask)); });
     s.set_function("gl_pop_attrib", [] { glPopAttrib(); });
     s.set_function("gl_push_matrix", [] { glPushMatrix(); });
     s.set_function("gl_pop_matrix", [] { glPopMatrix(); });
-    s.set_function("gl_begin", detail::gl_wrap<glBegin, int>);
+    s.set_function("gl_begin", [](int mode) { glBegin(static_cast<GLenum>(mode)); });
     s.set_function("gl_end", [] { glEnd(); });
     s.set_function("gl_vertex3f",
                    [](float x, float y, float z) { glVertex3f(x, y, z); });
@@ -143,8 +123,6 @@ void register_sdk_bindings(sol::state& sol_state)
             {
                 return;
             }
-            // C++26 ranges::to + views are nicer, but the
-            // real clarity win is just a range-for here.
             for (char c : text)
             {
                 PostMessageA(g_ctx.window, WM_CHAR, static_cast<WPARAM>(c), 0);
