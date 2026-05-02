@@ -1,8 +1,8 @@
+#include <windows.h>
 #include <GL/gl.h>
 #include <format>
 #include <ranges>
 #include <sol/sol.hpp>
-#include <windows.h>
 
 namespace sdk::lua
 {

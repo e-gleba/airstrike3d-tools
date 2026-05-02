@@ -1,6 +1,6 @@
 #pragma once
-#include <GL/gl.h>
 #include <windows.h>
+#include <GL/gl.h>
 
 namespace sdk::gl
 {
