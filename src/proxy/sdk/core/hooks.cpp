@@ -1,6 +1,7 @@
 #include "hooks.hpp"
 
 #include "sdk/core/context.hpp"
+#include "sdk/core/fallback_overlay.hpp"
 #include "sdk/gl/gl_hooks.hpp"
 #include "sdk/lua/lua_engine.hpp"
 #include "sdk/overlay/overlay.hpp"
@@ -32,41 +33,64 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
 void install_hooks()
 {
-    spdlog::info("[sdk] installing hooks...");
+    spdlog::info("[sdk] detecting render API...");
 
-    using namespace win32;
+    // ─── API detection ───────────────────────────────────────────────────
 
-    // Hook definitions: { target_hook, dll, export_name, detour }
-    struct hook_def final
+    if (GetModuleHandleW(L"opengl32.dll") != nullptr)
     {
-        safetyhook::InlineHook& target;
-        const wchar_t*          dll;
-        const char*             proc;
-        void*                   detour;
-    };
+        g_ctx.detected_api      = render_api::opengl;
+        g_ctx.overlay_available = true;
 
-    auto hooks = std::array{
-        hook_def{ .target = g_ctx.hooks.wgl_swap,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "wglSwapBuffers",
-                  .detour = reinterpret_cast<void*>(hk_wgl_swap) },
-        hook_def{ .target = g_ctx.hooks.gl_matrix_mode,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "glMatrixMode",
-                  .detour = reinterpret_cast<void*>(gl::hk_gl_matrix_mode) },
-        hook_def{ .target = g_ctx.hooks.gl_load_identity,
-                  .dll    = L"opengl32.dll",
-                  .proc   = "glLoadIdentity",
-                  .detour = reinterpret_cast<void*>(gl::hk_gl_load_identity) },
-        hook_def{ .target = g_ctx.hooks.glu_look_at,
-                  .dll    = L"glu32.dll",
-                  .proc   = "gluLookAt",
-                  .detour = reinterpret_cast<void*>(gl::hk_glu_look_at) },
-    };
+        spdlog::info("[sdk] OpenGL detected — full overlay + hooks");
 
-    for (auto& [target, dll, proc, detour] : hooks)
+        using namespace win32;
+
+        struct hook_def final
+        {
+            safetyhook::InlineHook& target;
+            const wchar_t*          dll;
+            const char*             proc;
+            void*                   detour;
+        };
+
+        auto hooks = std::array{
+            hook_def{ .target = g_ctx.hooks.wgl_swap,
+                      .dll    = L"opengl32.dll",
+                      .proc   = "wglSwapBuffers",
+                      .detour = reinterpret_cast<void*>(hk_wgl_swap) },
+            hook_def{ .target = g_ctx.hooks.gl_matrix_mode,
+                      .dll    = L"opengl32.dll",
+                      .proc   = "glMatrixMode",
+                      .detour = reinterpret_cast<void*>(gl::hk_gl_matrix_mode) },
+            hook_def{ .target = g_ctx.hooks.gl_load_identity,
+                      .dll    = L"opengl32.dll",
+                      .proc   = "glLoadIdentity",
+                      .detour =
+                          reinterpret_cast<void*>(gl::hk_gl_load_identity) },
+            hook_def{ .target = g_ctx.hooks.glu_look_at,
+                      .dll    = L"glu32.dll",
+                      .proc   = "gluLookAt",
+                      .detour =
+                          reinterpret_cast<void*>(gl::hk_glu_look_at) },
+        };
+
+        for (auto& [target, dll, proc, detour] : hooks)
+        {
+            target = safetyhook::create_inline(proc_addr(dll, proc), detour);
+        }
+    }
+    else
     {
-        target = safetyhook::create_inline(proc_addr(dll, proc), detour);
+        g_ctx.detected_api      = render_api::unknown;
+        g_ctx.overlay_available = false;
+
+        spdlog::warn(
+            "[sdk] no OpenGL detected — overlay disabled, cheats & input "
+            "hooks only");
+
+        // Install GDI fallback — draws warning banner on the game window.
+        fallback_overlay::install();
     }
 
     spdlog::info("[sdk] hooks installed, loading plugins...");
@@ -79,13 +103,22 @@ void uninstall_hooks()
     g_ctx.should_unload.store(true);
 
     lua::unload_plugins();
-    overlay::shutdown();
 
-    if ((g_ctx.window != nullptr) && (g_ctx.original_wnd_proc != nullptr))
+    if (g_ctx.overlay_available)
     {
-        SetWindowLongPtrA(g_ctx.window,
-                          GWLP_WNDPROC,
-                          reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
+        overlay::shutdown();
+
+        if ((g_ctx.window != nullptr) && (g_ctx.original_wnd_proc != nullptr))
+        {
+            SetWindowLongPtrA(
+                g_ctx.window,
+                GWLP_WNDPROC,
+                reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
+        }
+    }
+    else
+    {
+        fallback_overlay::uninstall();
     }
 
     g_ctx.hooks.reset();

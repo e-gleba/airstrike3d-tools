@@ -16,9 +16,6 @@ set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
 set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
 # ─── Deploy script (generated) ────────────────────────────────────────────────
-# CMake's add_custom_command does not support conditional COMMAND expansion
-# (list(APPEND ... COMMAND ...) breaks COMMENT parsing).  Generate a small
-# script instead — it handles the optional plugins/ dir cleanly.
 
 set(deploy_script "${CMAKE_CURRENT_BINARY_DIR}/deploy_${GAME_VERSION}.cmake")
 
@@ -121,43 +118,31 @@ add_custom_target(
 
 add_dependencies(run_game_${GAME_VERSION} deploy_game_${GAME_VERSION})
 
-# ─── Install — runtime-only, per-component ────────────────────────────────────
+# ─── Install — separate directory per version ─────────────────────────────────
 
-install(
-    FILES "${deploy_dir}/${game_exe_name}"
-    TYPE BIN
-    COMPONENT "${GAME_VERSION}")
+set(install_dest "${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}")
 
-install(
-    FILES "${deploy_dir}/run_game.sh"
-    TYPE BIN
-    COMPONENT "${GAME_VERSION}")
+install(FILES "${deploy_dir}/${game_exe_name}"
+        DESTINATION "${install_dest}")
 
-install(
-    FILES "${deploy_dir}/bass.dll"
-    TYPE BIN
-    COMPONENT "${GAME_VERSION}")
+install(FILES "${deploy_dir}/run_game.sh"
+        DESTINATION "${install_dest}")
+
+install(FILES "${deploy_dir}/bass.dll"
+        DESTINATION "${install_dest}")
 
 if(USE_BASS_PROXY_LIB)
-    install(
-        FILES "${deploy_dir}/original.dll"
-              "${deploy_dir}/_original.dll"
-        TYPE BIN
-        COMPONENT "${GAME_VERSION}")
+    install(FILES "${deploy_dir}/original.dll"
+                  "${deploy_dir}/_original.dll"
+            DESTINATION "${install_dest}")
 endif()
 
-install(
-    DIRECTORY "${deploy_dir}/data/"
-    TYPE BIN
-    COMPONENT "${GAME_VERSION}"
-    FILES_MATCHING
-    PATTERN "*")
+install(DIRECTORY "${deploy_dir}/data/"
+        DESTINATION "${install_dest}/data"
+        FILES_MATCHING PATTERN "*")
 
 if(EXISTS "${deploy_dir}/plugins")
-    install(
-        DIRECTORY "${deploy_dir}/plugins/"
-        TYPE BIN
-        COMPONENT "${GAME_VERSION}"
-        FILES_MATCHING
-        PATTERN "*")
+    install(DIRECTORY "${deploy_dir}/plugins/"
+            DESTINATION "${install_dest}/plugins"
+            FILES_MATCHING PATTERN "*")
 endif()
