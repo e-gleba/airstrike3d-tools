@@ -15,19 +15,32 @@ set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
 set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
 set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
+# Build the deploy command piecemeal — data/ and plugins/ may not exist.
+set(deploy_cmd
+    "${CMAKE_COMMAND}" -E make_directory "${deploy_dir}/data"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/data" "${deploy_dir}/data"
+)
+
+if(EXISTS "${source_dir}/plugins")
+    list(
+        APPEND
+        deploy_cmd
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${deploy_dir}/plugins"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/plugins" "${deploy_dir}/plugins"
+    )
+endif()
+
+list(
+    APPEND
+    deploy_cmd
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/${game_exe_name}" "${deploy_dir}/${game_exe_name}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
+)
+
 add_custom_command(
     OUTPUT "${deploy_stamp}"
     COMMENT "deploying runtime deps => ${deploy_dir}"
-    COMMAND
-        "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/data"
-        "${deploy_dir}/data"
-    COMMAND
-        "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/plugins"
-        "${deploy_dir}/plugins"
-    COMMAND
-        "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/${game_exe_name}"
-        "${deploy_dir}/${game_exe_name}"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
+    ${deploy_cmd}
     DEPENDS "${source_dir}/${game_exe_name}"
     VERBATIM)
 
@@ -98,5 +111,40 @@ add_custom_target(
 
 add_dependencies(run_game_${GAME_VERSION} deploy_game_${GAME_VERSION})
 
-install(DIRECTORY "${deploy_dir}/"
-        DESTINATION "${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}")
+# ─── Install — runtime-only, no build artifacts ───────────────────────────────
+
+install(
+    FILES "${deploy_dir}/${game_exe_name}"
+          "${deploy_dir}/run_game.sh"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}"
+    RENAME "${game_exe_name}")
+
+install(
+    FILES "${deploy_dir}/bass.dll"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}")
+
+if(USE_BASS_PROXY_LIB)
+    install(
+        FILES "${deploy_dir}/original.dll"
+              "${deploy_dir}/_original.dll"
+        TYPE BIN
+        COMPONENT "${GAME_VERSION}")
+endif()
+
+install(
+    DIRECTORY "${deploy_dir}/data/"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}"
+    FILES_MATCHING
+    PATTERN "*")
+
+if(EXISTS "${deploy_dir}/plugins")
+    install(
+        DIRECTORY "${deploy_dir}/plugins/"
+        TYPE BIN
+        COMPONENT "${GAME_VERSION}"
+        FILES_MATCHING
+        PATTERN "*")
+endif()
