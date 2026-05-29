@@ -2,6 +2,7 @@
 
 #include "sdk/core/context.hpp"
 
+#include <mutex>
 #include <safetyhook.hpp>
 #include <spdlog/spdlog.h>
 
@@ -10,6 +11,47 @@ namespace sdk::fallback_overlay
 
 namespace
 {
+
+// ─── One-shot notification flag ──────────────────────────────────────────────
+
+static std::once_flag g_notify_flag;
+
+void show_notification_once()
+{
+    std::call_once(g_notify_flag, [] {
+        const wchar_t* title   = L"AirStrike3D Proxy SDK";
+        const wchar_t* message = nullptr;
+        UINT           icon    = MB_ICONINFORMATION;
+
+        switch (g_ctx.detected_api.load(std::memory_order::relaxed))
+        {
+        case render_api::directx:
+            message = L"DirectX renderer detected.\n\n"
+                      L"ImGui overlay is not available — only cheats and "
+                      L"input hooks are active.\n"
+                      L"Lua plugins are loaded and functional.\n\n"
+                      L"A status banner will be shown at the bottom of the "
+                      L"game window.";
+            break;
+        default:
+            message = L"No supported render API detected.\n\n"
+                      L"ImGui overlay is not available — only cheats and "
+                      L"input hooks are active.\n"
+                      L"Lua plugins are loaded and functional.\n\n"
+                      L"A status banner will be shown at the bottom of the "
+                      L"game window.";
+            icon = MB_ICONWARNING;
+            break;
+        }
+
+        spdlog::info("[fallback] showing notification dialog");
+
+        MessageBoxW(nullptr, message, title,
+                    MB_OK | icon | MB_TOPMOST | MB_SETFOREGROUND);
+
+        spdlog::info("[fallback] notification dismissed by user");
+    });
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +153,10 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
         SelectObject(hdc, old_font);
         DeleteObject(font);
         ReleaseDC(hwnd, hdc);
+
+        // ── One-time notification ────────────────────────────────────────
+
+        show_notification_once();
 
         return result;
     }

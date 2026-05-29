@@ -33,8 +33,8 @@ bool str_contains_i(const char* haystack, const char* needle)
 
     for (const char* h = haystack; *h != '\0'; ++h)
     {
-        const char* n = needle;
-        const char* cur = h;
+        const char* n     = needle;
+        const char* cur   = h;
         while (*n != '\0' && *cur != '\0'
                && std::tolower(static_cast<unsigned char>(*cur))
                       == std::tolower(static_cast<unsigned char>(*n)))
@@ -77,13 +77,20 @@ void on_dx_detected()
     if (!g_ctx.detected_api.compare_exchange_strong(expected,
                                                      render_api::directx))
     {
-        return; // already detected something else
+        return;
     }
 
     g_ctx.overlay_available.store(false, std::memory_order::release);
-    spdlog::warn(
-        "[sdk] DirectX detected — overlay disabled, cheats & input hooks "
-        "only");
+
+    spdlog::warn("");
+    spdlog::warn("╔══════════════════════════════════════════════════════╗");
+    spdlog::warn("║  DirectX renderer detected                          ║");
+    spdlog::warn("║  ImGui overlay: DISABLED                            ║");
+    spdlog::warn("║  Lua plugins & input hooks: ACTIVE                  ║");
+    spdlog::warn("║  Status banner will appear on game window           ║");
+    spdlog::warn("╚══════════════════════════════════════════════════════╝");
+    spdlog::warn("");
+
     fallback_overlay::install();
 }
 
@@ -97,8 +104,13 @@ void on_gl_confirmed()
     }
 
     g_ctx.overlay_available.store(true, std::memory_order::release);
-    spdlog::info("[sdk] OpenGL confirmed via wglSwapBuffers — full overlay "
-                 "active");
+
+    spdlog::info("");
+    spdlog::info("╔══════════════════════════════════════════════════════╗");
+    spdlog::info("║  OpenGL renderer confirmed                          ║");
+    spdlog::info("║  Full overlay + cheats + plugins: ACTIVE            ║");
+    spdlog::info("╚══════════════════════════════════════════════════════╝");
+    spdlog::info("");
 }
 
 HMODULE WINAPI hk_load_library_a(LPCSTR name)
