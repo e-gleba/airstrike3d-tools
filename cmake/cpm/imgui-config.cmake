@@ -57,3 +57,15 @@ target_include_directories(
     imgui_opengl3 SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
 
 target_link_libraries(imgui_opengl3 PUBLIC imgui::imgui glad opengl32)
+
+# Windows + DirectX 8 backend for the DX8 overlay (v2.51).
+add_library(imgui_dx8 STATIC)
+
+target_sources(
+    imgui_dx8 PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+                      ${imgui_SOURCE_DIR}/backends/imgui_impl_dx8.cpp)
+
+target_include_directories(
+    imgui_dx8 SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
+
+target_link_libraries(imgui_dx8 PUBLIC imgui::imgui)
