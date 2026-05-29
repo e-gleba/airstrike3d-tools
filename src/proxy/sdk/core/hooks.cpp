@@ -2,6 +2,7 @@
 
 #include "sdk/core/context.hpp"
 #include "sdk/core/fallback_overlay.hpp"
+#include "sdk/dx8/dx8_hooks.hpp"
 #include "sdk/gl/gl_hooks.hpp"
 #include "sdk/lua/lua_engine.hpp"
 #include "sdk/overlay/overlay.hpp"
@@ -80,14 +81,21 @@ void on_dx_detected()
         return;
     }
 
+    // Install DX8 hooks — will be no-ops if game doesn't use D3D8
+    // (the Direct3DCreate8 hook fires only if the game actually calls it)
+    using namespace win32;
+    g_ctx.hooks.d3d8_create = safetyhook::create_inline(
+        proc_addr(L"d3d8.dll", "Direct3DCreate8"),
+        reinterpret_cast<void*>(dx8::hk_direct3d_create8));
+
     g_ctx.overlay_available.store(false, std::memory_order::release);
 
     spdlog::warn("");
     spdlog::warn("╔══════════════════════════════════════════════════════╗");
     spdlog::warn("║  DirectX renderer detected                          ║");
-    spdlog::warn("║  ImGui overlay: DISABLED                            ║");
-    spdlog::warn("║  Lua plugins & input hooks: ACTIVE                  ║");
-    spdlog::warn("║  Status banner will appear on game window           ║");
+    spdlog::warn("║  DX8 hooks installed (D3DCreate8 intercepted)       ║");
+    spdlog::warn("║  Lua plugins & callbacks: ACTIVE                    ║");
+    spdlog::warn("║  ImGui overlay: via DX8 end-scene hook              ║");
     spdlog::warn("╚══════════════════════════════════════════════════════╝");
     spdlog::warn("");
 
@@ -266,6 +274,9 @@ void uninstall_hooks()
     g_ctx.should_unload.store(true);
 
     lua::unload_plugins();
+
+    // Remove DX8 vtable hooks before tearing down inline hooks
+    dx8::remove_device_hooks();
 
     if (g_ctx.overlay_available.load(std::memory_order::acquire))
     {
