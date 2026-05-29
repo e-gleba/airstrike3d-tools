@@ -185,6 +185,36 @@ void register_ui_bindings(sol::state& sol_state)
         [](float w, float h)
         { ImGui::SetNextWindowSize({ w, h }, ImGuiCond_FirstUseEver); });
 
+    // -- Styling (push/pop for per-widget color overrides) --
+    ui.set_function(
+        "push_style_color",
+        [](int idx, float r, float g, float b, float a)
+        { ImGui::PushStyleColor(idx, ImVec4(r, g, b, a)); });
+
+    bind_void_fn("pop_style_color", [] { ImGui::PopStyleColor(); });
+
+    ui.set_function(
+        "push_style_var_float",
+        [](int idx, float v) { ImGui::PushStyleVar(idx, v); });
+
+    ui.set_function(
+        "push_style_var_vec2",
+        [](int idx, float x, float y)
+        { ImGui::PushStyleVar(idx, ImVec2(x, y)); });
+
+    bind_void_fn("pop_style_var", [] { ImGui::PopStyleVar(); });
+
+    // -- Column / table helpers --
+    ui.set_function("columns",
+                    [](int count, const std::string& id, bool border)
+                    { ImGui::Columns(count, id.c_str(), border); });
+
+    bind_void_fn("next_column", [] { ImGui::NextColumn(); });
+
+    ui.set_function("set_column_width",
+                    [](int idx, float w)
+                    { ImGui::SetColumnWidth(idx, w); });
+
     // -- IO queries --
     ui.set_function("get_delta_time",
                     []() -> float { return ImGui::GetIO().DeltaTime; });
