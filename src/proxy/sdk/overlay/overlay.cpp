@@ -39,12 +39,17 @@ void init_imgui(HDC dc)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
 
+    // Classic Dear ImGui dark style — clean, recognizable, professional
     ImGui::StyleColorsDark();
+
+    // 2x font scale for crisp, readable text on modern displays
+    io.FontGlobalScale = 2.0f;
+
     ImGui_ImplWin32_Init(g_ctx.window);
     ImGui_ImplOpenGL3_Init(k_glsl_version);
 
     g_ctx.imgui_initialized.store(true, std::memory_order::release);
-    spdlog::info("[sdk] imgui initialized");
+    spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
 }
 
 } // namespace
