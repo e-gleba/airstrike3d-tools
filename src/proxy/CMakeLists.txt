@@ -5,8 +5,8 @@
 # Version-agnostic.  Each 2_XX/ directory creates its own proxy
 # SHARED target by linking against this library via add_bass_proxy().
 #
-# Dependencies (via CPM): warnings, imgui_opengl3, dwmapi, glm, glu32,
-# opengl32, safetyhook, spdlog, sol2, lua.
+# Dependencies (via CPM): warnings, imgui_opengl3, imgui_dx8, dwmapi,
+# glm, glu32, opengl32, safetyhook, spdlog, sol2, lua.
 #
 # NOTE: d3d8 is NOT linked — <d3d8.h> provides only type definitions.
 # All DX8 hooking uses dynamic resolution (GetProcAddress) to avoid
@@ -49,6 +49,7 @@ target_link_libraries(
     bass_proxy_sdk
     PUBLIC warnings
            imgui_opengl3
+           imgui_dx8
            dwmapi
            glm
            glu32
