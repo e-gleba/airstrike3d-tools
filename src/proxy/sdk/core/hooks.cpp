@@ -72,6 +72,41 @@ bool is_dx_dll_name(const char* name)
     return false;
 }
 
+// ─── DX8 hook installation (lazy — only when d3d8.dll is actually present) ───
+
+/// Attempts to install the Direct3DCreate8 inline hook.
+/// Safe to call at any time — no-ops if already installed or if d3d8.dll
+/// isn't loaded yet.  All resolution is dynamic (GetProcAddress) so there
+/// is zero static import dependency on d3d8.dll.
+static void try_install_dx8_hooks()
+{
+    if (g_ctx.hooks.d3d8_create)
+    {
+        return; // Already installed
+    }
+
+    HMODULE d3d8 = GetModuleHandleW(L"d3d8.dll");
+    if (d3d8 == nullptr)
+    {
+        return; // d3d8.dll not loaded yet — will retry when it loads
+    }
+
+    void* addr = GetProcAddress(d3d8, "Direct3DCreate8");
+    if (addr == nullptr)
+    {
+        spdlog::warn("[dx8] d3d8.dll loaded but Direct3DCreate8 not found");
+        return;
+    }
+
+    g_ctx.hooks.d3d8_create = safetyhook::create_inline(
+        addr,
+        reinterpret_cast<void*>(dx8::hk_direct3d_create8));
+
+    spdlog::info("[dx8] Direct3DCreate8 hooked — waiting for device creation");
+}
+
+// ─── Render API detection callbacks ──────────────────────────────────────────
+
 void on_dx_detected()
 {
     auto expected = render_api::unknown;
@@ -81,21 +116,17 @@ void on_dx_detected()
         return;
     }
 
-    // Install DX8 hooks — will be no-ops if game doesn't use D3D8
-    // (the Direct3DCreate8 hook fires only if the game actually calls it)
-    using namespace win32;
-    g_ctx.hooks.d3d8_create = safetyhook::create_inline(
-        proc_addr(L"d3d8.dll", "Direct3DCreate8"),
-        reinterpret_cast<void*>(dx8::hk_direct3d_create8));
-
     g_ctx.overlay_available.store(false, std::memory_order::release);
+
+    // Try to hook Direct3DCreate8 — only succeeds if d3d8.dll is loaded.
+    // If not loaded yet, the LoadLibrary hooks will retry when it appears.
+    try_install_dx8_hooks();
 
     spdlog::warn("");
     spdlog::warn("╔══════════════════════════════════════════════════════╗");
     spdlog::warn("║  DirectX renderer detected                          ║");
-    spdlog::warn("║  DX8 hooks installed (D3DCreate8 intercepted)       ║");
-    spdlog::warn("║  Lua plugins & callbacks: ACTIVE                    ║");
-    spdlog::warn("║  ImGui overlay: via DX8 end-scene hook              ║");
+    spdlog::warn("║  Lua plugins & input hooks: ACTIVE                  ║");
+    spdlog::warn("║  DX8 hooks: installed if d3d8.dll present           ║");
     spdlog::warn("╚══════════════════════════════════════════════════════╝");
     spdlog::warn("");
 
@@ -121,6 +152,8 @@ void on_gl_confirmed()
     spdlog::info("");
 }
 
+// ─── LoadLibrary hooks ───────────────────────────────────────────────────────
+
 HMODULE WINAPI hk_load_library_a(LPCSTR name)
 {
     using fn_t = decltype(&LoadLibraryA);
@@ -132,6 +165,12 @@ HMODULE WINAPI hk_load_library_a(LPCSTR name)
     if ((result != nullptr) && is_dx_dll_name(name))
     {
         on_dx_detected();
+
+        // If d3d8.dll just loaded, install the Direct3DCreate8 hook now
+        if (str_contains_i(name, "d3d8"))
+        {
+            try_install_dx8_hooks();
+        }
     }
 
     return result;
@@ -153,6 +192,11 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
         if (is_dx_dll_name(buf))
         {
             on_dx_detected();
+
+            if (str_contains_i(buf, "d3d8"))
+            {
+                try_install_dx8_hooks();
+            }
         }
     }
 
@@ -213,6 +257,12 @@ void install_hooks()
         if (GetModuleHandleW(dll) != nullptr)
         {
             on_dx_detected();
+
+            // If d3d8.dll is the one that's loaded, install its hooks now
+            if (std::wcscmp(dll, L"d3d8.dll") == 0)
+            {
+                try_install_dx8_hooks();
+            }
             break;
         }
     }
