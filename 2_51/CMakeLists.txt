@@ -15,32 +15,42 @@ set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
 set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
 set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
-# Build the deploy command piecemeal — data/ and plugins/ may not exist.
-set(deploy_cmd
-    "${CMAKE_COMMAND}" -E make_directory "${deploy_dir}/data"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/data" "${deploy_dir}/data"
+# ─── Deploy script (generated) ────────────────────────────────────────────────
+# CMake's add_custom_command does not support conditional COMMAND expansion
+# (list(APPEND ... COMMAND ...) breaks COMMENT parsing).  Generate a small
+# script instead — it handles the optional plugins/ dir cleanly.
+
+set(deploy_script "${CMAKE_CURRENT_BINARY_DIR}/deploy_${GAME_VERSION}.cmake")
+
+file(
+    WRITE "${deploy_script}"
+    "# Auto-generated deploy script for ${GAME_VERSION}
+set(source_dir \"${source_dir}\")
+set(deploy_dir \"${deploy_dir}\")
+set(game_exe_name \"${game_exe_name}\")
+
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E make_directory \"\${deploy_dir}/data\"
+    COMMAND \"${CMAKE_COMMAND}\" -E copy_directory \"\${source_dir}/data\" \"\${deploy_dir}/data\"
 )
 
-if(EXISTS "${source_dir}/plugins")
-    list(
-        APPEND
-        deploy_cmd
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${deploy_dir}/plugins"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${source_dir}/plugins" "${deploy_dir}/plugins"
+if(EXISTS \"\${source_dir}/plugins\")
+    execute_process(
+        COMMAND \"${CMAKE_COMMAND}\" -E make_directory \"\${deploy_dir}/plugins\"
+        COMMAND \"${CMAKE_COMMAND}\" -E copy_directory \"\${source_dir}/plugins\" \"\${deploy_dir}/plugins\"
     )
 endif()
 
-list(
-    APPEND
-    deploy_cmd
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/${game_exe_name}" "${deploy_dir}/${game_exe_name}"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy_if_different \"\${source_dir}/\${game_exe_name}\" \"\${deploy_dir}/\${game_exe_name}\"
 )
+")
 
 add_custom_command(
     OUTPUT "${deploy_stamp}"
     COMMENT "deploying runtime deps => ${deploy_dir}"
-    ${deploy_cmd}
+    COMMAND "${CMAKE_COMMAND}" -P "${deploy_script}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
     DEPENDS "${source_dir}/${game_exe_name}"
     VERBATIM)
 
@@ -111,14 +121,17 @@ add_custom_target(
 
 add_dependencies(run_game_${GAME_VERSION} deploy_game_${GAME_VERSION})
 
-# ─── Install — runtime-only, no build artifacts ───────────────────────────────
+# ─── Install — runtime-only, per-component ────────────────────────────────────
 
 install(
     FILES "${deploy_dir}/${game_exe_name}"
-          "${deploy_dir}/run_game.sh"
     TYPE BIN
-    COMPONENT "${GAME_VERSION}"
-    RENAME "${game_exe_name}")
+    COMPONENT "${GAME_VERSION}")
+
+install(
+    FILES "${deploy_dir}/run_game.sh"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}")
 
 install(
     FILES "${deploy_dir}/bass.dll"

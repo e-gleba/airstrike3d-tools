@@ -15,52 +15,42 @@ set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
 set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
 set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
-# Build the deploy command piecemeal — data/ and plugins/ may not exist.
-set(deploy_cmd
-    "${CMAKE_COMMAND}"
-    -E
-    make_directory
-    "${deploy_dir}/data"
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E
-    copy_directory
-    "${source_dir}/data"
-    "${deploy_dir}/data")
+# ─── Deploy script (generated) ────────────────────────────────────────────────
+# CMake's add_custom_command does not support conditional COMMAND expansion
+# (list(APPEND ... COMMAND ...) breaks COMMENT parsing).  Generate a small
+# script instead — it handles the optional plugins/ dir cleanly.
 
-list(
-    APPEND
-    deploy_cmd
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E
-    make_directory
-    "${deploy_dir}/plugins"
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E
-    copy_directory
-    "${source_dir}/plugins"
-    "${deploy_dir}/plugins")
+set(deploy_script "${CMAKE_CURRENT_BINARY_DIR}/deploy_${GAME_VERSION}.cmake")
 
-list(
-    APPEND
-    deploy_cmd
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E
-    copy_if_different
-    "${source_dir}/${game_exe_name}"
-    "${deploy_dir}/${game_exe_name}"
-    COMMAND
-    "${CMAKE_COMMAND}"
-    -E
-    touch
-    "${deploy_stamp}")
+file(
+    WRITE "${deploy_script}"
+    "# Auto-generated deploy script for ${GAME_VERSION}
+set(source_dir \"${source_dir}\")
+set(deploy_dir \"${deploy_dir}\")
+set(game_exe_name \"${game_exe_name}\")
+
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E make_directory \"\${deploy_dir}/data\"
+    COMMAND \"${CMAKE_COMMAND}\" -E copy_directory \"\${source_dir}/data\" \"\${deploy_dir}/data\"
+)
+
+if(EXISTS \"\${source_dir}/plugins\")
+    execute_process(
+        COMMAND \"${CMAKE_COMMAND}\" -E make_directory \"\${deploy_dir}/plugins\"
+        COMMAND \"${CMAKE_COMMAND}\" -E copy_directory \"\${source_dir}/plugins\" \"\${deploy_dir}/plugins\"
+    )
+endif()
+
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy_if_different \"\${source_dir}/\${game_exe_name}\" \"\${deploy_dir}/\${game_exe_name}\"
+)
+")
 
 add_custom_command(
     OUTPUT "${deploy_stamp}"
-    COMMENT "deploying runtime deps => ${deploy_dir}" ${deploy_cmd}
+    COMMENT "deploying runtime deps => ${deploy_dir}"
+    COMMAND "${CMAKE_COMMAND}" -P "${deploy_script}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
     DEPENDS "${source_dir}/${game_exe_name}"
     VERBATIM)
 
@@ -71,12 +61,9 @@ set(bass_stamp "${deploy_dir}/.bass_stamp")
 if(USE_BASS_PROXY_LIB)
     include("${CMAKE_SOURCE_DIR}/cmake/proxy_utils.cmake")
     add_bass_proxy(
-        VERSION
-        "${GAME_VERSION}"
-        BASS_DLL
-        "${source_dir}/bass.dll"
-        SDK_TARGET
-        bass_proxy_sdk)
+        VERSION "${GAME_VERSION}"
+        BASS_DLL "${source_dir}/bass.dll"
+        SDK_TARGET bass_proxy_sdk)
 
     set(proxy_target "bass_proxy_${GAME_VERSION}")
 
@@ -90,8 +77,8 @@ if(USE_BASS_PROXY_LIB)
             "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/bass.dll"
             "${deploy_dir}/_original.dll"
         COMMAND
-            "${CMAKE_COMMAND}" -E copy_if_different
-            "$<TARGET_FILE:${proxy_target}>" "${deploy_dir}/bass.dll"
+            "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${proxy_target}>"
+            "${deploy_dir}/bass.dll"
         COMMAND "${CMAKE_COMMAND}" -E touch "${bass_stamp}"
         DEPENDS "${source_dir}/bass.dll" ${proxy_target}
         VERBATIM)
@@ -108,7 +95,8 @@ else()
 endif()
 
 add_custom_target(
-    deploy_game_${GAME_VERSION} ALL DEPENDS "${deploy_stamp}" "${bass_stamp}"
+    deploy_game_${GAME_VERSION} ALL
+    DEPENDS "${deploy_stamp}" "${bass_stamp}"
     COMMENT "all runtime dependencies deployed for ${GAME_VERSION}")
 
 configure_file(
@@ -133,19 +121,29 @@ add_custom_target(
 
 add_dependencies(run_game_${GAME_VERSION} deploy_game_${GAME_VERSION})
 
-# ─── Install — runtime-only, no build artifacts ───────────────────────────────
+# ─── Install — runtime-only, per-component ────────────────────────────────────
 
 install(
-    FILES "${deploy_dir}/${game_exe_name}" "${deploy_dir}/run_game.sh"
+    FILES "${deploy_dir}/${game_exe_name}"
     TYPE BIN
-    COMPONENT "${GAME_VERSION}"
-    RENAME "${game_exe_name}")
+    COMPONENT "${GAME_VERSION}")
 
-install(FILES "${deploy_dir}/bass.dll" TYPE BIN COMPONENT "${GAME_VERSION}")
+install(
+    FILES "${deploy_dir}/run_game.sh"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}")
+
+install(
+    FILES "${deploy_dir}/bass.dll"
+    TYPE BIN
+    COMPONENT "${GAME_VERSION}")
 
 if(USE_BASS_PROXY_LIB)
-    install(FILES "${deploy_dir}/original.dll" "${deploy_dir}/_original.dll"
-            TYPE BIN COMPONENT "${GAME_VERSION}")
+    install(
+        FILES "${deploy_dir}/original.dll"
+              "${deploy_dir}/_original.dll"
+        TYPE BIN
+        COMPONENT "${GAME_VERSION}")
 endif()
 
 install(
@@ -155,9 +153,11 @@ install(
     FILES_MATCHING
     PATTERN "*")
 
-install(
-    DIRECTORY "${deploy_dir}/plugins/"
-    TYPE BIN
-    COMPONENT "${GAME_VERSION}"
-    FILES_MATCHING
-    PATTERN "*")
+if(EXISTS "${deploy_dir}/plugins")
+    install(
+        DIRECTORY "${deploy_dir}/plugins/"
+        TYPE BIN
+        COMPONENT "${GAME_VERSION}"
+        FILES_MATCHING
+        PATTERN "*")
+endif()
