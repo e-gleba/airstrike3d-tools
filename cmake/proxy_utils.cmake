@@ -30,17 +30,19 @@ include_guard(GLOBAL)
 # A directory-level configure dependency on input_dll is registered so that
 # the build system re-generates if the DLL changes.
 function(generate_proxy_def input_dll output_var)
-    find_program(
-        objdump_bin
-        NAMES llvm-objdump objdump
-        HINTS "${CMAKE_SOURCE_DIR}/llvm_mingw/bin"
-        REQUIRED)
+    find_program(objdump_bin NAMES llvm-objdump objdump
+                 HINTS "${CMAKE_SOURCE_DIR}/llvm_mingw/bin" REQUIRED)
 
-    cmake_path(GET input_dll STEM LAST_ONLY dll_stem)
+    cmake_path(
+        GET
+        input_dll
+        STEM
+        LAST_ONLY
+        dll_stem)
     set(def_file "${CMAKE_CURRENT_BINARY_DIR}/${dll_stem}.def")
 
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-                                       "${input_dll}")
+                                           "${input_dll}")
 
     message(STATUS "parsing exports '${objdump_bin}': ${input_dll}")
 
@@ -48,8 +50,10 @@ function(generate_proxy_def input_dll output_var)
         COMMAND "${objdump_bin}" -p "${input_dll}"
         OUTPUT_VARIABLE dump_output
         OUTPUT_STRIP_TRAILING_WHITESPACE
-        COMMAND_ERROR_IS_FATAL ANY
-        COMMAND_ECHO STDOUT)
+        COMMAND_ERROR_IS_FATAL
+        ANY
+        COMMAND_ECHO
+        STDOUT)
 
     string(
         REGEX MATCHALL
@@ -60,8 +64,8 @@ function(generate_proxy_def input_dll output_var)
     list(LENGTH raw_exports export_count)
     if(export_count EQUAL 0)
         message(
-            FATAL_ERROR
-                "generate_proxy_def: no exports found in '${input_dll}'")
+            FATAL_ERROR "generate_proxy_def: no exports found in '${input_dll}'"
+            )
     endif()
 
     set(content "LIBRARY \"${dll_stem}.dll\"\nEXPORTS\n")
@@ -106,8 +110,13 @@ function(add_bass_proxy)
     set(options "")
     set(one_value_args VERSION BASS_DLL SDK_TARGET)
     set(multi_value_args "")
-    cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${one_value_args}"
-                          "${multi_value_args}")
+    cmake_parse_arguments(
+        PARSE_ARGV
+        0
+        ARG
+        "${options}"
+        "${one_value_args}"
+        "${multi_value_args}")
 
     if(NOT ARG_VERSION OR NOT ARG_BASS_DLL OR NOT ARG_SDK_TARGET)
         message(
@@ -119,8 +128,7 @@ function(add_bass_proxy)
         message(
             FATAL_ERROR
                 "add_bass_proxy: SDK target '${ARG_SDK_TARGET}' not found. "
-                "Ensure src/proxy/CMakeLists.txt is processed first."
-        )
+                "Ensure src/proxy/CMakeLists.txt is processed first.")
     endif()
 
     generate_proxy_def("${ARG_BASS_DLL}" def_file)
@@ -133,23 +141,31 @@ function(add_bass_proxy)
 
     set_target_properties(
         ${target_name}
-        PROPERTIES CXX_EXTENSIONS OFF
-                   PREFIX ""
+        PROPERTIES CXX_EXTENSIONS OFF PREFIX "" WINDOWS_EXPORT_ALL_SYMBOLS OFF
                    # No OUTPUT_NAME — the target's natural name is fine.
                    # Deploy step copies to bass.dll.
-    )
+        )
 
-    target_compile_definitions(${target_name}
-                               PRIVATE "BASS_VERSION=${ARG_VERSION}")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND MINGW)
+        target_link_options(
+            ${target_name}
+            PRIVATE
+            $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
+            $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
+    endif()
 
-    target_link_options(
-        ${target_name}
-        PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_CXX_COMPILER_ID STREQUAL
+                                                "Clang"
+       AND CMAKE_CXX_COMPILER_TARGET MATCHES "windows-msvc")
+        target_link_libraries(
+            "${target_name}"
+            PRIVATE $<$<CONFIG:Debug>:msvcrtd.lib>
+                    $<$<NOT:$<CONFIG:Debug>>:msvcrt.lib>
+                    $<$<CONFIG:Debug>:vcruntimed.lib>
+                    $<$<NOT:$<CONFIG:Debug>>:vcruntime.lib>
+                    $<$<CONFIG:Debug>:ucrtd.lib>
+                    $<$<NOT:$<CONFIG:Debug>>:ucrt.lib>)
+    endif()
 
-    message(
-        STATUS
-            "proxy target '${target_name}' — bass: ${ARG_BASS_DLL}"
-    )
+    message(STATUS "proxy target '${target_name}' — bass: ${ARG_BASS_DLL}")
 endfunction()

@@ -9,6 +9,8 @@ project(
 
 include(CMakePrintHelpers)
 
+set(CMAKE_UNITY_BUILD ON)
+
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 
 # CMAKE_CURRENT_LIST_DIR is used instead of CMAKE_SOURCE_DIR so that this
@@ -59,16 +61,10 @@ add_subdirectory(src)
 # bass_proxy_<version> target (linking bass_proxy_sdk) via add_bass_proxy().
 # Outputs land in build/<version>/ — no collisions.
 
-set(GAME_VERSION "2_06")
-set(GAME_EXE_NAME "as3d2.exe")
 add_subdirectory(2_06)
 
-set(GAME_VERSION "2_51")
-set(GAME_EXE_NAME "as3d2.exe")
 add_subdirectory(2_51)
 
-set(GAME_VERSION "2_71")
-set(GAME_EXE_NAME "AirStrike3D II - Gulf.exe")
 add_subdirectory(2_71)
 
 # CTest and CPack rules should only run when this project owns the build.

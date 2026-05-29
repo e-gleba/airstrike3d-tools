@@ -34,17 +34,24 @@
     {
       "name": "msvc",
       "displayName": "MSVC x86",
-      "description": "VS2026 native 32-bit. Win32 platform, x86 host toolset.",
+      "description": "VS2022 native 32-bit. Win32 platform, x86 host toolset.",
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
-      "cacheVariables": {
-        "CMAKE_GENERATOR_PLATFORM": "Win32",
-        "CMAKE_GENERATOR_TOOLSET": "host=x86"
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      },
+      "toolset": {
+        "value": "host=x86",
+        "strategy": "set"
       },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL"
       }
     },
     {
@@ -58,13 +65,16 @@
         "rhs": "Windows"
       },
       "cacheVariables": {
+        "CMAKE_SYSTEM_PROCESSOR": "x86",
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_C_FLAGS": "-m32 --target=i686-pc-windows-msvc",
-        "CMAKE_CXX_FLAGS": "-m32 --target=i686-pc-windows-msvc",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
+        "CMAKE_C_COMPILER_TARGET": "i686-pc-windows-msvc",
+        "CMAKE_CXX_COMPILER_TARGET": "i686-pc-windows-msvc",
         "CMAKE_RC_COMPILER": "llvm-rc",
-        "CMAKE_EXE_LINKER_FLAGS": "-m32 -fuse-ld=lld",
-        "CMAKE_SHARED_LINKER_FLAGS": "-m32 -fuse-ld=lld"
+        "CMAKE_EXE_LINKER_FLAGS_INIT": "-fuse-ld=lld-link -Xlinker /machine:x86",
+        "CMAKE_SHARED_LINKER_FLAGS_INIT": "-fuse-ld=lld-link -Xlinker /machine:x86",
+        "CMAKE_MODULE_LINKER_FLAGS_INIT": "-fuse-ld=lld-link -Xlinker /machine:x86"
       }
     },
     {
@@ -78,6 +88,11 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "llvm_mingw_version": "20260519",
+        "llvm_mingw_host_os": "ubuntu-22.04",
+        "llvm_mingw_auto_download": true
       }
     },
     {
