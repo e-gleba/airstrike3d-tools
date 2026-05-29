@@ -155,8 +155,10 @@ sdk.on_overlay(function()
     end
 
     -- Single unified window — no popups, no extra dialogs
+    -- NOTE: Do NOT call end_window() when begin_window() returns false.
+    --       Dear ImGui does not push the window onto the stack on failure,
+    --       so calling End() would cause a stack underflow / assertion.
     if not ui.begin_window("AIRSTRIKE 3D TOOLS") then
-        ui.end_window()
         return
     end
 

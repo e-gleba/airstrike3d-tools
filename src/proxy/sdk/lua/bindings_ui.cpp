@@ -185,6 +185,12 @@ void register_ui_bindings(sol::state& sol_state)
         [](float w, float h)
         { ImGui::SetNextWindowSize({ w, h }, ImGuiCond_FirstUseEver); });
 
+    // -- Cursor / window queries --
+    ui.set_function("set_cursor_pos_x",
+                    [](float x) { ImGui::SetCursorPosX(x); });
+    ui.set_function("get_window_width",
+                    []() -> float { return ImGui::GetWindowWidth(); });
+
     // -- Styling (push/pop for per-widget color overrides) --
     ui.set_function(
         "push_style_color",
