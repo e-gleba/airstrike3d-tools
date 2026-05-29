@@ -5,6 +5,7 @@
 #   GAME_EXE_NAME  — e.g. "AirStrike3D II - Gulf.exe"
 #
 # Produces:
+#   bass_proxy_${GAME_VERSION}   — proxy DLL (if USE_BASS_PROXY_LIB)
 #   deploy_game_${GAME_VERSION}  — copies runtime files to build dir
 #   run_game_${GAME_VERSION}     — launches via Proton wrapper
 #   install()                    — installs to ${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}
@@ -30,20 +31,19 @@ add_custom_command(
     DEPENDS "${source_dir}/${game_exe_name}"
     VERBATIM)
 
-set(bass_stamp "${deploy_dir}/.bass_stamp")
-set(proxy_target "bass_proxy_${GAME_VERSION}")
+# ─── Proxy DLL ────────────────────────────────────────────────────────────────
 
-if(NOT TARGET ${proxy_target})
-    add_custom_command(
-        OUTPUT "${bass_stamp}"
-        COMMENT "copying bass.dll (no proxy)"
-        COMMAND
-            "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/bass.dll"
-            "${deploy_dir}/bass.dll"
-        COMMAND "${CMAKE_COMMAND}" -E touch "${bass_stamp}"
-        DEPENDS "${source_dir}/bass.dll"
-        VERBATIM)
-else()
+set(bass_stamp "${deploy_dir}/.bass_stamp")
+
+if(USE_BASS_PROXY_LIB)
+    include("${CMAKE_SOURCE_DIR}/cmake/proxy_utils.cmake")
+    add_bass_proxy(
+        VERSION "${GAME_VERSION}"
+        BASS_DLL "${source_dir}/bass.dll"
+        SDK_TARGET bass_proxy_sdk)
+
+    set(proxy_target "bass_proxy_${GAME_VERSION}")
+
     add_custom_command(
         OUTPUT "${bass_stamp}"
         COMMENT "deploying ${proxy_target} + original bass.dll"
@@ -58,6 +58,16 @@ else()
             "${deploy_dir}/bass.dll"
         COMMAND "${CMAKE_COMMAND}" -E touch "${bass_stamp}"
         DEPENDS "${source_dir}/bass.dll" ${proxy_target}
+        VERBATIM)
+else()
+    add_custom_command(
+        OUTPUT "${bass_stamp}"
+        COMMENT "copying bass.dll (no proxy)"
+        COMMAND
+            "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/bass.dll"
+            "${deploy_dir}/bass.dll"
+        COMMAND "${CMAKE_COMMAND}" -E touch "${bass_stamp}"
+        DEPENDS "${source_dir}/bass.dll"
         VERBATIM)
 endif()
 

@@ -6,10 +6,14 @@
 #       writes a .def module-definition file that forwards every export
 #       through an "original." prefix.
 #
-#   add_versioned_proxy(VERSION <v> BASS_DLL <path>)
-#       Creates a SHARED library target bass_proxy_<v> that links against
-#       the bass_proxy_sdk OBJECT library.  The .def is generated from the
-#       version-specific bass.dll so each proxy matches its runtime.
+#   add_bass_proxy(VERSION <v> BASS_DLL <path> SDK_TARGET <tgt>)
+#       Creates a SHARED library bass_proxy_<v> in the caller's directory
+#       scope.  Links <SDK_TARGET> (usually bass_proxy_sdk).  The .def is
+#       generated from the version-specific bass.dll so each proxy matches
+#       its runtime export table.
+#
+#       Output lands in CMAKE_CURRENT_BINARY_DIR (unique per 2_XX/), so
+#       multiple versions never collide.
 
 include_guard(GLOBAL)
 
@@ -86,32 +90,36 @@ function(generate_proxy_def input_dll output_var)
     return(PROPAGATE ${output_var})
 endfunction()
 
-# ─── add_versioned_proxy ──────────────────────────────────────────────────────
-# Create a SHARED library bass_proxy_<VERSION> that:
-#   1. Generates a .def from <BASS_DLL>
-#   2. Links bass_proxy_sdk (the OBJECT library containing all hook/overlay code)
-#   3. Applies all required link libraries and options
+# ─── add_bass_proxy ───────────────────────────────────────────────────────────
+# Create a SHARED library bass_proxy_<VERSION> in the caller's directory scope.
 #
-# The caller (src/proxy/CMakeLists.txt) must have already created the
-# bass_proxy_sdk OBJECT library.
-function(add_versioned_proxy)
+#   add_bass_proxy(
+#       VERSION    <version_id>    # e.g. "2_06"
+#       BASS_DLL   <path>          # absolute path to that version's bass.dll
+#       SDK_TARGET <target_name>   # the STATIC/OBJECT lib with the SDK code
+#   )
+#
+# The resulting target is bass_proxy_<VERSION>.  Its output file lives in
+# CMAKE_CURRENT_BINARY_DIR (build/<version>/), so parallel versions never
+# collide.  The deploy step in the 2_XX CMakeLists copies it to bass.dll.
+function(add_bass_proxy)
     set(options "")
-    set(one_value_args VERSION BASS_DLL)
+    set(one_value_args VERSION BASS_DLL SDK_TARGET)
     set(multi_value_args "")
     cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${one_value_args}"
                           "${multi_value_args}")
 
-    if(NOT ARG_VERSION OR NOT ARG_BASS_DLL)
+    if(NOT ARG_VERSION OR NOT ARG_BASS_DLL OR NOT ARG_SDK_TARGET)
         message(
             FATAL_ERROR
-                "add_versioned_proxy: VERSION and BASS_DLL are required")
+                "add_bass_proxy: VERSION, BASS_DLL, SDK_TARGET are required")
     endif()
 
-    if(NOT TARGET bass_proxy_sdk)
+    if(NOT TARGET ${ARG_SDK_TARGET})
         message(
             FATAL_ERROR
-                "add_versioned_proxy: bass_proxy_sdk OBJECT library not found. "
-                "Ensure src/proxy/CMakeLists.txt creates it before calling this function."
+                "add_bass_proxy: SDK target '${ARG_SDK_TARGET}' not found. "
+                "Ensure src/proxy/CMakeLists.txt is processed first."
         )
     endif()
 
@@ -119,15 +127,19 @@ function(add_versioned_proxy)
 
     set(target_name "bass_proxy_${ARG_VERSION}")
 
+    # The .def alone is enough — the SHARED lib has no extra source files;
+    # all code comes from the SDK static lib.
     add_library(${target_name} SHARED "${def_file}")
 
-    target_link_libraries(${target_name} PRIVATE bass_proxy_sdk)
+    target_link_libraries(${target_name} PRIVATE ${ARG_SDK_TARGET})
 
     set_target_properties(
         ${target_name}
         PROPERTIES CXX_EXTENSIONS OFF
                    PREFIX ""
-                   OUTPUT_NAME "bass")
+                   # No OUTPUT_NAME — the target's natural name is fine.
+                   # Deploy step copies to bass.dll.
+    )
 
     target_compile_definitions(${target_name}
                                PRIVATE "BASS_VERSION=${ARG_VERSION}")
@@ -138,21 +150,8 @@ function(add_versioned_proxy)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
         $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
 
-    target_link_libraries(
-        ${target_name}
-        PRIVATE warnings
-                imgui_opengl3
-                dwmapi
-                glm
-                glu32
-                opengl32
-                safetyhook
-                spdlog::spdlog
-                sol2::sol2
-                lua)
-
     message(
         STATUS
-            "created proxy target '${target_name}' (bass: ${ARG_BASS_DLL}, ${export_count} exports)"
+            "proxy target '${target_name}' — bass: ${ARG_BASS_DLL}"
     )
 endfunction()

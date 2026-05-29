@@ -51,12 +51,13 @@ endif()
 add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
+# ─── SDK (version-agnostic, compiled once) ────────────────────────────────────
 add_subdirectory(src)
 
 # ─── Game version deployment ──────────────────────────────────────────────────
-# Each 2_XX subdirectory deploys one game version.
-# Variables GAME_VERSION and GAME_EXE_NAME are set before each add_subdirectory
-# so the per-version CMakeLists.txt can be a single parameterised template.
+# Each 2_XX subdirectory deploys one game version and creates its own
+# bass_proxy_<version> target (linking bass_proxy_sdk) via add_bass_proxy().
+# Outputs land in build/<version>/ — no collisions.
 
 set(GAME_VERSION "2_06")
 set(GAME_EXE_NAME "as3d2.exe")
