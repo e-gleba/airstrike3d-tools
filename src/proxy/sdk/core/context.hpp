@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <GL/gl.h>
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 
@@ -14,6 +15,17 @@
 namespace sdk
 {
 
+// ─── Render API ──────────────────────────────────────────────────────────────
+
+enum class render_api : uint8_t
+{
+    unknown = 0,
+    opengl  = 1,
+    directx = 2,
+};
+
+// ─── Hook registry ───────────────────────────────────────────────────────────
+
 struct hook_registry final
 {
     safetyhook::InlineHook wgl_swap;
@@ -23,6 +35,8 @@ struct hook_registry final
 
     void reset() { *this = {}; }
 };
+
+// ─── Global context ──────────────────────────────────────────────────────────
 
 struct context final
 {
@@ -39,6 +53,17 @@ struct context final
 
     std::unique_ptr<sol::state> lua;
     std::recursive_mutex        lua_mutex;
+
+    // ─── Render API detection ────────────────────────────────────────────
+
+    std::atomic<render_api> detected_api{ render_api::unknown };
+    std::atomic<bool>       overlay_available{ false };
+
+    // ─── GDI fallback overlay ────────────────────────────────────────────
+
+    HWND                  fallback_window{};
+    WNDPROC               fallback_orig_wnd_proc{};
+    safetyhook::InlineHook fallback_create_window_hook;
 
     struct final
     {

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.31)
 
 project(
     as3d_reverse_toolkit
-    VERSION 1.0.7
+    VERSION 1.1.0
     DESCRIPTION "Airstrike divo games reverse engineering toolkit"
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
@@ -51,8 +51,25 @@ endif()
 add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
+# ─── SDK (version-agnostic, compiled once) ────────────────────────────────────
 add_subdirectory(src)
+
+# ─── Game version deployment ──────────────────────────────────────────────────
+# Each 2_XX subdirectory deploys one game version and creates its own
+# bass_proxy_<version> target (linking bass_proxy_sdk) via add_bass_proxy().
+# Outputs land in build/<version>/ — no collisions.
+
+set(GAME_VERSION "2_06")
+set(GAME_EXE_NAME "as3d2.exe")
 add_subdirectory(2_06)
+
+set(GAME_VERSION "2_51")
+set(GAME_EXE_NAME "as3d2.exe")
+add_subdirectory(2_51)
+
+set(GAME_VERSION "2_71")
+set(GAME_EXE_NAME "AirStrike3D II - Gulf.exe")
+add_subdirectory(2_71)
 
 # CTest and CPack rules should only run when this project owns the build.
 # If another project pulls us in via add_subdirectory() or FetchContent,
