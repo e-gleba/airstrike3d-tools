@@ -316,15 +316,16 @@ void ImGui_ImplDX8_RenderDrawData(ImDrawData* draw_data)
                 // Clip rects are ignored — imgui still renders correctly
                 // because vertices are already clipped.
 
-                // Set texture (GetTexID() is the modern imgui getter)
-                g_dev->SetTexture(0, static_cast<IDirect3DBaseTexture8*>(
+                // Set texture (GetTexID returns ImTextureID = void* / uint64)
+                g_dev->SetTexture(0, reinterpret_cast<IDirect3DBaseTexture8*>(
                                          cmd->GetTexID()));
 
                 g_dev->DrawIndexedPrimitive(
                     D3DPT_TRIANGLELIST,
                     static_cast<UINT>(global_vtx_ofs),
                     static_cast<UINT>(cmd_list->VtxBuffer.Size),
-                    static_cast<UINT>(cmd->IdxOffset + global_idx_ofs),
+                    static_cast<UINT>(cmd->IdxOffset)
+                        + static_cast<UINT>(global_idx_ofs),
                     cmd->ElemCount / 3);
             }
         }
