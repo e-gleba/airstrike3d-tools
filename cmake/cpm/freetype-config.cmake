@@ -1,10 +1,10 @@
 cpmaddpackage(
     NAME
     freetype2_upstream
-    GITHUB_REPOSITORY
-    freetype/freetype
+    GIT_REPOSITORY
+    https://github.com/freetype/freetype
     GIT_TAG
-    VER-2-14-1
+    VER-2-14-3
     OPTIONS
     "FT_DISABLE_BZIP2 ON"
     "FT_DISABLE_PNG ON"

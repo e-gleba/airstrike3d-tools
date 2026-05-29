@@ -1,8 +1,8 @@
 cpmaddpackage(
     NAME
     glm
-    GITHUB_REPOSITORY
-    g-truc/glm
+    GIT_REPOSITORY
+    https://github.com/g-truc/glm
     EXCLUDE_FROM_ALL
     ON
     GIT_TAG

@@ -2,9 +2,9 @@ cpmaddpackage(
     NAME
     imgui
     VERSION
-    1.92.7
-    GITHUB_REPOSITORY
-    ocornut/imgui
+    1.92.8
+    GIT_REPOSITORY
+    https://github.com/ocornut/imgui
     EXCLUDE_FROM_ALL
     ON
     DOWNLOAD_ONLY
@@ -31,8 +31,8 @@ target_compile_features(imgui PUBLIC cxx_std_23)
 # FreeType is fetched via CPM (add_subdirectory), not find_package, so we check
 # for the target name instead of Freetype_FOUND / Freetype::Freetype.
 if(TARGET freetype)
-    target_sources(
-        imgui PRIVATE ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
+    target_sources(imgui
+                   PRIVATE ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
 
     target_link_libraries(imgui PUBLIC freetype)
     target_include_directories(
@@ -42,8 +42,8 @@ if(TARGET freetype)
 else()
     message(
         STATUS
-        "imgui: freetype target not available — custom font rasterizer disabled."
-    )
+            "imgui: freetype target not available — custom font rasterizer disabled."
+        )
 endif()
 
 # Windows + OpenGL backend for the BASS proxy overlay.
@@ -54,7 +54,6 @@ target_sources(
                           ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 
 target_include_directories(
-    imgui_opengl3 SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
+    imgui_opengl3 SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
 
 target_link_libraries(imgui_opengl3 PUBLIC imgui::imgui glad opengl32)
