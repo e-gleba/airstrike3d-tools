@@ -54,7 +54,7 @@ void init_imgui(HDC dc)
 
 // ─── Built-in SDK status bar ─────────────────────────────────────────────────
 // Rendered after Lua callbacks so it always sits on top.
-// Non-interactive, compact, professional.
+// Non-interactive, compact.  Shows the detected render API at runtime.
 
 void render_status_bar()
 {
@@ -80,10 +80,16 @@ void render_status_bar()
 
     ImGui::Begin("##sdk_status", nullptr, k_flags);
 
-    // API indicator
+    // API indicator — green if OpenGL detected at runtime
+    const bool gl_ok = (g_ctx.detected_api == render_api::opengl);
+
     ImGui::TextUnformatted("[");
     ImGui::SameLine(0.0f, 0.0f);
-    ImGui::TextColored(ImVec4(0.30f, 0.95f, 0.35f, 1.0f), "OpenGL");
+    ImGui::TextColored(
+        gl_ok ? ImVec4(0.30f, 0.95f, 0.35f, 1.0f)
+              : ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
+        "%s",
+        gl_ok ? "OpenGL" : "???");
     ImGui::SameLine(0.0f, 0.0f);
     ImGui::TextUnformatted("]");
 
@@ -91,18 +97,11 @@ void render_status_bar()
     ImGui::TextUnformatted("|");
     ImGui::SameLine();
 
-    // Version
-    ImGui::TextUnformatted("v");
-    ImGui::SameLine(0.0f, 0.0f);
-    ImGui::TextColored(ImVec4(0.65f, 0.80f, 1.0f, 1.0f), "%s", sdk::k_version);
-
-    ImGui::SameLine();
-    ImGui::TextUnformatted("|");
-    ImGui::SameLine();
-
-    // Status
-    ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.60f, 1.0f),
-                       "overlay + cheats active");
+    ImGui::TextColored(
+        ImVec4(0.55f, 0.55f, 0.60f, 1.0f),
+        "%s",
+        gl_ok ? "overlay + cheats active"
+              : "cheats only (input emulation)");
 
     ImGui::End();
     ImGui::PopStyleVar(3);

@@ -15,10 +15,6 @@
 namespace sdk
 {
 
-// ─── Version — set by the per-proxy version_stub.cpp ─────────────────────────
-
-extern const char* const k_version;
-
 // ─── Render API ──────────────────────────────────────────────────────────────
 
 enum class render_api : uint8_t
