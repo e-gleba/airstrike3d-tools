@@ -142,15 +142,16 @@ function(add_bass_proxy)
     target_compile_definitions(${target_name}
                                PRIVATE "BASS_VERSION=${ARG_VERSION}")
 
-    target_link_options(
-        ${target_name}
-        PRIVATE
-        # ELF/GNU driver: strip + static link (llvm-mingw cross-compile)
-        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<NOT:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>>>:-static>
-        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<NOT:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>>>:-s>
-        # MSVC ABI (lld-link): proxy DLL needs no CRT entry point
-        $<$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>:-Xlinker /NOENTRY>
-    )
+    # Linker flags differ by ABI:
+    #  - MSVC / clang-cl / clang --target=*-windows-msvc → lld-link
+    #    Proxy DLL needs no CRT entry point → /NOENTRY.
+    #    -static/-s are GNU ld flags, meaningless to lld-link.
+    #  - GNU / llvm-mingw → GNU ld.  -static -s for fully static, stripped.
+    if(MSVC)
+        target_link_options(${target_name} PRIVATE -Xlinker /NOENTRY)
+    else()
+        target_link_options(${target_name} PRIVATE -static -s)
+    endif()
 
     message(
         STATUS
