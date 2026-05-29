@@ -22,12 +22,16 @@ target_include_directories(bass_proxy_sdk PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 # Use compiler-specific flags instead: /std:c++latest for MSVC,
 # -std=c++26 for Clang/GCC.
 target_compile_options(
-    bass_proxy_sdk
-    PUBLIC
-    $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
+    bass_proxy_sdk PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
+                          $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
 
-set_target_properties(bass_proxy_sdk PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(
+    bass_proxy_sdk
+    PROPERTIES CXX_EXTENSIONS OFF
+               UNITY_BUILD ON
+               UNITY_BUILD_MODE BATCH # or GROUP if you want manual control
+               UNITY_BUILD_BATCH_SIZE 16 # tune: 8–32 is usually a sweet spot
+    )
 
 target_compile_definitions(
     bass_proxy_sdk
