@@ -6,7 +6,7 @@
 # SHARED target by linking against this library via add_bass_proxy().
 #
 # Dependencies (via CPM): warnings, imgui_opengl3, dwmapi, glm, glu32,
-# opengl32, safetyhook, spdlog, sol2, lua.
+# opengl32, d3d8, safetyhook, spdlog, sol2, lua.
 
 file(
     GLOB_RECURSE
@@ -48,6 +48,7 @@ target_link_libraries(
            glm
            glu32
            opengl32
+           d3d8
            safetyhook
            spdlog::spdlog
            sol2::sol2
