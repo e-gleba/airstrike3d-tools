@@ -15,11 +15,19 @@
 namespace sdk
 {
 
+// ─── Version — set by the per-proxy version_stub.cpp ─────────────────────────
+
+extern const char* const k_version;
+
+// ─── Render API ──────────────────────────────────────────────────────────────
+
 enum class render_api : uint8_t
 {
     unknown = 0,
     opengl  = 1,
 };
+
+// ─── Hook registry ───────────────────────────────────────────────────────────
 
 struct hook_registry final
 {
@@ -30,6 +38,8 @@ struct hook_registry final
 
     void reset() { *this = {}; }
 };
+
+// ─── Global context ──────────────────────────────────────────────────────────
 
 struct context final
 {
@@ -47,15 +57,15 @@ struct context final
     std::unique_ptr<sol::state> lua;
     std::recursive_mutex        lua_mutex;
 
-    // ─── Render API detection ────────────────────────────────────────────────
+    // ─── Render API detection ────────────────────────────────────────────
 
-    render_api         detected_api{ render_api::unknown };
-    std::atomic<bool>  overlay_available{ false };
+    render_api        detected_api{ render_api::unknown };
+    std::atomic<bool> overlay_available{ false };
 
-    // ─── GDI fallback overlay ────────────────────────────────────────────────
+    // ─── GDI fallback overlay ────────────────────────────────────────────
 
-    HWND               fallback_window{ nullptr };
-    WNDPROC            fallback_orig_wnd_proc{ nullptr };
+    HWND                  fallback_window{};
+    WNDPROC               fallback_orig_wnd_proc{};
     safetyhook::InlineHook fallback_create_window_hook;
 
     struct final

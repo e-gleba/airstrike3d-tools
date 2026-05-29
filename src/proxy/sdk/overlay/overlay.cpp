@@ -52,6 +52,62 @@ void init_imgui(HDC dc)
     spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
 }
 
+// ─── Built-in SDK status bar ─────────────────────────────────────────────────
+// Rendered after Lua callbacks so it always sits on top.
+// Non-interactive, compact, professional.
+
+void render_status_bar()
+{
+    const auto& io = ImGui::GetIO();
+
+    constexpr float k_bar_height = 22.0f;
+    const ImVec2    bar_pos(0.0f, io.DisplaySize.y - k_bar_height);
+    const ImVec2    bar_size(io.DisplaySize.x, k_bar_height);
+
+    ImGui::SetNextWindowPos(bar_pos);
+    ImGui::SetNextWindowSize(bar_size);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
+
+    constexpr int k_flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoInputs;
+
+    ImGui::Begin("##sdk_status", nullptr, k_flags);
+
+    // API indicator
+    ImGui::TextUnformatted("[");
+    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::TextColored(ImVec4(0.30f, 0.95f, 0.35f, 1.0f), "OpenGL");
+    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::TextUnformatted("]");
+
+    ImGui::SameLine();
+    ImGui::TextUnformatted("|");
+    ImGui::SameLine();
+
+    // Version
+    ImGui::TextUnformatted("v");
+    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::TextColored(ImVec4(0.65f, 0.80f, 1.0f, 1.0f), "%s", sdk::k_version);
+
+    ImGui::SameLine();
+    ImGui::TextUnformatted("|");
+    ImGui::SameLine();
+
+    // Status
+    ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.60f, 1.0f),
+                       "overlay + cheats active");
+
+    ImGui::End();
+    ImGui::PopStyleVar(3);
+}
+
 } // namespace
 
 void init(HDC dc)
@@ -73,6 +129,12 @@ void render()
     ImGui::NewFrame();
 
     g_ctx.cb.on_overlay.invoke();
+
+    // Built-in status bar — always on top, non-interactive
+    if (g_ctx.show_ui.load(std::memory_order::relaxed))
+    {
+        render_status_bar();
+    }
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

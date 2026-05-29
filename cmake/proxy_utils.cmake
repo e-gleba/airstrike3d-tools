@@ -12,6 +12,9 @@
 #       generated from the version-specific bass.dll so each proxy matches
 #       its runtime export table.
 #
+#       Also generates a version_info stub so the SDK can display the
+#       version string at runtime without recompiling the static lib.
+#
 #       Output lands in CMAKE_CURRENT_BINARY_DIR (unique per 2_XX/), so
 #       multiple versions never collide.
 
@@ -125,11 +128,20 @@ function(add_bass_proxy)
 
     generate_proxy_def("${ARG_BASS_DLL}" def_file)
 
+    # ── Version stub — exposes version string to the SDK at runtime ───────
+    # The SDK static lib is compiled once (version-agnostic).  This tiny
+    # source is compiled per proxy target so BASS_VERSION is visible.
+
+    set(version_stub "${CMAKE_CURRENT_BINARY_DIR}/version_stub_${ARG_VERSION}.cpp")
+    file(
+        WRITE "${version_stub}"
+        "// Auto-generated — exposes version to the SDK at runtime.\n"
+        "namespace sdk { const char* const k_version = \"${ARG_VERSION}\"; }\n"
+    )
+
     set(target_name "bass_proxy_${ARG_VERSION}")
 
-    # The .def alone is enough — the SHARED lib has no extra source files;
-    # all code comes from the SDK static lib.
-    add_library(${target_name} SHARED "${def_file}")
+    add_library(${target_name} SHARED "${def_file}" "${version_stub}")
 
     target_link_libraries(${target_name} PRIVATE ${ARG_SDK_TARGET})
 
