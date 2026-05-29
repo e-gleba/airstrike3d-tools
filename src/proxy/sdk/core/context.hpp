@@ -28,10 +28,14 @@ enum class render_api : uint8_t
 
 struct hook_registry final
 {
+    // ── OpenGL hooks ─────────────────────────────────────────────────────
     safetyhook::InlineHook wgl_swap;
     safetyhook::InlineHook gl_matrix_mode;
     safetyhook::InlineHook gl_load_identity;
     safetyhook::InlineHook glu_look_at;
+
+    // ── DirectX hooks ────────────────────────────────────────────────────
+    safetyhook::InlineHook d3d8_create;
 
     void reset() { *this = {}; }
 };
