@@ -46,8 +46,8 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
         DeleteObject(bg);
 
         // Thin red accent line.
-        HPEN   line_pen = CreatePen(PS_SOLID, 2, RGB(220, 60, 60));
-        HPEN   old_pen  = static_cast<HPEN>(SelectObject(hdc, line_pen));
+        HPEN line_pen = CreatePen(PS_SOLID, 2, RGB(220, 60, 60));
+        HPEN old_pen  = static_cast<HPEN>(SelectObject(hdc, line_pen));
         MoveToEx(hdc, banner.left, banner.top, nullptr);
         LineTo(hdc, banner.right, banner.top);
         SelectObject(hdc, old_pen);
@@ -114,7 +114,7 @@ HWND WINAPI hk_create_window_ex_w(DWORD     ex_style,
         if ((w > 200) && (h > 200) && (style & WS_VISIBLE)
             && !(ex_style & WS_EX_TOOLWINDOW))
         {
-            g_ctx.fallback_window       = hwnd;
+            g_ctx.fallback_window        = hwnd;
             g_ctx.fallback_orig_wnd_proc = reinterpret_cast<WNDPROC>(
                 SetWindowLongPtrW(hwnd,
                                   GWLP_WNDPROC,
@@ -126,8 +126,8 @@ HWND WINAPI hk_create_window_ex_w(DWORD     ex_style,
             SetTimer(hwnd, 1, 500, nullptr);
 
             spdlog::info(
-                "[fallback] captured window '{}' ({}x{}) — warning banner active",
-                window_name ? window_name : L"<unnamed>",
+                "[fallback] captured game window ({}x{}) — warning banner "
+                "active",
                 w,
                 h);
         }
@@ -162,8 +162,8 @@ void uninstall()
     }
 
     g_ctx.fallback_create_window_hook.reset();
-    g_ctx.fallback_window          = nullptr;
-    g_ctx.fallback_orig_wnd_proc   = nullptr;
+    g_ctx.fallback_window        = nullptr;
+    g_ctx.fallback_orig_wnd_proc = nullptr;
 
     spdlog::info("[fallback] uninstalled");
 }
