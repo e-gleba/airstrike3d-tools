@@ -56,6 +56,25 @@ void init_imgui(HDC dc)
 // Rendered after Lua callbacks so it always sits on top.
 // Non-interactive, compact.  Shows the detected render API at runtime.
 
+struct api_label final
+{
+    const char* text;
+    ImVec4      color;
+};
+
+api_label get_api_label()
+{
+    switch (g_ctx.detected_api.load(std::memory_order::relaxed))
+    {
+    case render_api::opengl:
+        return { "OpenGL", ImVec4(0.30f, 0.95f, 0.35f, 1.0f) };
+    case render_api::directx:
+        return { "DirectX", ImVec4(0.95f, 0.75f, 0.25f, 1.0f) };
+    default:
+        return { "???", ImVec4(0.95f, 0.35f, 0.35f, 1.0f) };
+    }
+}
+
 void render_status_bar()
 {
     const auto& io = ImGui::GetIO();
@@ -80,22 +99,20 @@ void render_status_bar()
 
     ImGui::Begin("##sdk_status", nullptr, k_flags);
 
-    // API indicator — green if OpenGL detected at runtime
-    const bool gl_ok = (g_ctx.detected_api == render_api::opengl);
+    auto [api_text, api_color] = get_api_label();
 
     ImGui::TextUnformatted("[");
     ImGui::SameLine(0.0f, 0.0f);
-    ImGui::TextColored(
-        gl_ok ? ImVec4(0.30f, 0.95f, 0.35f, 1.0f)
-              : ImVec4(0.95f, 0.35f, 0.35f, 1.0f),
-        "%s",
-        gl_ok ? "OpenGL" : "???");
+    ImGui::TextColored(api_color, "%s", api_text);
     ImGui::SameLine(0.0f, 0.0f);
     ImGui::TextUnformatted("]");
 
     ImGui::SameLine();
     ImGui::TextUnformatted("|");
     ImGui::SameLine();
+
+    const bool gl_ok = (g_ctx.detected_api.load(std::memory_order::relaxed)
+                        == render_api::opengl);
 
     ImGui::TextColored(
         ImVec4(0.55f, 0.55f, 0.60f, 1.0f),

@@ -11,6 +11,21 @@ namespace sdk::fallback_overlay
 namespace
 {
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const wchar_t* banner_text()
+{
+    switch (g_ctx.detected_api.load(std::memory_order::relaxed))
+    {
+    case render_api::directx:
+        return L"[ DirectX  —  overlay not available  —  cheats & input "
+               L"hooks only ]";
+    default:
+        return L"[ LIMITED MODE  —  no OpenGL  —  cheats & input hooks "
+               L"only ]";
+    }
+}
+
 // ─── Window proc subclass ────────────────────────────────────────────────────
 
 LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
@@ -44,9 +59,15 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
         FillRect(hdc, &banner, bg);
         DeleteObject(bg);
 
-        // ── Red accent line ──────────────────────────────────────────────
+        // ── Accent line — red for unknown, amber for DX ──────────────────
 
-        HPEN line_pen = CreatePen(PS_SOLID, 2, RGB(220, 55, 55));
+        COLORREF line_color =
+            (g_ctx.detected_api.load(std::memory_order::relaxed)
+                     == render_api::directx)
+                ? RGB(220, 160, 40)
+                : RGB(220, 55, 55);
+
+        HPEN line_pen = CreatePen(PS_SOLID, 2, line_color);
         HPEN old_pen  = static_cast<HPEN>(SelectObject(hdc, line_pen));
         MoveToEx(hdc, banner.left, banner.top, nullptr);
         LineTo(hdc, banner.right, banner.top);
@@ -64,21 +85,28 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
 
         HFONT old_font = static_cast<HFONT>(SelectObject(hdc, font));
 
-        // Left: version (muted)
+        // Left: API label
         RECT left = banner;
-        left.right = left.left + 140;
+        left.right = left.left + 100;
         SetTextColor(hdc, RGB(100, 100, 110));
-        DrawTextW(hdc, L"proxy v???", -1, &left,
-                  DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-        // Centre: warning (red)
-        SetTextColor(hdc, RGB(235, 95, 95));
         DrawTextW(
             hdc,
-            L"[ LIMITED MODE  —  no OpenGL  —  cheats & input hooks only ]",
-            -1,
-            &banner,
-            DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+            (g_ctx.detected_api.load(std::memory_order::relaxed)
+                     == render_api::directx)
+                ? L"[DirectX]"
+                : L"[???]",
+            -1, &left, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+
+        // Centre: warning
+        COLORREF text_color =
+            (g_ctx.detected_api.load(std::memory_order::relaxed)
+                     == render_api::directx)
+                ? RGB(235, 180, 80)
+                : RGB(235, 95, 95);
+
+        SetTextColor(hdc, text_color);
+        DrawTextW(hdc, banner_text(), -1, &banner,
+                  DT_SINGLELINE | DT_CENTER | DT_VCENTER);
 
         SelectObject(hdc, old_font);
         DeleteObject(font);
@@ -132,10 +160,8 @@ HWND WINAPI hk_create_window_ex_w(DWORD     ex_style,
             SetTimer(hwnd, 1, 500, nullptr);
 
             spdlog::info(
-                "[fallback] captured game window ({}x{}) — warning banner "
-                "active",
-                w,
-                h);
+                "[fallback] captured game window ({}x{}) — banner active",
+                w, h);
         }
     }
 

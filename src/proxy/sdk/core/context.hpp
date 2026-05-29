@@ -21,6 +21,7 @@ enum class render_api : uint8_t
 {
     unknown = 0,
     opengl  = 1,
+    directx = 2,
 };
 
 // ─── Hook registry ───────────────────────────────────────────────────────────
@@ -55,8 +56,8 @@ struct context final
 
     // ─── Render API detection ────────────────────────────────────────────
 
-    render_api        detected_api{ render_api::unknown };
-    std::atomic<bool> overlay_available{ false };
+    std::atomic<render_api> detected_api{ render_api::unknown };
+    std::atomic<bool>       overlay_available{ false };
 
     // ─── GDI fallback overlay ────────────────────────────────────────────
 
