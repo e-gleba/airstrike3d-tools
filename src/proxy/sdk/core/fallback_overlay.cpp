@@ -2,7 +2,6 @@
 
 #include "sdk/core/context.hpp"
 
-#include <mutex>
 #include <safetyhook.hpp>
 #include <spdlog/spdlog.h>
 
@@ -15,51 +14,6 @@ namespace
 // ─── Forward-declare wndproc (defined below, used by subclass_window) ────────
 
 LRESULT CALLBACK hk_fallback_wnd_proc(HWND, UINT, WPARAM, LPARAM);
-
-// ─── Custom message for deferred notification ────────────────────────────────
-
-constexpr UINT k_wm_show_notify = WM_APP + 0x100;
-
-// ─── One-shot notification flag ──────────────────────────────────────────────
-
-static std::once_flag g_notify_flag;
-
-void show_notification_once(HWND owner)
-{
-    std::call_once(g_notify_flag, [owner] {
-        const wchar_t* title   = L"AirStrike3D Proxy SDK";
-        const wchar_t* message = nullptr;
-        UINT           icon    = MB_ICONINFORMATION;
-
-        switch (g_ctx.detected_api.load(std::memory_order::relaxed))
-        {
-        case render_api::directx:
-            message = L"DirectX renderer detected.\n\n"
-                      L"ImGui overlay is not available — only cheats and "
-                      L"input hooks are active.\n"
-                      L"Lua plugins are loaded and functional.\n\n"
-                      L"A status banner will be shown at the bottom of the "
-                      L"game window.";
-            break;
-        default:
-            message = L"No supported render API detected.\n\n"
-                      L"ImGui overlay is not available — only cheats and "
-                      L"input hooks are active.\n"
-                      L"Lua plugins are loaded and functional.\n\n"
-                      L"A status banner will be shown at the bottom of the "
-                      L"game window.";
-            icon = MB_ICONWARNING;
-            break;
-        }
-
-        spdlog::info("[fallback] showing notification dialog");
-
-        MessageBoxW(owner, message, title,
-                    MB_OK | icon | MB_TOPMOST | MB_SETFOREGROUND);
-
-        spdlog::info("[fallback] notification dismissed by user");
-    });
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -87,9 +41,6 @@ void subclass_window(HWND hwnd, int w, int h)
                           reinterpret_cast<LONG_PTR>(hk_fallback_wnd_proc)));
 
     SetTimer(hwnd, 1, 500, nullptr);
-
-    // Defer notification — PostMessage so it runs outside the paint cycle
-    PostMessageW(hwnd, k_wm_show_notify, 0, 0);
 
     spdlog::info(
         "[fallback] captured game window ({}x{}) — banner active",
@@ -130,7 +81,6 @@ BOOL CALLBACK enum_existing_windows(HWND hwnd, LPARAM /*lparam*/)
         return TRUE;
     }
 
-    // Check it's a game process window (has a title, not a system window)
     wchar_t title[256]{};
     if (GetWindowTextW(hwnd, title,
                        static_cast<int>(std::size(title))) == 0)
@@ -149,16 +99,6 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
                                       WPARAM wp,
                                       LPARAM lp)
 {
-    // ── Deferred notification — safe to call MessageBox here ─────────────
-
-    if (msg == k_wm_show_notify)
-    {
-        show_notification_once(hwnd);
-        return 0;
-    }
-
-    // ── Paint/timer: draw GDI banner ─────────────────────────────────────
-
     if ((msg == WM_PAINT) || (msg == WM_TIMER))
     {
         LRESULT result = CallWindowProcW(g_ctx.fallback_orig_wnd_proc,
@@ -291,13 +231,10 @@ void install()
 {
     spdlog::info("[fallback] installing CreateWindowExW hook");
 
-    // Hook future window creation
     g_ctx.fallback_create_window_hook = safetyhook::create_inline(
         reinterpret_cast<void*>(CreateWindowExW),
         reinterpret_cast<void*>(hk_create_window_ex_w));
 
-    // Scan for already-existing game windows (race: game window created
-    // before DX DLLs were loaded and on_dx_detected() fired)
     spdlog::info("[fallback] scanning existing windows...");
     EnumWindows(enum_existing_windows, 0);
 
