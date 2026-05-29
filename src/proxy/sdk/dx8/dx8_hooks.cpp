@@ -8,6 +8,11 @@
 #include <safetyhook.hpp>
 #include <spdlog/spdlog.h>
 
+// imgui D3D8 backend — used for DX8 overlay rendering
+#include "imgui.h"
+#include "imgui_impl_dx8.h"
+#include "imgui_impl_win32.h"
+
 namespace sdk::dx8
 {
 
@@ -32,6 +37,12 @@ void* g_orig_reset                  = nullptr;
 
 // The device we've hooked
 IDirect3DDevice8* g_hooked_device = nullptr;
+
+// Game window handle (captured from CreateDevice's focus_window param)
+HWND g_game_window = nullptr;
+
+// Whether imgui D3D8 backend has been initialized
+bool g_imgui_initialized = false;
 
 // ─── Type aliases for original function pointers ─────────────────────────
 
@@ -126,6 +137,29 @@ void install_device_hooks(IDirect3DDevice8* dev)
     g_hooked_device = dev;
     dev->AddRef(); // Hold a reference
 
+    // ── Initialize imgui D3D8 backend ────────────────────────────────────
+
+    if ((g_game_window != nullptr) && !g_imgui_initialized)
+    {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplWin32_Init(g_game_window);
+        if (ImGui_ImplDX8_Init(dev))
+        {
+            g_imgui_initialized = true;
+            g_ctx.imgui_initialized.store(true, std::memory_order::release);
+            g_ctx.overlay_available.store(true, std::memory_order::release);
+
+            spdlog::info("[dx8] imgui D3D8 backend initialized");
+        }
+        else
+        {
+            spdlog::error("[dx8] ImGui_ImplDX8_Init failed");
+        }
+    }
+
     spdlog::info("[dx8] device vtable hooked — {} entries, {} patched",
                  entry_count, 6);
 }
@@ -133,6 +167,19 @@ void install_device_hooks(IDirect3DDevice8* dev)
 void remove_device_hooks()
 {
     if (g_hooked_device == nullptr) { return; }
+
+    // Shutdown imgui before restoring vtable
+    if (g_imgui_initialized)
+    {
+        ImGui_ImplDX8_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+        g_imgui_initialized = false;
+        g_ctx.imgui_initialized.store(false, std::memory_order::release);
+        g_ctx.overlay_available.store(false, std::memory_order::release);
+
+        spdlog::info("[dx8] imgui D3D8 backend shutdown");
+    }
 
     // Restore original vtable pointer
     *reinterpret_cast<void***>(g_hooked_device) = g_device_vtable;
@@ -194,10 +241,26 @@ namespace
         D3DPRESENT_PARAMETERS* params,
         IDirect3DDevice8**     out_device)
     {
+        spdlog::info("[dx8] CreateDevice called — adapter={}, type={}, window={:p}",
+                     adapter, static_cast<int>(device_type),
+                     static_cast<void*>(focus_window));
+
+        // Save the game window handle for imgui init
+        if ((focus_window != nullptr) && (g_game_window == nullptr))
+        {
+            g_game_window = focus_window;
+            spdlog::info("[dx8] captured game window: {:p}",
+                         static_cast<void*>(g_game_window));
+        }
+
         auto orig = reinterpret_cast<d3d8_create_device_fn>(g_orig_create_device);
 
         HRESULT hr = orig(d3d, adapter, device_type, focus_window,
                           behavior_flags, params, out_device);
+
+        spdlog::info("[dx8] CreateDevice returned: hr=0x{:08X}, device={:p}",
+                     static_cast<uint32_t>(hr),
+                     static_cast<void*>(out_device != nullptr ? *out_device : nullptr));
 
         if (SUCCEEDED(hr) && (*out_device != nullptr))
         {
@@ -216,8 +279,13 @@ IDirect3D8* WINAPI hk_direct3d_create8(UINT sdk_version)
 {
     using fn_t = d3d8_create_fn;
 
+    spdlog::info("[dx8] Direct3DCreate8 called (sdk_version={})", sdk_version);
+
     auto orig = call_orig<fn_t>(g_ctx.hooks.d3d8_create);
     IDirect3D8* d3d = orig(sdk_version);
+
+    spdlog::info("[dx8] Direct3DCreate8 returned: {:p}",
+                 static_cast<void*>(d3d));
 
     if ((d3d != nullptr) && (g_d3d8_vtable == nullptr))
     {
@@ -236,7 +304,8 @@ IDirect3D8* WINAPI hk_direct3d_create8(UINT sdk_version)
 
         *reinterpret_cast<void***>(d3d) = g_d3d8_vtable_copy.get();
 
-        spdlog::info("[dx8] IDirect3D8 vtable hooked — CreateDevice intercepted");
+        spdlog::info("[dx8] IDirect3D8 vtable hooked — CreateDevice at idx {}",
+                     k_d3d8_create_device_idx);
     }
 
     return d3d;
@@ -254,6 +323,19 @@ HRESULT STDMETHODCALLTYPE hk_present(
     // Frame boundary — invoke Lua on_frame callbacks
     g_ctx.cb.on_frame.invoke();
 
+    // Render imgui overlay if initialized
+    if (g_imgui_initialized && g_ctx.show_ui.load(std::memory_order::relaxed))
+    {
+        ImGui_ImplDX8_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        g_ctx.cb.on_overlay.invoke();
+
+        ImGui::Render();
+        ImGui_ImplDX8_RenderDrawData(ImGui::GetDrawData());
+    }
+
     auto orig = reinterpret_cast<present_fn>(g_orig_present);
     return orig(dev, src_rect, dst_rect, wnd_override, dirty_region);
 }
@@ -266,9 +348,6 @@ HRESULT STDMETHODCALLTYPE hk_begin_scene(IDirect3DDevice8* dev)
 
 HRESULT STDMETHODCALLTYPE hk_end_scene(IDirect3DDevice8* dev)
 {
-    // Pre-present callback opportunity — invoke overlay rendering here
-    g_ctx.cb.on_overlay.invoke();
-
     auto orig = reinterpret_cast<end_scene_fn>(g_orig_end_scene);
     return orig(dev);
 }
@@ -308,6 +387,13 @@ HRESULT STDMETHODCALLTYPE hk_reset(
     D3DPRESENT_PARAMETERS*  params)
 {
     spdlog::info("[dx8] device reset — removing hooks temporarily");
+
+    // Invalidate imgui device objects before reset
+    if (g_imgui_initialized)
+    {
+        ImGui_ImplDX8_InvalidateDeviceObjects();
+    }
+
     remove_device_hooks();
 
     auto orig = reinterpret_cast<reset_fn>(g_orig_reset);
