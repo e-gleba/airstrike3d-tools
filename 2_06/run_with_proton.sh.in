@@ -1,103 +1,251 @@
 #!/usr/bin/env bash
-# run_with_proton.sh.in — launch a Windows game via Proton
-# cmake substitutes @game_exe_name@ at configure time.
+# run_with_proton.sh.in — launch a Windows game via Proton (with diagnostics)
+# CMake substitutes @game_exe_name@ at configure time.
 set -euo pipefail
+shopt -s nullglob
 
-readonly exe_name="@game_exe_name@"
-readonly exe_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+readonly EXE="@game_exe_name@"
+readonly DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+readonly STARTED_AT="$(date +%Y%m%d-%H%M%S)"
 
-log() { printf '=> %s\n' "$*"; }
+# ─── Flags ────────────────────────────────────────────────────────────────────
+DEBUG=0
+TRACE=0
+CLEAR_PRELOAD=0
+ARGS=()
+for a in "$@"; do
+    case "$a" in
+    --debug) DEBUG=1 ;;
+    --trace)
+        TRACE=1
+        DEBUG=1
+        ;;
+    --no-preload) CLEAR_PRELOAD=1 ;;
+    --help | -h)
+        cat <<EOF
+Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [-- game args...]
+  --debug        Enable Proton/Wine debug logs
+  --trace        Enable shell xtrace (implies --debug)
+  --no-preload   Unset LD_PRELOAD before launching
+EOF
+        exit 0
+        ;;
+    *) ARGS+=("$a") ;;
+    esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+# ─── Pretty output ────────────────────────────────────────────────────────────
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    C_R=$'\e[31m'
+    C_G=$'\e[32m'
+    C_Y=$'\e[33m'
+    C_B=$'\e[34m'
+    C_C=$'\e[36m'
+    C_D=$'\e[2m'
+    C_0=$'\e[0m'
+else
+    C_R=
+    C_G=
+    C_Y=
+    C_B=
+    C_C=
+    C_D=
+    C_0=
+fi
+
+section() { printf '\n%s── %s ──%s\n' "$C_B" "$*" "$C_0"; }
+log() { printf '%s=>%s %s\n' "$C_G" "$C_0" "$*"; }
+info() { printf '%s ·%s %s\n' "$C_C" "$C_0" "$*"; }
+warn() { printf '%s !!%s %s\n' "$C_Y" "$C_0" "$*" >&2; }
 die() {
-    printf '=> error: %s\n' "$*" >&2
+    printf '%sERR%s %s\n' "$C_R" "$C_0" "$*" >&2
     exit 1
 }
+dim() { printf '%s%s%s\n' "$C_D" "$*" "$C_0"; }
 
-# first dir under $1 matching patterns ($3…), optionally containing file $2.
-# empty $2 skips the file check. returns newest match via version sort.
-find_first() {
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+pick() {
     local base=$1 req=$2
     shift 2
-    local p m
-    for p in "$@"; do
-        while IFS= read -r -d '' m; do
-            [[ -n "$req" && ! -f "$m/$req" ]] && continue
-            printf '%s' "$m"
-            return
-        done < <(find "$base" -maxdepth 1 -type d -name "$p" -print0 2>/dev/null | sort -rzV)
+    local matches=() pat m
+    for pat in "$@"; do
+        matches=("$base"/$pat)
+        IFS=$'\n' matches=($(printf '%s\n' "${matches[@]}" | sort -rV))
+        for m in "${matches[@]}"; do
+            [[ -d "$m" ]] || continue
+            [[ -z "$req" || -e "$m/$req" ]] && {
+                printf '%s' "$m"
+                return 0
+            }
+        done
     done
     return 1
 }
 
-# --- steam ---
-readonly -a steam_paths=(
-    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam"
-    "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam"
-    "$HOME/.steam/root"
-    "$HOME/.local/share/Steam"
-)
-steam=""
-for p in "${steam_paths[@]}"; do [[ -d "$p" ]] && {
-    steam=$p
-    break
-}; done
-[[ -z "$steam" ]] && die "steam installation not found"
-log "steam => '$steam'"
+human_signal() {
+    case $1 in
+    130) echo "SIGINT (Ctrl+C)" ;;
+    143) echo "SIGTERM" ;;
+    137) echo "SIGKILL" ;;
+    139) echo "SIGSEGV (segfault)" ;;
+    134) echo "SIGABRT (abort)" ;;
+    0) echo "clean exit" ;;
+    *) echo "exit code $1" ;;
+    esac
+}
 
-# --- proton (prefer experimental => ge => numbered) ---
-readonly common="$steam/steamapps/common"
-proton=$(find_first "$common" proton \
-    "Proton - Experimental" "GE-Proton*" "Proton *") ||
-    die "proton not found in '$common/'"
-log "proton => '${proton##*/}'"
+# ─── System info ──────────────────────────────────────────────────────────────
+section "system"
+distro="unknown"
+[[ -r /etc/os-release ]] && distro="$(
+    . /etc/os-release
+    echo "${PRETTY_NAME:-$NAME}"
+)"
+info "distro    : $distro"
+info "kernel    : $(uname -sr)"
+info "glibc     : $(ldd --version 2>/dev/null | head -n1 || echo n/a)"
+info "shell     : bash $BASH_VERSION"
+info "user      : $USER  (uid=$EUID)"
+info "cwd       : $DIR"
 
-# --- steam linux runtime ---
-runtime_cmd=()
-if rt=$(find_first "$common" _v2-entry-point \
-    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier "SteamLinuxRuntime*"); then
-    runtime_cmd=("$rt/_v2-entry-point" --verb=run --)
-    log "runtime => '${rt##*/}'"
+# GPU detection (best-effort)
+if command -v lspci >/dev/null; then
+    gpu=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d|display' | head -n1 | sed 's/.*: //')
+    [[ -n "$gpu" ]] && info "gpu       : $gpu"
+fi
+if command -v vulkaninfo >/dev/null; then
+    info "vulkan    : $(vulkaninfo --summary 2>/dev/null | grep -m1 deviceName | sed 's/.*= //' || echo present)"
 else
-    log "runtime not found, launching without it"
+    warn "vulkaninfo not found — install vulkan-tools to verify GPU drivers"
 fi
 
-# --- prefix ---
-readonly pfx="$HOME/.proton_prefixes/$exe_name/pfx"
-mkdir -p "$pfx"
-export STEAM_COMPAT_DATA_PATH="${pfx%/*}"
+# LD_PRELOAD sanity check — common source of Proton breakage [[1]][[7]]
+if [[ -n "${LD_PRELOAD:-}" ]]; then
+    warn "LD_PRELOAD is set: '$LD_PRELOAD'"
+    warn "  this can interfere with Proton/Wine; use --no-preload to clear it"
+    if ((CLEAR_PRELOAD)); then
+        log "clearing LD_PRELOAD as requested"
+        unset LD_PRELOAD
+    fi
+fi
+[[ -r /etc/ld.so.preload ]] && warn "/etc/ld.so.preload exists — system-wide preload may affect launch"
+
+# ─── Steam root ───────────────────────────────────────────────────────────────
+section "steam"
+steam=""
+for p in \
+    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam" \
+    "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam" \
+    "$HOME/.steam/root" \
+    "$HOME/.local/share/Steam"; do
+    [[ -d "$p" ]] && {
+        steam=$p
+        break
+    }
+done
+[[ -n "$steam" ]] || die "Steam installation not found"
+log "root      : $steam"
+readonly COMMON="$steam/steamapps/common"
+
+# ─── Proton ───────────────────────────────────────────────────────────────────
+section "proton"
+proton=$(pick "$COMMON" proton \
+    "Proton - Experimental" "GE-Proton*" "Proton *") ||
+    die "Proton not found in $COMMON"
+log "version   : ${proton##*/}"
+info "path      : $proton"
+[[ -x "$proton/proton" ]] || die "proton binary missing or not executable"
+
+# ─── Steam Linux Runtime ──────────────────────────────────────────────────────
+section "runtime"
+runtime=()
+if rt=$(pick "$COMMON" _v2-entry-point \
+    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier "SteamLinuxRuntime*"); then
+    runtime=("$rt/_v2-entry-point" --verb=run --)
+    log "version   : ${rt##*/}"
+else
+    warn "no Steam Linux Runtime found — launching directly (may hit libc mismatches)"
+fi
+
+# ─── Prefix & environment ─────────────────────────────────────────────────────
+section "environment"
+readonly PFX_ROOT="$HOME/.proton_prefixes/$EXE"
+readonly LOG_DIR="$PFX_ROOT/logs"
+mkdir -p "$PFX_ROOT/pfx" "$LOG_DIR"
+
+export STEAM_COMPAT_DATA_PATH="$PFX_ROOT"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam"
 export MESA_EXTENSION_MAX_YEAR=2003
 
-# --- cleanup (EXIT trap pattern) ---
-child_pid=""
+readonly STDOUT_LOG="$LOG_DIR/$STARTED_AT.stdout.log"
+readonly STDERR_LOG="$LOG_DIR/$STARTED_AT.stderr.log"
+readonly TRACE_LOG="$LOG_DIR/$STARTED_AT.trace.log"
 
+if ((DEBUG)); then
+    export PROTON_LOG=1
+    export PROTON_LOG_DIR="$LOG_DIR"
+    export WINEDEBUG="${WINEDEBUG:-+loaddll,+module,fixme-all}"
+    export DXVK_LOG_LEVEL="${DXVK_LOG_LEVEL:-info}"
+    export DXVK_LOG_PATH="$LOG_DIR"
+    export VKD3D_DEBUG="${VKD3D_DEBUG:-warn}"
+    log "debug mode ON"
+    info "WINEDEBUG    = $WINEDEBUG"
+    info "PROTON_LOG   = $PROTON_LOG -> $PROTON_LOG_DIR"
+    info "DXVK logs    = $DXVK_LOG_PATH"
+fi
+
+info "prefix    : $PFX_ROOT/pfx"
+info "logs      : $LOG_DIR"
+info "stdout    : $STDOUT_LOG"
+info "stderr    : $STDERR_LOG"
+
+if ((DEBUG)); then
+    section "env dump"
+    env | grep -E '^(STEAM_|PROTON_|WINE|DXVK_|VKD3D|MESA_|LD_|VK_|__GL|SDL_)' |
+        sort | while read -r line; do dim "  $line"; done || true
+fi
+
+# ─── Cleanup ──────────────────────────────────────────────────────────────────
+child=""
 cleanup() {
-    [[ -z "${child_pid:-}" ]] && return
-    log "shutting down"
-
+    local rc=$?
+    [[ -n "$child" ]] || exit "$rc"
+    section "shutdown"
+    log "stopping (status: $(human_signal "$rc"))"
     [[ -x "$proton/files/bin/wineserver" ]] &&
-        WINEPREFIX="$pfx" "$proton/files/bin/wineserver" -k 2>/dev/null || true
-
-    local pgid
-    pgid=$(ps -o pgid= -p "$child_pid" 2>/dev/null | tr -d ' ') || true
-    if [[ -n "$pgid" ]]; then
-        kill -TERM -- "-$pgid" 2>/dev/null || true
-        sleep 0.5
-        kill -KILL -- "-$pgid" 2>/dev/null || true
-    fi
-    wait "$child_pid" 2>/dev/null || true
+        WINEPREFIX="$PFX_ROOT/pfx" "$proton/files/bin/wineserver" -k 2>/dev/null || true
+    kill -TERM "-$child" 2>/dev/null || true
+    sleep 0.3
+    kill -KILL "-$child" 2>/dev/null || true
+    wait "$child" 2>/dev/null || true
+    info "logs preserved in $LOG_DIR"
+    exit "$rc"
 }
-
-trap 'exit 130' INT  # 128 + SIGINT(2)
-trap 'exit 143' TERM # 128 + SIGTERM(15)
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-# --- launch ---
-cd "$exe_dir"
-log "launching '$exe_name'"
+# ─── Launch ───────────────────────────────────────────────────────────────────
+section "launch"
+cd "$DIR"
+log "executing: $EXE ${*:-}"
+[[ -f "$DIR/$EXE" ]] || die "executable not found: $DIR/$EXE"
 
-setsid "${runtime_cmd[@]}" "$proton/proton" run "$exe_name" "$@" &
-child_pid=$!
+# Optional shell tracing
+if ((TRACE)); then
+    info "shell trace -> $TRACE_LOG"
+    exec {trace_fd}>"$TRACE_LOG"
+    BASH_XTRACEFD=$trace_fd
+    PS4='+ [${BASH_SOURCE##*/}:${LINENO}] '
+    set -x
+fi
 
-rc=0
-wait "$child_pid" || rc=$?
-exit "$rc"
+# Tee stdout/stderr to files while keeping them on the terminal
+exec > >(tee -a "$STDOUT_LOG") 2> >(tee -a "$STDERR_LOG" >&2)
+
+setsid "${runtime[@]}" "$proton/proton" run "$EXE" "$@" &
+child=$!
+info "pid       : $child"
+
+wait "$child"
