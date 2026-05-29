@@ -132,6 +132,7 @@ __pycache__
 *.app
 
 !2_06/**
+!2_51/**
 !2_71/**
 !ghidra/dumps/**
 !src/overlay/*.dll
