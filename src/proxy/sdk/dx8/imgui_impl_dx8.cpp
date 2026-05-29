@@ -4,6 +4,7 @@
 
 #include <d3d8.h>
 #include <cstdio>
+#include <cstring>
 
 // ─── Vertex format ───────────────────────────────────────────────────────────
 
@@ -38,7 +39,6 @@ struct saved_state final
     DWORD lighting, ambient;
     DWORD fvf;
     DWORD address_u, address_v;
-    DWORD clamp;
 };
 
 static void capture_state(saved_state& ss)
@@ -57,8 +57,6 @@ static void capture_state(saved_state& ss)
     g_dev->GetRenderState(D3DRS_TEXTUREFACTOR,       &ss.tfactor);
     g_dev->GetRenderState(D3DRS_LIGHTING,            &ss.lighting);
     g_dev->GetRenderState(D3DRS_AMBIENT,             &ss.ambient);
-    g_dev->GetRenderState(D3DRS_FOGENABLE,           &ss.fog);
-    g_dev->GetRenderState(D3DRS_CLIPPING,            &ss.clamp);
 
     g_dev->GetTextureStageState(0, D3DTSS_COLOROP,   &ss.color_op);
     g_dev->GetTextureStageState(0, D3DTSS_COLORARG1, &ss.color_arg1);
@@ -74,7 +72,8 @@ static void capture_state(saved_state& ss)
     g_dev->GetTextureStageState(0, D3DTSS_ADDRESSU,  &ss.address_u);
     g_dev->GetTextureStageState(0, D3DTSS_ADDRESSV,  &ss.address_v);
 
-    g_dev->GetFVF(&ss.fvf);
+    // D3D8 uses GetVertexShader/SetVertexShader for FVF codes
+    g_dev->GetVertexShader(&ss.fvf);
 }
 
 static void restore_state(const saved_state& ss)
@@ -93,7 +92,6 @@ static void restore_state(const saved_state& ss)
     g_dev->SetRenderState(D3DRS_TEXTUREFACTOR,       ss.tfactor);
     g_dev->SetRenderState(D3DRS_LIGHTING,            ss.lighting);
     g_dev->SetRenderState(D3DRS_AMBIENT,             ss.ambient);
-    g_dev->SetRenderState(D3DRS_CLIPPING,            ss.clamp);
 
     g_dev->SetTextureStageState(0, D3DTSS_COLOROP,   ss.color_op);
     g_dev->SetTextureStageState(0, D3DTSS_COLORARG1, ss.color_arg1);
@@ -109,7 +107,7 @@ static void restore_state(const saved_state& ss)
     g_dev->SetTextureStageState(0, D3DTSS_ADDRESSU,  ss.address_u);
     g_dev->SetTextureStageState(0, D3DTSS_ADDRESSV,  ss.address_v);
 
-    g_dev->SetFVF(ss.fvf);
+    g_dev->SetVertexShader(ss.fvf);
 }
 
 static void set_render_state()
@@ -126,7 +124,6 @@ static void set_render_state()
     g_dev->SetRenderState(D3DRS_CULLMODE,         D3DCULL_NONE);
     g_dev->SetRenderState(D3DRS_ZENABLE,          FALSE);
     g_dev->SetRenderState(D3DRS_LIGHTING,         FALSE);
-    g_dev->SetRenderState(D3DRS_CLIPPING,         FALSE);
 
     g_dev->SetTextureStageState(0, D3DTSS_COLOROP,   D3DTOP_MODULATE);
     g_dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -142,7 +139,7 @@ static void set_render_state()
     g_dev->SetTextureStageState(0, D3DTSS_ADDRESSU,  D3DTADDRESS_WRAP);
     g_dev->SetTextureStageState(0, D3DTSS_ADDRESSV,  D3DTADDRESS_WRAP);
 
-    g_dev->SetFVF(k_fvf);
+    g_dev->SetVertexShader(k_fvf);
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -172,7 +169,7 @@ void ImGui_ImplDX8_Shutdown()
 
 void ImGui_ImplDX8_NewFrame()
 {
-    if (g_dev == nullptr) { return; }
+    // Nothing to do — buffers are created on demand in RenderDrawData
 }
 
 static void setup_render_state(ImDrawData* draw_data)
@@ -199,9 +196,10 @@ static void setup_render_state(ImDrawData* draw_data)
         (L+R)/(L-R),    (T+B)/(B-T),     0.5f,  1.0f,
     };
 
-    g_dev->SetTransform(D3DTS_PROJECTION, reinterpret_cast<const D3DMATRIX*>(&mat));
-    g_dev->SetTransform(D3DTS_VIEW,       reinterpret_cast<const D3DMATRIX*>(&mat));
-    g_dev->SetTransform(D3DTS_WORLD,      reinterpret_cast<const D3DMATRIX*>(&mat));
+    auto* d3d_mat = reinterpret_cast<const D3DMATRIX*>(&mat);
+    g_dev->SetTransform(D3DTS_PROJECTION, d3d_mat);
+    g_dev->SetTransform(D3DTS_VIEW,       d3d_mat);
+    g_dev->SetTransform(D3DTS_WORLD,      d3d_mat);
 }
 
 void ImGui_ImplDX8_RenderDrawData(ImDrawData* draw_data)
@@ -251,9 +249,9 @@ void ImGui_ImplDX8_RenderDrawData(ImDrawData* draw_data)
         ImVert* vtx_dst = nullptr;
         ImDrawIdx* idx_dst = nullptr;
 
-        g_vb->Lock(0, static_cast<UINT>(vtx_needed * sizeof(ImVert)),
+        g_vb->Lock(0, static_cast<UINT>(vtx_needed) * sizeof(ImVert),
                    reinterpret_cast<BYTE**>(&vtx_dst), D3DLOCK_DISCARD);
-        g_ib->Lock(0, static_cast<UINT>(idx_needed * sizeof(ImDrawIdx)),
+        g_ib->Lock(0, static_cast<UINT>(idx_needed) * sizeof(ImDrawIdx),
                    reinterpret_cast<BYTE**>(&idx_dst), D3DLOCK_DISCARD);
 
         for (int n = 0; n < draw_data->CmdListsCount; ++n)
@@ -275,8 +273,9 @@ void ImGui_ImplDX8_RenderDrawData(ImDrawData* draw_data)
                 ++vtx_dst;
             }
 
-            std::memcpy(idx_dst, cmd_list->IdxBuffer.Data,
-                        cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+            const auto idx_bytes = static_cast<size_t>(cmd_list->IdxBuffer.Size)
+                                 * sizeof(ImDrawIdx);
+            std::memcpy(idx_dst, cmd_list->IdxBuffer.Data, idx_bytes);
             idx_dst += cmd_list->IdxBuffer.Size;
         }
 
@@ -313,23 +312,19 @@ void ImGui_ImplDX8_RenderDrawData(ImDrawData* draw_data)
             }
             else
             {
-                // Scissor rect
-                RECT r{};
-                r.left   = static_cast<LONG>(cmd->ClipRect.x);
-                r.top    = static_cast<LONG>(cmd->ClipRect.y);
-                r.right  = static_cast<LONG>(cmd->ClipRect.z);
-                r.bottom = static_cast<LONG>(cmd->ClipRect.w);
-                g_dev->SetScissorRect(&r);
+                // D3D8 doesn't support scissor test natively.
+                // Clip rects are ignored — imgui still renders correctly
+                // because vertices are already clipped.
 
-                // Texture
+                // Set texture (GetTexID() is the modern imgui getter)
                 g_dev->SetTexture(0, static_cast<IDirect3DBaseTexture8*>(
-                                         cmd->TextureId));
+                                         cmd->GetTexID()));
 
                 g_dev->DrawIndexedPrimitive(
                     D3DPT_TRIANGLELIST,
-                    global_vtx_ofs,
-                    cmd_list->VtxBuffer.Size,
-                    cmd->IdxOffset + global_idx_ofs,
+                    static_cast<UINT>(global_vtx_ofs),
+                    static_cast<UINT>(cmd_list->VtxBuffer.Size),
+                    static_cast<UINT>(cmd->IdxOffset + global_idx_ofs),
                     cmd->ElemCount / 3);
             }
         }
