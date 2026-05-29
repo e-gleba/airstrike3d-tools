@@ -52,78 +52,6 @@ void init_imgui(HDC dc)
     spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
 }
 
-// ─── Built-in SDK status bar ─────────────────────────────────────────────────
-// Rendered after Lua callbacks so it always sits on top.
-// Non-interactive, compact.  Shows the detected render API at runtime.
-
-struct api_label final
-{
-    const char* text;
-    ImVec4      color;
-};
-
-api_label get_api_label()
-{
-    switch (g_ctx.detected_api.load(std::memory_order::relaxed))
-    {
-    case render_api::opengl:
-        return { "OpenGL", ImVec4(0.30f, 0.95f, 0.35f, 1.0f) };
-    case render_api::directx:
-        return { "DirectX", ImVec4(0.95f, 0.75f, 0.25f, 1.0f) };
-    default:
-        return { "???", ImVec4(0.95f, 0.35f, 0.35f, 1.0f) };
-    }
-}
-
-void render_status_bar()
-{
-    const auto& io = ImGui::GetIO();
-
-    constexpr float k_bar_height = 22.0f;
-    const ImVec2    bar_pos(0.0f, io.DisplaySize.y - k_bar_height);
-    const ImVec2    bar_size(io.DisplaySize.x, k_bar_height);
-
-    ImGui::SetNextWindowPos(bar_pos);
-    ImGui::SetNextWindowSize(bar_size);
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
-
-    constexpr int k_flags =
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
-        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar
-        | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse
-        | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus
-        | ImGuiWindowFlags_NoInputs;
-
-    ImGui::Begin("##sdk_status", nullptr, k_flags);
-
-    auto [api_text, api_color] = get_api_label();
-
-    ImGui::TextUnformatted("[");
-    ImGui::SameLine(0.0f, 0.0f);
-    ImGui::TextColored(api_color, "%s", api_text);
-    ImGui::SameLine(0.0f, 0.0f);
-    ImGui::TextUnformatted("]");
-
-    ImGui::SameLine();
-    ImGui::TextUnformatted("|");
-    ImGui::SameLine();
-
-    const bool gl_ok = (g_ctx.detected_api.load(std::memory_order::relaxed)
-                        == render_api::opengl);
-
-    ImGui::TextColored(
-        ImVec4(0.55f, 0.55f, 0.60f, 1.0f),
-        "%s",
-        gl_ok ? "overlay + cheats active"
-              : "cheats only (input emulation)");
-
-    ImGui::End();
-    ImGui::PopStyleVar(3);
-}
-
 } // namespace
 
 void init(HDC dc)
@@ -145,12 +73,6 @@ void render()
     ImGui::NewFrame();
 
     g_ctx.cb.on_overlay.invoke();
-
-    // Built-in status bar — always on top, non-interactive
-    if (g_ctx.show_ui.load(std::memory_order::relaxed))
-    {
-        render_status_bar();
-    }
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

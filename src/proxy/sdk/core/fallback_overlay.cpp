@@ -12,6 +12,10 @@ namespace sdk::fallback_overlay
 namespace
 {
 
+// ─── Forward-declare wndproc (defined below, used by subclass_window) ────────
+
+LRESULT CALLBACK hk_fallback_wnd_proc(HWND, UINT, WPARAM, LPARAM);
+
 // ─── Custom message for deferred notification ────────────────────────────────
 
 constexpr UINT k_wm_show_notify = WM_APP + 0x100;
