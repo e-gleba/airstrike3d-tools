@@ -12,13 +12,17 @@ namespace sdk::fallback_overlay
 namespace
 {
 
+// ─── Custom message for deferred notification ────────────────────────────────
+
+constexpr UINT k_wm_show_notify = WM_APP + 0x100;
+
 // ─── One-shot notification flag ──────────────────────────────────────────────
 
 static std::once_flag g_notify_flag;
 
-void show_notification_once()
+void show_notification_once(HWND owner)
 {
-    std::call_once(g_notify_flag, [] {
+    std::call_once(g_notify_flag, [owner] {
         const wchar_t* title   = L"AirStrike3D Proxy SDK";
         const wchar_t* message = nullptr;
         UINT           icon    = MB_ICONINFORMATION;
@@ -46,7 +50,7 @@ void show_notification_once()
 
         spdlog::info("[fallback] showing notification dialog");
 
-        MessageBoxW(nullptr, message, title,
+        MessageBoxW(owner, message, title,
                     MB_OK | icon | MB_TOPMOST | MB_SETFOREGROUND);
 
         spdlog::info("[fallback] notification dismissed by user");
@@ -68,6 +72,72 @@ const wchar_t* banner_text()
     }
 }
 
+// ─── Window subclass helper ──────────────────────────────────────────────────
+
+void subclass_window(HWND hwnd, int w, int h)
+{
+    g_ctx.fallback_window        = hwnd;
+    g_ctx.fallback_orig_wnd_proc = reinterpret_cast<WNDPROC>(
+        SetWindowLongPtrW(hwnd,
+                          GWLP_WNDPROC,
+                          reinterpret_cast<LONG_PTR>(hk_fallback_wnd_proc)));
+
+    SetTimer(hwnd, 1, 500, nullptr);
+
+    // Defer notification — PostMessage so it runs outside the paint cycle
+    PostMessageW(hwnd, k_wm_show_notify, 0, 0);
+
+    spdlog::info(
+        "[fallback] captured game window ({}x{}) — banner active",
+        w, h);
+}
+
+// ─── EnumWindows callback — catch already-existing windows ───────────────────
+
+BOOL CALLBACK enum_existing_windows(HWND hwnd, LPARAM /*lparam*/)
+{
+    if (g_ctx.fallback_window != nullptr)
+    {
+        return FALSE; // already captured
+    }
+
+    if (!IsWindowVisible(hwnd))
+    {
+        return TRUE;
+    }
+
+    LONG_PTR ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    if ((ex_style & WS_EX_TOOLWINDOW) != 0)
+    {
+        return TRUE;
+    }
+
+    RECT rc;
+    if (!GetWindowRect(hwnd, &rc))
+    {
+        return TRUE;
+    }
+
+    int w = rc.right - rc.left;
+    int h = rc.bottom - rc.top;
+
+    if ((w <= 200) || (h <= 200))
+    {
+        return TRUE;
+    }
+
+    // Check it's a game process window (has a title, not a system window)
+    wchar_t title[256]{};
+    if (GetWindowTextW(hwnd, title,
+                       static_cast<int>(std::size(title))) == 0)
+    {
+        return TRUE;
+    }
+
+    subclass_window(hwnd, w, h);
+    return FALSE;
+}
+
 // ─── Window proc subclass ────────────────────────────────────────────────────
 
 LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
@@ -75,6 +145,16 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
                                       WPARAM wp,
                                       LPARAM lp)
 {
+    // ── Deferred notification — safe to call MessageBox here ─────────────
+
+    if (msg == k_wm_show_notify)
+    {
+        show_notification_once(hwnd);
+        return 0;
+    }
+
+    // ── Paint/timer: draw GDI banner ─────────────────────────────────────
+
     if ((msg == WM_PAINT) || (msg == WM_TIMER))
     {
         LRESULT result = CallWindowProcW(g_ctx.fallback_orig_wnd_proc,
@@ -101,7 +181,7 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
         FillRect(hdc, &banner, bg);
         DeleteObject(bg);
 
-        // ── Accent line — red for unknown, amber for DX ──────────────────
+        // ── Accent line ──────────────────────────────────────────────────
 
         COLORREF line_color =
             (g_ctx.detected_api.load(std::memory_order::relaxed)
@@ -154,10 +234,6 @@ LRESULT CALLBACK hk_fallback_wnd_proc(HWND   hwnd,
         DeleteObject(font);
         ReleaseDC(hwnd, hdc);
 
-        // ── One-time notification ────────────────────────────────────────
-
-        show_notification_once();
-
         return result;
     }
 
@@ -196,18 +272,7 @@ HWND WINAPI hk_create_window_ex_w(DWORD     ex_style,
         if ((w > 200) && (h > 200) && (style & WS_VISIBLE)
             && !(ex_style & WS_EX_TOOLWINDOW))
         {
-            g_ctx.fallback_window        = hwnd;
-            g_ctx.fallback_orig_wnd_proc = reinterpret_cast<WNDPROC>(
-                SetWindowLongPtrW(hwnd,
-                                  GWLP_WNDPROC,
-                                  reinterpret_cast<LONG_PTR>(
-                                      hk_fallback_wnd_proc)));
-
-            SetTimer(hwnd, 1, 500, nullptr);
-
-            spdlog::info(
-                "[fallback] captured game window ({}x{}) — banner active",
-                w, h);
+            subclass_window(hwnd, w, h);
         }
     }
 
@@ -222,9 +287,25 @@ void install()
 {
     spdlog::info("[fallback] installing CreateWindowExW hook");
 
+    // Hook future window creation
     g_ctx.fallback_create_window_hook = safetyhook::create_inline(
         reinterpret_cast<void*>(CreateWindowExW),
         reinterpret_cast<void*>(hk_create_window_ex_w));
+
+    // Scan for already-existing game windows (race: game window created
+    // before DX DLLs were loaded and on_dx_detected() fired)
+    spdlog::info("[fallback] scanning existing windows...");
+    EnumWindows(enum_existing_windows, 0);
+
+    if (g_ctx.fallback_window != nullptr)
+    {
+        spdlog::info("[fallback] captured existing game window");
+    }
+    else
+    {
+        spdlog::info("[fallback] no existing window found — waiting for "
+                       "CreateWindowExW");
+    }
 }
 
 void uninstall()
