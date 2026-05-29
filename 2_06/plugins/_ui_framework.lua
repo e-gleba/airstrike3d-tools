@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Airstrike 3D Tools — Professional UI Framework  v2
 -- ============================================================================
--- Valve / Source-engine-inspired dark theme, scaled 2x fonts.
+-- Valve / Source-engine-inspired dark theme, 2x scaled everything.
 -- Single unified workspace — no extra windows, no clutter.
 --
 -- Plugins register via TOOLS_UI.register_panel(id, title, draw_fn).
@@ -37,7 +37,7 @@ function TOOLS_UI.subheader(text)
     ui.text_colored(0.55, 0.55, 0.60, 1.0, text)
 end
 
---- Inline status indicator: [ACTIVE] or [OFF]
+--- Inline status indicator: [ON] or [OFF]
 function TOOLS_UI.status_badge(active, on_label, off_label)
     on_label = on_label or "ON"
     off_label = off_label or "OFF"
@@ -59,7 +59,7 @@ end
 
 --- Group box: draw a bordered frame around child content.
 function TOOLS_UI.group_begin(label)
-    ui.push_style_var_float(5, 8.0)  -- ImGuiStyleVar_FrameRounding
+    ui.push_style_var_float(5, 4.0)  -- ImGuiStyleVar_FrameRounding
     ui.push_style_color(5, 0.16, 0.16, 0.20, 0.55)  -- ImGuiCol_Border
     ui.begin_group()
     ui.text_colored(ACCENT_R, ACCENT_G, ACCENT_B, 1.0, label)
@@ -134,7 +134,7 @@ function TOOLS_UI.register_panel(id, title, draw_fn)
 end
 
 -- ---------------------------------------------------------------------------
--- Main workspace window  (single, clean, no extra windows)
+-- Main workspace window  (single, clean, roomy)
 -- ---------------------------------------------------------------------------
 
 sdk.on_overlay(function()
@@ -149,7 +149,8 @@ sdk.on_overlay(function()
     end
 
     if TOOLS_UI._first_frame then
-        ui.set_next_window_size(560, 680)
+        -- Big window: 2x scaled elements need room to breathe
+        ui.set_next_window_size(840, 960)
         TOOLS_UI._first_frame = false
     end
 
@@ -164,6 +165,7 @@ sdk.on_overlay(function()
     ui.same_line()
     ui.text_disabled("|  Toolkit")
     ui.separator()
+    ui.spacing()
 
     -- Tab workspace
     if ui.tab_bar_begin("##workspace") then
@@ -184,7 +186,7 @@ sdk.on_overlay(function()
         TOOLS_UI._fps, #TOOLS_UI.panels))
 
     ui.same_line()
-    ui.set_cursor_pos_x(ui.get_window_width() - 100)
+    ui.set_cursor_pos_x(ui.get_window_width() - 120)
     if ui.button_sized("Unload", 80, 0) then
         sdk.log_warn("unload requested by user")
     end

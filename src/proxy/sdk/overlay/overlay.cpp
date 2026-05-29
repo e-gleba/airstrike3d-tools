@@ -23,7 +23,7 @@ namespace
 {
 
 // ---------------------------------------------------------------------------
-// Valve / Source-engine-inspired dark theme
+// Valve / Source-engine-inspired dark theme  (base sizes, then 2x scaled)
 // ---------------------------------------------------------------------------
 
 void apply_valve_theme()
@@ -31,29 +31,29 @@ void apply_valve_theme()
     auto& style = ImGui::GetStyle();
 
     // -- Rounded corners (subtle, professional) --
-    style.WindowRounding    = 5.0f;
-    style.FrameRounding     = 4.0f;
-    style.GrabRounding      = 4.0f;
-    style.ScrollbarRounding = 5.0f;
-    style.TabRounding       = 5.0f;
-    style.PopupRounding     = 5.0f;
-    style.ChildRounding     = 5.0f;
+    style.WindowRounding    = 3.0f;
+    style.FrameRounding     = 2.5f;
+    style.GrabRounding      = 2.5f;
+    style.ScrollbarRounding = 3.0f;
+    style.TabRounding       = 3.0f;
+    style.PopupRounding     = 3.0f;
+    style.ChildRounding     = 3.0f;
 
     // -- Borders --
     style.WindowBorderSize = 0.0f;
-    style.FrameBorderSize  = 1.0f;
-    style.PopupBorderSize  = 1.0f;
-    style.TabBorderSize    = 1.0f;
+    style.FrameBorderSize  = 0.5f;
+    style.PopupBorderSize  = 0.5f;
+    style.TabBorderSize    = 0.5f;
 
-    // -- Spacing (roomier, modern) --
-    style.WindowPadding     = ImVec2(12, 12);
-    style.FramePadding      = ImVec2(10, 6);
-    style.CellPadding       = ImVec2(6, 4);
-    style.ItemSpacing       = ImVec2(10, 8);
-    style.ItemInnerSpacing  = ImVec2(8, 5);
-    style.IndentSpacing     = 24.0f;
-    style.ScrollbarSize     = 14.0f;
-    style.GrabMinSize       = 12.0f;
+    // -- Spacing (base 1x; ScaleAllSizes will 2x these) --
+    style.WindowPadding     = ImVec2(6, 6);
+    style.FramePadding      = ImVec2(5, 3);
+    style.CellPadding       = ImVec2(3, 2);
+    style.ItemSpacing       = ImVec2(5, 4);
+    style.ItemInnerSpacing  = ImVec2(4, 3);
+    style.IndentSpacing     = 12.0f;
+    style.ScrollbarSize     = 7.0f;
+    style.GrabMinSize       = 6.0f;
 
     // -- Title bar --
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
@@ -138,6 +138,9 @@ void apply_valve_theme()
     c[ImGuiCol_NavHighlight]         = ImVec4(0.26f, 0.59f, 0.98f, 0.40f);
     c[ImGuiCol_DragDropTarget]       = ImVec4(0.26f, 0.59f, 0.98f, 0.90f);
     c[ImGuiCol_ModalWindowDimBg]     = ImVec4(0.00f, 0.00f, 0.00f, 0.50f);
+
+    // -- Uniform 2x scale: fonts, buttons, frames, spacing — everything --
+    style.ScaleAllSizes(2.0f);
 }
 
 void init_imgui(HDC dc)
@@ -161,7 +164,7 @@ void init_imgui(HDC dc)
     ImGui::StyleColorsDark();
     apply_valve_theme();
 
-    // 2x global font scale for crisp, readable UI on modern displays
+    // 2x global font scale for crisp, readable text
     io.FontGlobalScale = 2.0f;
 
     ImGui_ImplWin32_Init(g_ctx.window);
