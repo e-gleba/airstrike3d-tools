@@ -53,7 +53,7 @@ function(generate_proxy_def input_dll output_var)
 
     string(
         REGEX MATCHALL
-              "[0-9]+[ \t]+0x[0-9a-fA-F]+[ \t]+[^ \t\r\n]+"
+              "[0-9]+[ \\t]+0x[0-9a-fA-F]+[ \\t]+[^ \\t\r\n]+"
               raw_exports
               "${dump_output}")
 
@@ -69,13 +69,13 @@ function(generate_proxy_def input_dll output_var)
     foreach(row IN LISTS raw_exports)
         string(
             REGEX
-            REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
+            REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\r\n]+)"
                     "\\2"
                     sym_name
                     "${row}")
         string(
             REGEX
-            REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
+            REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\r\n]+)"
                     "\\1"
                     ordinal
                     "${row}")
@@ -145,8 +145,12 @@ function(add_bass_proxy)
     target_link_options(
         ${target_name}
         PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
+        # ELF/GNU driver: strip + static link (llvm-mingw cross-compile)
+        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<NOT:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>>>:-static>
+        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<NOT:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>>>:-s>
+        # MSVC ABI (lld-link): proxy DLL needs no CRT entry point
+        $<$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>:-Xlinker /NOENTRY>
+    )
 
     message(
         STATUS
