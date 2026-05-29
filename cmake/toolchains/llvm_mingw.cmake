@@ -5,7 +5,7 @@
 #              -DCMAKE_SYSTEM_PROCESSOR=x86_64|i686|aarch64
 #
 # Tunables (all overridable via -D or cache):
-#   LLVM_MINGW_VERSION       — release tag  (default: 20260421)
+#   LLVM_MINGW_VERSION       — release tag  (default: 20260519)
 #   LLVM_MINGW_HOST_OS       — package OS suffix (default: ubuntu-22.04)
 #   LLVM_MINGW_AUTO_DOWNLOAD — fetch if absent   (default: ON)
 
@@ -21,7 +21,7 @@ endif()
 
 # ── tunables ──────────────────────────────────────────────────────────────────
 set(LLVM_MINGW_VERSION
-    "20260421"
+    "20260519"
     CACHE STRING "llvm-mingw release tag")
 set(LLVM_MINGW_HOST_OS
     "ubuntu-22.04"
