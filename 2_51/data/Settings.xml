@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<Settings>
+  <CheckCD check="0" label="AS3D2RU" title="Original game CD is not found" message="Please insert original game CD into CDROM drive." />
+  <PostScores allow="1" address="www.divogames.com" path="/games/action-shooter-games/airstrike-2/topscores/add/" />
+
+<!-- Tag Demo is used in demo version only. Full version ignores this settings -->
+  <Demo>
+    <Purchase showButtonInMainMenu="1" shellCommand="Register.url" />
+    <NagScreen show="1" />
+  </Demo>
+  <Info version="v 2.51" copyright="Copyright 2003-2007 DivoGames" />
+  <Intros>
+
+<!-- to add additional logo just change tag ImageTemp to Image -->
+    <ImageTemp name="Gfx\logo.tga">
+    <BackColor r="255" g="0" b="255" />
+    </ImageTemp>
+
+    <BuiltIn name="DivoGames" />
+  </Intros>
+  <Logotypes> 
+
+<!-- to add additional logo just change tag ImageTemp to Image -->
+    <ImageTemp x="10" y="10" name="Data\Gfx\Ui\logo2.tga" invertAxisY="1" invertAxisX="1" /> 
+
+  </Logotypes>
+
+</Settings>
