@@ -53,7 +53,7 @@ function(generate_proxy_def input_dll output_var)
 
     string(
         REGEX MATCHALL
-              "[0-9]+[ \t]+0x[0-9a-fA-F]+[ \t]+[^ \t\r\n]+"
+              "[0-9]+[ \\t]+0x[0-9a-fA-F]+[ \\t]+[^ \\t\\r\\n]+"
               raw_exports
               "${dump_output}")
 
@@ -69,13 +69,13 @@ function(generate_proxy_def input_dll output_var)
     foreach(row IN LISTS raw_exports)
         string(
             REGEX
-            REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
+            REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\\r\\n]+)"
                     "\\2"
                     sym_name
                     "${row}")
         string(
             REGEX
-            REPLACE "([0-9]+)[ \t]+0x[0-9a-fA-F]+[ \t]+([^ \t\r\n]+)"
+            REPLACE "([0-9]+)[ \\t]+0x[0-9a-fA-F]+[ \\t]+([^ \\t\\r\\n]+)"
                     "\\1"
                     ordinal
                     "${row}")
@@ -142,11 +142,16 @@ function(add_bass_proxy)
     target_compile_definitions(${target_name}
                                PRIVATE "BASS_VERSION=${ARG_VERSION}")
 
-    target_link_options(
-        ${target_name}
-        PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-static>
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-s>)
+    # Linker options per compiler/OS combination.
+    # - MSVC or Clang-MSVC (lld-link): nothing extra needed; CMake already
+    #   passes /DLL and /DEFAULTLIB:msvcrt for the i686-pc-windows-msvc target.
+    # - Clang/GCC with GNU ld (llvm-mingw cross-compile): -static -s for
+    #   fully static, stripped DLL (no MinGW runtime dependency).
+    if(MINGW)
+        target_link_options(
+            ${target_name}
+            PRIVATE -static -s)
+    endif()
 
     message(
         STATUS
