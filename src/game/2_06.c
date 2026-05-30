@@ -786,7 +786,7 @@ void fatal_error(undefined4 param_1)
   
   game_objects_init();
   game_shutdown();
-  vsprintf(local_400,param_1,&stack0x00000008);
+  vsnprintf(local_400,sizeof(local_400),param_1,&stack0x00000008);
   (*DAT_00436350)(0,local_400,s_AError_004368a7 + 1,0x10);
   exit(1);
   pcVar1 = (code *)swi(3);
