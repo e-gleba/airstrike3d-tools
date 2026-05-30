@@ -9,6 +9,8 @@ project(
 
 include(CMakePrintHelpers)
 
+set(CMAKE_UNITY_BUILD ON)
+
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 
 # CMAKE_CURRENT_LIST_DIR is used instead of CMAKE_SOURCE_DIR so that this

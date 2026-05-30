@@ -16,14 +16,14 @@ file(
 
 add_library(bass_proxy_sdk STATIC ${sdk_sources})
 
-target_include_directories(bass_proxy_sdk PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
+target_include_directories(bass_proxy_sdk PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 
 # target_compile_features does not support generator expressions.
 # Use compiler-specific flags instead: /std:c++latest for MSVC,
 # -std=c++26 for Clang/GCC.
 target_compile_options(
-    bass_proxy_sdk PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
-                          $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
+    bass_proxy_sdk PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
+                           $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
 
 set_target_properties(
     bass_proxy_sdk
@@ -35,20 +35,20 @@ set_target_properties(
 
 target_compile_definitions(
     bass_proxy_sdk
-    PUBLIC WIN32_LEAN_AND_MEAN
-           NOMINMAX
-           GLM_FORCE_RADIANS
-           GLM_FORCE_DEPTH_ZERO_TO_ONE)
+    PRIVATE WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            GLM_FORCE_RADIANS
+            GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_link_libraries(
     bass_proxy_sdk
-    PUBLIC warnings
-           imgui_opengl3
-           dwmapi
-           glm
-           glu32
-           opengl32
-           safetyhook
-           spdlog::spdlog
-           sol2::sol2
-           lua)
+    PRIVATE warnings
+            imgui_opengl3
+            dwmapi
+            glm
+            glu32
+            opengl32
+            safetyhook
+            spdlog::spdlog
+            sol2::sol2
+            lua)
