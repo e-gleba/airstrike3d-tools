@@ -28,6 +28,7 @@ target_compile_options(
 set_target_properties(
     bass_proxy_sdk
     PROPERTIES CXX_EXTENSIONS OFF
+               CXX_SCAN_FOR_MODULES OFF
                UNITY_BUILD ON
                UNITY_BUILD_MODE BATCH # or GROUP if you want manual control
                UNITY_BUILD_BATCH_SIZE 16 # tune: 8–32 is usually a sweet spot

@@ -10,6 +10,9 @@
 #   run_game_${GAME_VERSION}     — launches via Proton wrapper
 #   install()                    — installs to ${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}
 
+set(GAME_VERSION "2_71")
+set(GAME_EXE_NAME "AirStrike3D II - Gulf.exe")
+
 set(game_exe_name "${GAME_EXE_NAME}")
 set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
 set(source_dir "${CMAKE_CURRENT_LIST_DIR}")

@@ -10,6 +10,9 @@
 #   run_game_${GAME_VERSION}     — launches via Proton wrapper
 #   install()                    — installs to ${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}
 
+set(GAME_VERSION "2_06")
+set(GAME_EXE_NAME "as3d2.exe")
+
 set(game_exe_name "${GAME_EXE_NAME}")
 set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
 set(source_dir "${CMAKE_CURRENT_LIST_DIR}")
@@ -19,7 +22,8 @@ set(deploy_stamp "${deploy_dir}/.deploy_stamp")
 
 set(deploy_script "${CMAKE_CURRENT_BINARY_DIR}/deploy_${GAME_VERSION}.cmake")
 
-set(deploy_script_content [=[
+set(deploy_script_content
+    [=[
 # Auto-generated deploy script for @GAME_VERSION@
 set(source_dir "@source_dir@")
 set(deploy_dir "@deploy_dir@")
@@ -60,9 +64,12 @@ set(bass_stamp "${deploy_dir}/.bass_stamp")
 if(USE_BASS_PROXY_LIB)
     include("${CMAKE_SOURCE_DIR}/cmake/proxy_utils.cmake")
     add_bass_proxy(
-        VERSION "${GAME_VERSION}"
-        BASS_DLL "${source_dir}/bass.dll"
-        SDK_TARGET bass_proxy_sdk)
+        VERSION
+        "${GAME_VERSION}"
+        BASS_DLL
+        "${source_dir}/bass.dll"
+        SDK_TARGET
+        bass_proxy_sdk)
 
     set(proxy_target "bass_proxy_${GAME_VERSION}")
 
@@ -76,8 +83,8 @@ if(USE_BASS_PROXY_LIB)
             "${CMAKE_COMMAND}" -E copy_if_different "${source_dir}/bass.dll"
             "${deploy_dir}/_original.dll"
         COMMAND
-            "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${proxy_target}>"
-            "${deploy_dir}/bass.dll"
+            "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:${proxy_target}>" "${deploy_dir}/bass.dll"
         COMMAND "${CMAKE_COMMAND}" -E touch "${bass_stamp}"
         DEPENDS "${source_dir}/bass.dll" ${proxy_target}
         VERBATIM)
@@ -94,8 +101,7 @@ else()
 endif()
 
 add_custom_target(
-    deploy_game_${GAME_VERSION} ALL
-    DEPENDS "${deploy_stamp}" "${bass_stamp}"
+    deploy_game_${GAME_VERSION} ALL DEPENDS "${deploy_stamp}" "${bass_stamp}"
     COMMENT "all runtime dependencies deployed for ${GAME_VERSION}")
 
 configure_file(
@@ -124,27 +130,27 @@ add_dependencies(run_game_${GAME_VERSION} deploy_game_${GAME_VERSION})
 
 set(install_dest "${CMAKE_INSTALL_BINDIR}/${GAME_VERSION}")
 
-install(FILES "${deploy_dir}/${game_exe_name}"
-        DESTINATION "${install_dest}")
+install(FILES "${deploy_dir}/${game_exe_name}" DESTINATION "${install_dest}")
 
-install(FILES "${deploy_dir}/run_game.sh"
-        DESTINATION "${install_dest}")
+install(FILES "${deploy_dir}/run_game.sh" DESTINATION "${install_dest}")
 
-install(FILES "${deploy_dir}/bass.dll"
-        DESTINATION "${install_dest}")
+install(FILES "${deploy_dir}/bass.dll" DESTINATION "${install_dest}")
 
 if(USE_BASS_PROXY_LIB)
-    install(FILES "${deploy_dir}/original.dll"
-                  "${deploy_dir}/_original.dll"
+    install(FILES "${deploy_dir}/original.dll" "${deploy_dir}/_original.dll"
             DESTINATION "${install_dest}")
 endif()
 
-install(DIRECTORY "${deploy_dir}/data/"
-        DESTINATION "${install_dest}/data"
-        FILES_MATCHING PATTERN "*")
+install(
+    DIRECTORY "${deploy_dir}/data/"
+    DESTINATION "${install_dest}/data"
+    FILES_MATCHING
+    PATTERN "*")
 
 if(EXISTS "${deploy_dir}/plugins")
-    install(DIRECTORY "${deploy_dir}/plugins/"
-            DESTINATION "${install_dest}/plugins"
-            FILES_MATCHING PATTERN "*")
+    install(
+        DIRECTORY "${deploy_dir}/plugins/"
+        DESTINATION "${install_dest}/plugins"
+        FILES_MATCHING
+        PATTERN "*")
 endif()
