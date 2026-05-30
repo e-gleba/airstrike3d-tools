@@ -88,6 +88,11 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "llvm_mingw_version": "20260519",
+        "llvm_mingw_host_os": "ubuntu-22.04",
+        "llvm_mingw_auto_download": true
       }
     },
     {
