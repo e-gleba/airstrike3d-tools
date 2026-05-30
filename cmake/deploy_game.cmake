@@ -9,7 +9,7 @@
 # Creates targets:
 #   bass_proxy_${VERSION}    — proxy DLL (if USE_BASS_PROXY_LIB)
 #   deploy_game_${VERSION}   — copies runtime files to build dir
-#   run_game_${VERSION}      — launches via unified runner script
+#   run_game_${VERSION}      — launches via Proton wrapper
 #   install() rules          — installs to ${CMAKE_INSTALL_BINDIR}/${VERSION}
 
 include_guard(GLOBAL)
@@ -115,10 +115,10 @@ execute_process(
         deploy_game_${ARG_VERSION} ALL DEPENDS "${deploy_stamp}" "${bass_stamp}"
         COMMENT "all runtime dependencies deployed for ${ARG_VERSION}")
 
-    # ─── Unified runner script ────────────────────────────────────────────────
+    # ─── Proton runner script ─────────────────────────────────────────────────
 
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/run_exe.sh.in"
+        "${CMAKE_SOURCE_DIR}/cmake/run_with_proton.sh.in"
         "${deploy_dir}/run_game.sh"
         @ONLY
         FILE_PERMISSIONS
