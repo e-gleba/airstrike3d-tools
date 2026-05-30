@@ -142,15 +142,50 @@ function(add_bass_proxy)
     target_compile_definitions(${target_name}
                                PRIVATE "BASS_VERSION=${ARG_VERSION}")
 
-    # Linker options per compiler/OS combination.
-    # - MSVC or Clang-MSVC (lld-link): nothing extra needed; CMake already
-    #   passes /DLL and /DEFAULTLIB:msvcrt for the i686-pc-windows-msvc target.
-    # - Clang/GCC with GNU ld (llvm-mingw cross-compile): -static -s for
-    #   fully static, stripped DLL (no MinGW runtime dependency).
+    # ── linker options per compiler/OS ────────────────────────────────────
+    # llvm-mingw cross-compile: produce a fully static, stripped DLL with
+    # no MinGW runtime dependency.
     if(MINGW)
         target_link_options(
             ${target_name}
             PRIVATE -static -s)
+    endif()
+
+    # Clang targeting MSVC (i686-pc-windows-msvc): CMake injects
+    # -nostartfiles which strips the CRT startup object that provides
+    # _DllMainCRTStartup.  Ask Clang where dllcrt0.obj lives and link
+    # it explicitly.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+       AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        execute_process(
+            COMMAND "${CMAKE_CXX_COMPILER}"
+                    --target=i686-pc-windows-msvc
+                    -print-file-name=dllcrt0.obj
+            OUTPUT_VARIABLE _crt_startup
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _crt_ret)
+
+        if(_crt_ret EQUAL 0
+           AND _crt_startup
+           AND NOT _crt_startup STREQUAL "dllcrt0.obj"
+           AND EXISTS "${_crt_startup}")
+            target_link_options(${target_name} PRIVATE
+                                "${_crt_startup}")
+            message(STATUS
+                    "proxy '${target_name}': linked CRT startup "
+                    "${_crt_startup}")
+        else()
+            # Fallback: let Clang find dllcrt0.obj via its internal
+            # search paths by passing the bare name.  Clang will
+            # resolve it even under -nostartfiles because it is an
+            # explicit input, not an implicit startup file.
+            target_link_options(${target_name} PRIVATE
+                                dllcrt0.obj)
+            message(STATUS
+                    "proxy '${target_name}': linking dllcrt0.obj "
+                    "via Clang driver lookup")
+        endif()
     endif()
 
     message(
