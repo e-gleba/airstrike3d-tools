@@ -1,87 +1,159 @@
-#include "overlay.hpp"
-#include "sdk/core/context.hpp"
+// sdk/overlay/overlay.cpp — ImGui implementation of overlay
+//
+// ALL ImGui code isolated here. Public header remains pure C++23.
+
+#include "sdk/overlay/overlay.hpp"
 
 #include <imgui.h>
-#include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
-#include <mutex>
-#include <spdlog/spdlog.h>
+#include <imgui_impl_opengl3.h>
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
-                                                             UINT,
-                                                             WPARAM,
-                                                             LPARAM);
+#include <spdlog/spdlog.h>
 
 namespace sdk::overlay
 {
 
-LRESULT CALLBACK hk_wnd_proc(HWND, UINT, WPARAM, LPARAM);
+// ─── manager::impl ───────────────────────────────────────────────────────
 
-namespace
+struct manager::impl
 {
+    bool initialized = false;
+    bool visible     = true;
+    HWND hwnd        = nullptr;
+    WNDPROC original_wndproc = nullptr;
 
-void init_imgui(HDC dc)
-{
-    g_ctx.window = WindowFromDC(dc);
-    if (g_ctx.window == nullptr)
+    void init_imgui(HWND h, std::string_view glsl_version)
     {
-        return;
+        if (initialized)
+        {
+            return;
+        }
+
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplWin32_Init(h);
+        ImGui_ImplOpenGL3_Init(glsl_version.data());
+
+        hwnd = h;
+        initialized = true;
+        spdlog::info("[overlay] ImGui initialized");
     }
 
-    g_ctx.original_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
-        g_ctx.window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(hk_wnd_proc)));
-
-    ImGui::CreateContext();
-
-    auto& io{ ImGui::GetIO() };
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.IniFilename = nullptr;
-
-    ImGui::StyleColorsDark();
-
-    io.FontAllowUserScaling = true;
-
-    ImGui_ImplWin32_Init(g_ctx.window);
-    ImGui_ImplOpenGL3_Init(k_glsl_version);
-
-    g_ctx.imgui_initialized = true;
-    spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
-}
-
-} // namespace
-
-void init(HDC dc)
-{
-    static std::once_flag flag;
-
-    if (wglGetCurrentContext() == nullptr)
+    void shutdown_imgui()
     {
-        return;
-    }
+        if (!initialized)
+        {
+            return;
+        }
 
-    std::call_once(flag, init_imgui, dc);
-}
-
-void render()
-{
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-
-    g_ctx.cb.on_overlay.invoke();
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-void shutdown()
-{
-    if (g_ctx.imgui_initialized)
-    {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
+
+        initialized = false;
+        spdlog::info("[overlay] ImGui shutdown");
     }
+
+    void render_frame()
+    {
+        if (!initialized || !visible)
+        {
+            return;
+        }
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        // User code would draw here via callbacks
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+};
+
+// ─── manager implementation ──────────────────────────────────────────────
+
+manager::manager() : pimpl_(std::make_unique<impl>()) {}
+
+manager::~manager()
+{
+    if (pimpl_ && pimpl_->initialized)
+    {
+        shutdown();
+    }
+}
+
+manager::manager(manager&&) noexcept = default;
+auto manager::operator=(manager&&) noexcept -> manager& = default;
+
+void manager::init(render::device_context* ctx, config cfg)
+{
+    if (!ctx)
+    {
+        spdlog::error("[overlay] null device context");
+        return;
+    }
+
+    auto hwnd = reinterpret_cast<HWND>(ctx);
+    pimpl_->init_imgui(hwnd, cfg.glsl_version);
+    pimpl_->visible = cfg.auto_show;
+}
+
+void manager::render()
+{
+    pimpl_->render_frame();
+}
+
+void manager::shutdown()
+{
+    pimpl_->shutdown_imgui();
+}
+
+void manager::toggle_visibility() noexcept
+{
+    pimpl_->visible = !pimpl_->visible;
+}
+
+auto manager::is_visible() const noexcept -> bool
+{
+    return pimpl_->visible;
+}
+
+auto manager::process_message(std::uint32_t msg, std::uintptr_t wparam, std::intptr_t lparam) -> bool
+{
+    if (!pimpl_->initialized)
+    {
+        return false;
+    }
+
+    if (ImGui_ImplWin32_WndProcHandler(pimpl_->hwnd, msg, wparam, lparam))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+// ─── Window procedure handler ───────────────────────────────────────────
+
+auto wnd_proc_handler(platform::window_handle* hwnd,
+                      std::uint32_t msg,
+                      std::uintptr_t wparam,
+                      std::intptr_t lparam,
+                      manager* overlay) -> bool
+{
+    if (!overlay)
+    {
+        return false;
+    }
+
+    return overlay->process_message(msg, wparam, lparam);
 }
 
 } // namespace sdk::overlay
