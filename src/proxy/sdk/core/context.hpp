@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <windows.h>
 
 #include <safetyhook.hpp>
@@ -15,87 +16,68 @@
 namespace sdk
 {
 
-// ─── Render API ──────────────────────────────────────────────────────────────
-
 enum class render_api : uint8_t
 {
-    unknown = 0,
-    opengl  = 1,
-    directx = 2,
+    unknown,
+    opengl,
+    directx
 };
-
-// ─── Hook registry ───────────────────────────────────────────────────────────
 
 struct hook_registry final
 {
-    safetyhook::InlineHook wgl_swap;
-    safetyhook::InlineHook gl_matrix_mode;
-    safetyhook::InlineHook gl_load_identity;
-    safetyhook::InlineHook glu_look_at;
-
+    safetyhook::InlineHook wgl_swap, gl_matrix_mode, gl_load_identity,
+        glu_look_at;
     void reset() { *this = {}; }
 };
-
-// ─── Global context ──────────────────────────────────────────────────────────
 
 struct context final
 {
     HWND    window{};
     WNDPROC original_wnd_proc{};
 
-    std::atomic<bool> imgui_initialized{ false };
-    std::atomic<bool> should_unload{ false };
-    std::atomic<bool> show_ui{ true };
+    std::atomic<bool> imgui_initialized{ false }, should_unload{ false },
+        show_ui{ true };
 
-    GLenum current_matrix_mode{ GL_MODELVIEW };
-
+    GLenum        current_matrix_mode{ GL_MODELVIEW };
     hook_registry hooks;
 
     std::unique_ptr<sol::state> lua;
     std::recursive_mutex        lua_mutex;
 
-    // ─── Render API detection ────────────────────────────────────────────
-
     std::atomic<render_api> detected_api{ render_api::unknown };
     std::atomic<bool>       overlay_available{ false };
 
-    // ─── GDI fallback overlay ────────────────────────────────────────────
-
-    HWND                   fallback_window{};
-    WNDPROC                fallback_orig_wnd_proc{};
-    safetyhook::InlineHook fallback_create_window_hook;
-
     struct final
     {
-        callback_list on_frame;
-        callback_list on_overlay;
-        callback_list on_gl_identity;
-        callback_list on_glu_lookat;
-        callback_list on_key_down;
-        callback_list on_load;
-        callback_list on_unload;
+        callback_list on_frame, on_overlay, on_gl_identity, on_glu_lookat,
+            on_key_down, on_load, on_unload;
     } cb;
 
     context()
-        : cb{ .on_frame       = callback_list(lua_mutex),
-              .on_overlay     = callback_list(lua_mutex),
-              .on_gl_identity = callback_list(lua_mutex),
-              .on_glu_lookat  = callback_list(lua_mutex),
-              .on_key_down    = callback_list(lua_mutex),
-              .on_load        = callback_list(lua_mutex),
-              .on_unload      = callback_list(lua_mutex) }
+        : cb{ .on_frame       = callback_list{ lua_mutex },
+              .on_overlay     = callback_list{ lua_mutex },
+              .on_gl_identity = callback_list{ lua_mutex },
+              .on_glu_lookat  = callback_list{ lua_mutex },
+              .on_key_down    = callback_list{ lua_mutex },
+              .on_load        = callback_list{ lua_mutex },
+              .on_unload      = callback_list{ lua_mutex } }
     {
+    }
+
+    template <typename... CBs> static void clear_all(CBs&... cbs)
+    {
+        (cbs.clear(), ...);
     }
 
     void clear_callbacks()
     {
-        cb.on_frame.clear();
-        cb.on_overlay.clear();
-        cb.on_gl_identity.clear();
-        cb.on_glu_lookat.clear();
-        cb.on_key_down.clear();
-        cb.on_load.clear();
-        cb.on_unload.clear();
+        clear_all(cb.on_frame,
+                  cb.on_overlay,
+                  cb.on_gl_identity,
+                  cb.on_glu_lookat,
+                  cb.on_key_down,
+                  cb.on_load,
+                  cb.on_unload);
     }
 };
 

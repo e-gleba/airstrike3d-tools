@@ -1,4 +1,3 @@
-
 #include "sdk/core/context.hpp"
 #include "sdk/util/win32.hpp"
 #include <GL/gl.h>
@@ -15,18 +14,9 @@
 namespace sdk::lua
 {
 
-// ── Helper: bulk-register callbacks via static reflection + pack indexing ──
-
-// C++26 pack indexing & static reflection aren't fully in sol2's API,
-// but we can still leverage structured bindings, constexpr helpers,
-// and placeholder-lambda shorthand where the standard allows.
-
 namespace detail
 {
 
-// Map a compile-time name to its CallbackList member.
-// Uses C++26 `static operator()` on a lambda (P1169) already available,
-// plus constexpr structured bindings improvements.
 inline constexpr auto callback_descriptors = std::tuple{
     std::pair{ "on_frame", &decltype(g_ctx.cb)::on_frame },
     std::pair{ "on_overlay", &decltype(g_ctx.cb)::on_overlay },
@@ -37,12 +27,9 @@ inline constexpr auto callback_descriptors = std::tuple{
     std::pair{ "on_unload", &decltype(g_ctx.cb)::on_unload },
 };
 
-// Register every callback descriptor in one fold over an index sequence.
 template <std::size_t... Is>
 void register_callbacks(sol::table& s, std::index_sequence<Is...>)
 {
-    // C++26 pack indexing: `get<Is>(tuple)` in a fold is cleaner,
-    // but the real win is the terse lambda + guaranteed copy elision.
     (s.set_function(std::get<Is>(callback_descriptors).first,
                     [](sol::protected_function f)
                     {
@@ -52,7 +39,6 @@ void register_callbacks(sol::table& s, std::index_sequence<Is...>)
      ...);
 }
 
-// Thin wrapper so callers don't spell the index_sequence.
 inline void register_callbacks(sol::table& s)
 {
     register_callbacks(
@@ -61,12 +47,8 @@ inline void register_callbacks(sol::table& s)
             std::tuple_size_v<decltype(callback_descriptors)>>{});
 }
 
-// ── GL wrapper helper: auto-cast integral args to GLenum ──
-// Uses C++26 `auto` non-type template parameter packs for the GL function
-// pointer, plus deduced-this where useful.
-
 template <auto GlFn, typename... Args>
-constexpr auto gl_wrap = [](Args... args)
+constexpr auto gl_wrap = [](Args... args) noexcept
 {
     GlFn(
         static_cast<std::conditional_t<std::is_integral_v<Args>, GLenum, Args>>(
@@ -74,7 +56,7 @@ constexpr auto gl_wrap = [](Args... args)
 };
 
 template <typename T, std::size_t N, std::ranges::input_range R>
-constexpr auto to_array_from_range(R&& rng) -> std::array<T, N>
+[[nodiscard]] constexpr auto to_array_from_range(R&& rng) -> std::array<T, N>
 {
     std::array<T, N> result{};
     std::ranges::copy(std::forward<R>(rng), result.begin());
@@ -83,58 +65,62 @@ constexpr auto to_array_from_range(R&& rng) -> std::array<T, N>
 
 } // namespace detail
 
-// ═══════════════════════════════════════════════════════════════════════
 void register_sdk_bindings(sol::state& sol_state)
 {
-    auto s = sol_state.create_named_table("sdk");
+    auto s{ sol_state.create_named_table("sdk") };
 
-    // ── Callbacks (data-driven, zero repetition) ──
     detail::register_callbacks(s);
 
-    // ── Raw GL state control ──
-    // Using the gl_wrap helper eliminates repetitive static_casts.
     s.set_function("gl_enable", detail::gl_wrap<glEnable, int>);
     s.set_function("gl_disable", detail::gl_wrap<glDisable, int>);
     s.set_function("gl_depth_mask",
-                   [](bool flag) { glDepthMask(flag ? GL_TRUE : GL_FALSE); });
+                   [](bool flag) noexcept
+                   { glDepthMask(flag ? GL_TRUE : GL_FALSE); });
     s.set_function("gl_blend_func", detail::gl_wrap<glBlendFunc, int, int>);
-    s.set_function("gl_line_width", [](float w) { glLineWidth(w); });
-    s.set_function("gl_point_size", [](float sz) { glPointSize(sz); });
+    s.set_function("gl_line_width", [](float w) noexcept { glLineWidth(w); });
+    s.set_function("gl_point_size", [](float sz) noexcept { glPointSize(sz); });
     s.set_function("gl_color4f",
-                   [](float r, float g, float b, float a)
+                   [](float r, float g, float b, float a) noexcept
                    { glColor4f(r, g, b, a); });
     s.set_function("gl_color3f",
-                   [](float r, float g, float b) { glColor3f(r, g, b); });
+                   [](float r, float g, float b) noexcept
+                   { glColor3f(r, g, b); });
     s.set_function("gl_polygon_mode", detail::gl_wrap<glPolygonMode, int, int>);
     s.set_function("gl_push_attrib",
-                   [](int mask)
+                   [](int mask) noexcept
                    { glPushAttrib(static_cast<GLbitfield>(mask)); });
-    s.set_function("gl_pop_attrib", [] { glPopAttrib(); });
-    s.set_function("gl_push_matrix", [] { glPushMatrix(); });
-    s.set_function("gl_pop_matrix", [] { glPopMatrix(); });
+    s.set_function("gl_pop_attrib", []() noexcept { glPopAttrib(); });
+    s.set_function("gl_push_matrix", []() noexcept { glPushMatrix(); });
+    s.set_function("gl_pop_matrix", []() noexcept { glPopMatrix(); });
     s.set_function("gl_begin", detail::gl_wrap<glBegin, int>);
-    s.set_function("gl_end", [] { glEnd(); });
+    s.set_function("gl_end", []() noexcept { glEnd(); });
     s.set_function("gl_vertex3f",
-                   [](float x, float y, float z) { glVertex3f(x, y, z); });
-    s.set_function("gl_vertex2f", [](float x, float y) { glVertex2f(x, y); });
+                   [](float x, float y, float z) noexcept
+                   { glVertex3f(x, y, z); });
+    s.set_function("gl_vertex2f",
+                   [](float x, float y) noexcept { glVertex2f(x, y); });
     s.set_function("gl_translate",
-                   [](double x, double y, double z) { glTranslated(x, y, z); });
+                   [](double x, double y, double z) noexcept
+                   { glTranslated(x, y, z); });
     s.set_function("gl_rotate",
-                   [](double angle, double x, double y, double z)
+                   [](double angle, double x, double y, double z) noexcept
                    { glRotated(angle, x, y, z); });
     s.set_function("gl_scale",
-                   [](double x, double y, double z) { glScaled(x, y, z); });
+                   [](double x, double y, double z) noexcept
+                   { glScaled(x, y, z); });
 
-    // ── Input ──
     s.set_function("is_key_down",
-                   [](int vk) -> bool { return win32::is_key_down(vk); });
-    s.set_function("get_cursor_pos", [] { return win32::cursor_pos(); });
-    s.set_function("set_cursor_pos", [](int x, int y) { SetCursorPos(x, y); });
-    s.set_function("show_cursor", [](bool v) { ShowCursor(v ? TRUE : FALSE); });
+                   [](int vk) noexcept -> bool
+                   { return win32::is_key_down(vk); });
+    s.set_function("get_cursor_pos",
+                   []() noexcept { return win32::cursor_pos(); });
+    s.set_function("set_cursor_pos",
+                   [](int x, int y) noexcept { SetCursorPos(x, y); });
+    s.set_function("show_cursor",
+                   [](bool v) noexcept { ShowCursor(v ? TRUE : FALSE); });
     s.set_function("get_window_rect",
-                   [] { return win32::window_rect(g_ctx.window); });
+                   []() noexcept { return win32::window_rect(g_ctx.window); });
 
-    // ── Window messages ──
     s.set_function(
         "send_chars",
         [](const std::string& text)
@@ -143,27 +129,24 @@ void register_sdk_bindings(sol::state& sol_state)
             {
                 return;
             }
-            // C++26 ranges::to + views are nicer, but the
-            // real clarity win is just a range-for here.
             for (char c : text)
             {
                 PostMessageA(g_ctx.window, WM_CHAR, static_cast<WPARAM>(c), 0);
             }
         });
 
-    // ── OpenGL matrix helpers ──
     auto load_matrix = []<typename GlFn>(sol::table t, GlFn gl_fn)
     {
-        static constexpr auto k_matrix_size = 16;
+        static constexpr int k_matrix_size{ 16 };
         if (std::cmp_less(t.size(), k_matrix_size))
         {
             return;
         }
 
-        auto m = detail::to_array_from_range<GLdouble, k_matrix_size>(
+        auto m{ detail::to_array_from_range<GLdouble, k_matrix_size>(
             std::views::iota(1, k_matrix_size + 1) |
             std::views::transform([&](int i) -> GLdouble
-                                  { return t[i].template get<double>(); }));
+                                  { return t[i].template get<double>(); })) };
 
         gl_fn(m.data());
     };
@@ -184,15 +167,14 @@ void register_sdk_bindings(sol::state& sol_state)
                       double cz,
                       double ux,
                       double uy,
-                      double uz)
+                      double uz) noexcept
                    {
-                       auto view = glm::lookAt(glm::dvec3{ ex, ey, ez },
-                                               glm::dvec3{ cx, cy, cz },
-                                               glm::dvec3{ ux, uy, uz });
+                       auto view{ glm::lookAt(glm::dvec3{ ex, ey, ez },
+                                              glm::dvec3{ cx, cy, cz },
+                                              glm::dvec3{ ux, uy, uz }) };
                        glMultMatrixd(glm::value_ptr(view));
                    });
 
-    // ── Logging ──
     s.set_function("log_info",
                    [](const std::string& m) { spdlog::info("[lua] {}", m); });
     s.set_function("log_warn",
@@ -200,7 +182,8 @@ void register_sdk_bindings(sol::state& sol_state)
     s.set_function("log_error",
                    [](const std::string& m) { spdlog::error("[lua] {}", m); });
 
-    s.set_function("get_log_dir", [] -> std::string { return "logs"; });
+    s.set_function("get_log_dir",
+                   []() noexcept -> std::string { return "logs"; });
 }
 
 } // namespace sdk::lua

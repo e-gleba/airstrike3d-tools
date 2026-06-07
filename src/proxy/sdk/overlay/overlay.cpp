@@ -1,4 +1,3 @@
-
 #include "overlay.hpp"
 #include "sdk/core/context.hpp"
 
@@ -16,7 +15,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
 namespace sdk::overlay
 {
 
-// Forward-declared; defined in wndproc.cpp
 LRESULT CALLBACK hk_wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
 namespace
@@ -35,11 +33,10 @@ void init_imgui(HDC dc)
 
     ImGui::CreateContext();
 
-    auto& io = ImGui::GetIO();
+    auto& io{ ImGui::GetIO() };
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
 
-    // Classic Dear ImGui dark style — clean, recognizable, professional
     ImGui::StyleColorsDark();
 
     io.FontAllowUserScaling = true;
@@ -47,7 +44,7 @@ void init_imgui(HDC dc)
     ImGui_ImplWin32_Init(g_ctx.window);
     ImGui_ImplOpenGL3_Init(k_glsl_version);
 
-    g_ctx.imgui_initialized.store(true, std::memory_order::release);
+    g_ctx.imgui_initialized = true;
     spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
 }
 
@@ -67,6 +64,8 @@ void init(HDC dc)
 
 void render()
 {
+    g_ctx.cb.on_frame.invoke();
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -79,7 +78,7 @@ void render()
 
 void shutdown()
 {
-    if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
+    if (g_ctx.imgui_initialized)
     {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplWin32_Shutdown();

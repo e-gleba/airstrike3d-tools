@@ -14,23 +14,23 @@ namespace sdk::lua
 namespace
 {
 
-// Helper: convert a glm::dvec3 result to a Lua-friendly tuple
-auto to_tuple(const glm::dvec3& v) -> std::tuple<double, double, double>
+[[nodiscard]] constexpr auto to_tuple(const glm::dvec3& v) noexcept
+    -> std::tuple<double, double, double>
 {
     return { v.x, v.y, v.z };
 }
 
-// Helper: construct a glm::dvec3 from 3 doubles
-auto vec3(double x, double y, double z) -> glm::dvec3
+[[nodiscard]] constexpr auto vec3(double x, double y, double z) noexcept
+    -> glm::dvec3
 {
     return { x, y, z };
 }
 
-// Helper: convert a 4x4 matrix to a sol::table (1-indexed, column-major)
-auto mat4_to_table(sol::state& state, const glm::dmat4& mat) -> sol::table
+[[nodiscard]] auto mat4_to_table(sol::state& state, const glm::dmat4& mat)
+    -> sol::table
 {
-    auto t = state.create_table(16, 0);
-    auto p = std::span(glm::value_ptr(mat), 16);
+    auto t{ state.create_table(16, 0) };
+    auto p{ std::span(glm::value_ptr(mat), 16) };
 
     for (auto i : std::views::iota(0uz, 16uz))
     {
@@ -44,29 +44,33 @@ auto mat4_to_table(sol::state& state, const glm::dmat4& mat) -> sol::table
 
 void register_math_bindings(sol::state& sol_state)
 {
-    auto m = sol_state.create_named_table("gmath");
+    auto m{ sol_state.create_named_table("gmath") };
 
-    // Simple forwarding functions
-    m.set_function("radians", [](double d) { return glm::radians(d); });
-    m.set_function("cos", [](double v) { return std::cos(v); });
-    m.set_function("sin", [](double v) { return std::sin(v); });
-    m.set_function("mod", [](double v, double d) { return glm::mod(v, d); });
+    m.set_function("radians",
+                   [](double d) noexcept { return glm::radians(d); });
+    m.set_function("cos", [](double v) noexcept { return std::cos(v); });
+    m.set_function("sin", [](double v) noexcept { return std::sin(v); });
+    m.set_function("mod",
+                   [](double v, double d) noexcept { return glm::mod(v, d); });
 
     m.set_function("clamp",
-                   [](double v, double lo, double hi)
+                   [](double v, double lo, double hi) noexcept
                    { return glm::clamp(v, lo, hi); });
 
-    // Vector operations returning (x, y, z) tuples
     m.set_function("normalize",
-                   [](double x, double y, double z)
+                   [](double x, double y, double z) noexcept
                    { return to_tuple(glm::normalize(vec3(x, y, z))); });
 
     m.set_function(
         "cross",
-        [](double ax, double ay, double az, double bx, double by, double bz)
+        [](double ax,
+           double ay,
+           double az,
+           double bx,
+           double by,
+           double bz) noexcept
         { return to_tuple(glm::cross(vec3(ax, ay, az), vec3(bx, by, bz))); });
 
-    // Matrix operations returning 16-element tables
     m.set_function("lookat_matrix",
                    [&sol_state](double ex,
                                 double ey,

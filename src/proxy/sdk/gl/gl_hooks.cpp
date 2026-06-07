@@ -1,24 +1,28 @@
 #include "gl_hooks.hpp"
 #include "sdk/core/context.hpp"
 
+#include <concepts>
+#include <type_traits>
+#include <utility>
+
 namespace sdk::gl
 {
 
-// Modern type aliases using 'using' with clearer naming
 using gl_matrix_mode_fn   = void(APIENTRY*)(GLenum);
 using gl_load_identity_fn = void(APIENTRY*)();
 using glu_look_at_fn      = void(APIENTRY*)(GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble,
-                                       GLdouble);
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble,
+                                            GLdouble);
 
-// Helper: call original hooked function if it exists
 template <typename Fn, typename Hook, typename... Args>
+    requires std::is_pointer_v<Fn> &&
+             std::is_function_v<std::remove_pointer_t<Fn>>
 inline void call_if_hooked(Hook& hook, Args&&... args)
 {
     if (hook)
@@ -53,8 +57,8 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    auto consumed = g_ctx.cb.on_glu_lookat.invoke_consuming(
-        ex, ey, ez, cx, cy, cz, ux, uy, uz);
+    auto consumed{ g_ctx.cb.on_glu_lookat.invoke_consuming(
+        ex, ey, ez, cx, cy, cz, ux, uy, uz) };
 
     if (!consumed)
     {

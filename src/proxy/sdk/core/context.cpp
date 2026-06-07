@@ -13,22 +13,21 @@ namespace sdk::overlay
 
 [[nodiscard]] LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    if (m == WM_KEYDOWN && w == k_ui_toggle_key)
+    if (m == WM_KEYDOWN) [[unlikely]]
     {
-        g_ctx.show_ui.store(!g_ctx.show_ui.load());
-        return 0;
-    }
-
-    if (m == WM_KEYDOWN)
-    {
+        if (w == k_ui_toggle_key) [[unlikely]]
+        {
+            g_ctx.show_ui = !g_ctx.show_ui;
+            return 0;
+        }
         if (g_ctx.cb.on_key_down.invoke_consuming(static_cast<int>(w)))
         {
             return 0;
         }
     }
 
-    if (!g_ctx.should_unload.load() && g_ctx.show_ui.load() &&
-        ImGui_ImplWin32_WndProcHandler(h, m, w, l) != 0)
+    if (!g_ctx.should_unload && g_ctx.show_ui &&
+        ImGui_ImplWin32_WndProcHandler(h, m, w, l))
     {
         return 1;
     }
