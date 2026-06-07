@@ -6,6 +6,7 @@
 #include <concepts>
 #include <functional>
 #include <mutex>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -15,10 +16,10 @@ namespace sdk
 /// Type-erased, thread-safe callback registry.
 ///
 /// Stores std::function — zero exposure of Lua/sol2 internals.
-/// Template dispatch via std::same_as concept ensures compile-time signature validation.
+/// Template dispatch via NTTP event + concept ensures compile-time signature validation.
 ///
 /// Usage:
-///   callbacks.add<event::on_frame>([]{ ... });
+///   callbacks.add_on_frame([]{ ... });
 ///   callbacks.invoke<event::on_frame, void()>();
 ///
 class callback_list
@@ -29,31 +30,10 @@ class callback_list
     std::vector<std::function<void()>>                                          on_overlay_fns;
     std::vector<std::function<void()>>                                          on_gl_identity_fns;
     std::vector<std::function<void(double, double, double, double, double, double, double, double, double)>> on_glu_lookat_fns;
-    std::vector<std::function<void(int)>>                                       on_key_down_fns;
+    std::vector<std::function<bool(int)>>                                       on_key_down_fns;
+    std::vector<std::function<bool(double, double, double, double, double, double, double, double, double)>> on_glu_lookat_consuming_fns;
     std::vector<std::function<void()>>                                          on_load_fns;
     std::vector<std::function<void()>>                                          on_unload_fns;
-
-    template <event E, typename Sig>
-    static consteval bool valid_signature()
-    {
-        if constexpr (E == event::on_frame || E == event::on_overlay || E == event::on_gl_identity ||
-                      E == event::on_load || E == event::on_unload)
-        {
-            return std::same_as<Sig, void()>;
-        }
-        else if constexpr (E == event::on_key_down)
-        {
-            return std::same_as<Sig, void(int)>;
-        }
-        else if constexpr (E == event::on_glu_lookat)
-        {
-            return std::same_as<Sig, void(double, double, double, double, double, double, double, double, double)>;
-        }
-        else
-        {
-            return false;
-        }
-    }
 
     template <event E>
     constexpr auto& storage()
@@ -79,18 +59,6 @@ public:
     {
     }
 
-    /// Register a callable for event E. Signature validated at compile time.
-    template <event E, std::invocable F>
-        requires valid_signature<E, std::decay_t<F>>() ||
-                 (E == event::on_key_down && std::invocable<F, int>) ||
-                 (E == event::on_glu_lookat &&
-                  std::invocable<F, double, double, double, double, double, double, double, double, double>)
-    void add(F&& fn)
-    {
-        std::lock_guard lk{ mtx };
-        storage<E>().emplace_back(std::forward<F>(fn));
-    }
-
     // ─── Named add methods for descriptor-table registration in bindings ──────
 
     void add_on_frame(std::function<void()> f)
@@ -114,10 +82,16 @@ public:
         std::lock_guard lk{ mtx };
         on_glu_lookat_fns.push_back(std::move(f));
     }
-    void add_on_key_down(std::function<void(int)> f)
+    void add_on_key_down(std::function<bool(int)> f)
     {
         std::lock_guard lk{ mtx };
         on_key_down_fns.push_back(std::move(f));
+    }
+    void add_on_glu_lookat_consuming(
+        std::function<bool(double, double, double, double, double, double, double, double, double)> f)
+    {
+        std::lock_guard lk{ mtx };
+        on_glu_lookat_consuming_fns.push_back(std::move(f));
     }
     void add_on_load(std::function<void()> f)
     {
@@ -141,13 +115,21 @@ public:
         }
     }
 
-    /// Invoke consuming: returns true if any callback returned true.
-    template <event E, typename Sig, typename... Args>
-    [[nodiscard]] bool invoke_consuming(Args&&... args)
+    /// Invoke key_down callbacks consuming-style: returns true if any returned true.
+    bool invoke_key_down(int key)
     {
         std::lock_guard lk{ mtx };
-        return std::ranges::any_of(storage<E>(),
-                                   [&](auto& fn) { return fn(std::forward<Args>(args)...); });
+        return std::ranges::any_of(on_key_down_fns, [&](auto& fn) { return fn(key); });
+    }
+
+    /// Invoke glu_lookat callbacks consuming-style: returns true if any returned true.
+    bool invoke_glu_lookat_consuming(double ex, double ey, double ez,
+                                     double cx, double cy, double cz,
+                                     double ux, double uy, double uz)
+    {
+        std::lock_guard lk{ mtx };
+        return std::ranges::any_of(on_glu_lookat_consuming_fns,
+                                   [&](auto& fn) { return fn(ex, ey, ez, cx, cy, cz, ux, uy, uz); });
     }
 
     void clear()
@@ -158,6 +140,7 @@ public:
         on_gl_identity_fns.clear();
         on_glu_lookat_fns.clear();
         on_key_down_fns.clear();
+        on_glu_lookat_consuming_fns.clear();
         on_load_fns.clear();
         on_unload_fns.clear();
     }
@@ -166,7 +149,8 @@ public:
     {
         std::lock_guard lk{ mtx };
         return on_frame_fns.empty() && on_overlay_fns.empty() && on_gl_identity_fns.empty() &&
-               on_glu_lookat_fns.empty() && on_key_down_fns.empty() && on_load_fns.empty() &&
+               on_glu_lookat_fns.empty() && on_key_down_fns.empty() &&
+               on_glu_lookat_consuming_fns.empty() && on_load_fns.empty() &&
                on_unload_fns.empty();
     }
 };

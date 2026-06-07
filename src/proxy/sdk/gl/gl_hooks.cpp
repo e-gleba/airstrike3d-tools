@@ -57,9 +57,7 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    auto consumed{ g_ctx.callbacks.invoke_consuming<
-        event::on_glu_lookat,
-        bool(double, double, double, double, double, double, double, double, double)>(
+    auto consumed{ g_ctx.callbacks.invoke_glu_lookat_consuming(
         ex, ey, ez, cx, cy, cz, ux, uy, uz) };
 
     if (!consumed)

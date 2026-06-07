@@ -23,38 +23,57 @@ namespace sdk::lua
 namespace detail
 {
 
-// ─── Descriptor table: event → callback_list add method → expected signature ─
+// ─── Descriptor table: event → callback_list add method ──────────────────────
+//
+// Each entry: { event enum, pointer-to-member of callback_list::add_* method }.
+// The add_* methods accept std::function with the correct signature.
+// Fold expression expands all registrations in a single expression.
 
 inline constexpr auto callback_descriptors = std::tuple{
-    std::tuple{ event::on_frame,      &callback_list::add_on_frame,      std::type_identity<void()>{} },
-    std::tuple{ event::on_overlay,    &callback_list::add_on_overlay,    std::type_identity<void()>{} },
-    std::tuple{ event::on_gl_identity,&callback_list::add_on_gl_identity,std::type_identity<void()>{} },
-    std::tuple{ event::on_glu_lookat, &callback_list::add_on_glu_lookat,
-                std::type_identity<void(double, double, double, double, double, double, double, double, double)>{} },
-    std::tuple{ event::on_key_down,   &callback_list::add_on_key_down,   std::type_identity<void(int)>{} },
-    std::tuple{ event::on_load,       &callback_list::add_on_load,       std::type_identity<void()>{} },
-    std::tuple{ event::on_unload,     &callback_list::add_on_unload,     std::type_identity<void()>{} },
+    std::pair{ event::on_frame,       &callback_list::add_on_frame },
+    std::pair{ event::on_overlay,     &callback_list::add_on_overlay },
+    std::pair{ event::on_gl_identity, &callback_list::add_on_gl_identity },
+    std::pair{ event::on_glu_lookat,  &callback_list::add_on_glu_lookat },
+    std::pair{ event::on_key_down,    &callback_list::add_on_key_down },
+    std::pair{ event::on_load,        &callback_list::add_on_load },
+    std::pair{ event::on_unload,      &callback_list::add_on_unload },
 };
 
 /// Bind a single event: wraps sol::protected_function into std::function with error checking,
 /// then forwards to the appropriate callback_list::add_* method via pointer-to-member.
-template <typename AddPmf, typename Sig>
-void bind_event(sol::table& s, event ev, AddPmf add_method, std::type_identity<Sig>)
+template <typename AddPmf>
+void bind_event(sol::table& s, event ev, AddPmf add_method)
 {
     s.set_function(
         std::string{ to_string_view(ev) },
         [add_method](sol::protected_function fn)
         {
-            auto wrapper = [fn = std::move(fn)](auto&&... args) mutable
+            // Extract the std::function parameter type from the add_* method signature.
+            // AddPmf is void(callback_list::*)(std::function<Sig>)
+            // We deduce Sig via the lambda below.
+            using pmf_traits = decltype([]<typename C, typename Sig>(void (C::*)(Sig))
+                                        -> Sig {});
+            using fn_type = decltype(pmf_traits{}(add_method));
+
+            auto wrapper = fn_type{ [fn = std::move(fn)](auto&&... args) mutable
             {
                 auto result = fn(std::forward<decltype(args)>(args)...);
-                if (!result.valid())
+                if constexpr (std::is_void_v<decltype(result)>)
                 {
-                    sol::error err = result;
-                    spdlog::error("[sdk] lua callback error: {}", err.what());
+                    return;
                 }
-            };
-            (g_ctx.callbacks.*add_method)(std::function<Sig>{ std::move(wrapper) });
+                else
+                {
+                    if (!result.valid())
+                    {
+                        sol::error err = result;
+                        spdlog::error("[sdk] lua callback error: {}", err.what());
+                    }
+                    return sol::optional<bool>{ result }.value_or(false);
+                }
+            } };
+
+            (g_ctx.callbacks.*add_method)(std::move(wrapper));
         });
 }
 
@@ -63,9 +82,8 @@ template <std::size_t... Is>
 void register_callbacks(sol::table& s, std::index_sequence<Is...>)
 {
     (bind_event(s,
-                std::get<0>(std::get<Is>(callback_descriptors)),
-                std::get<1>(std::get<Is>(callback_descriptors)),
-                std::get<2>(std::get<Is>(callback_descriptors))),
+                std::get<Is>(callback_descriptors).first,
+                std::get<Is>(callback_descriptors).second),
      ...);
 }
 
