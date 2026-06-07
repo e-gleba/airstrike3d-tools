@@ -45,17 +45,17 @@ struct script_engine::impl
 
         if (!fs::exists(plugin_dir))
         {
-            spdlog::warn("[sdk] plugins directory '{}' not found, creating it",
-                         plugin_dir.string());
+            spdlog::warn(
+                "[sdk] plugins directory '{}' not found, creating it", plugin_dir.string());
             fs::create_directories(plugin_dir);
             return;
         }
 
         auto scripts = std::ranges::to<std::vector>(
             fs::directory_iterator(plugin_dir) |
-            std::views::filter([](const fs::directory_entry& e) {
-                return e.is_regular_file() && e.path().extension() == ".lua";
-            }) |
+            std::views::filter(
+                [](const fs::directory_entry& e)
+                { return e.is_regular_file() && e.path().extension() == ".lua"; }) |
             std::views::transform(&fs::directory_entry::path));
 
         std::ranges::sort(scripts);
@@ -64,27 +64,29 @@ struct script_engine::impl
         {
             spdlog::info("[sdk] loading plugin: {}", path.filename().string());
 
-            auto result = lua.safe_script_file(path.string(), sol::script_pass_on_error);
+            auto result =
+                lua.safe_script_file(path.string(), sol::script_pass_on_error);
             if (!result.valid())
             {
                 sol::error err = result;
-                spdlog::error("[sdk] failed to load {}: {}", path.filename().string(), err.what());
+                spdlog::error("[sdk] failed to load {}: {}",
+                              path.filename().string(),
+                              err.what());
             }
         }
 
         spdlog::info("[sdk] all plugins loaded ({} scripts)", scripts.size());
     }
 
-    template <typename... Args>
-    void invoke(std::string_view event_name, Args&&... args)
+    void invoke_impl(std::string_view event_name, auto&&... args)
     {
-        sol::protected_function fn = lua[event_name];
+        sol::protected_function fn = lua[std::string{ event_name }];
         if (!fn.valid())
         {
             return;
         }
 
-        auto result = fn(std::forward<Args>(args)...);
+        auto result = fn(std::forward<decltype(args)>(args)...);
         if (!result.valid())
         {
             sol::error err = result;
@@ -92,6 +94,8 @@ struct script_engine::impl
         }
     }
 };
+
+// ─── Special member functions ────────────────────────────────────────────────
 
 script_engine::script_engine() : pimpl{ std::make_unique<impl>() }
 {
@@ -102,6 +106,8 @@ script_engine::~script_engine() noexcept = default;
 script_engine::script_engine(script_engine&&) noexcept = default;
 script_engine& script_engine::operator=(script_engine&&) noexcept = default;
 
+// ─── Public interface ────────────────────────────────────────────────────────
+
 void script_engine::register_bindings()
 {
     if (pimpl)
@@ -110,7 +116,7 @@ void script_engine::register_bindings()
     }
 }
 
-void script_engine::load_plugins(std::filesystem::path plugin_dir)
+void script_engine::load_plugins(const std::filesystem::path& plugin_dir)
 {
     if (pimpl)
     {
@@ -118,12 +124,19 @@ void script_engine::load_plugins(std::filesystem::path plugin_dir)
     }
 }
 
-template <typename... Args>
-void script_engine::invoke(std::string_view event_name, Args&&... args)
+void script_engine::invoke(std::string_view event_name)
 {
     if (pimpl)
     {
-        pimpl->invoke(event_name, std::forward<Args>(args)...);
+        pimpl->invoke_impl(event_name);
+    }
+}
+
+void script_engine::invoke_impl(std::string_view event_name, auto&&... args)
+{
+    if (pimpl)
+    {
+        pimpl->invoke_impl(event_name, std::forward<decltype(args)>(args)...);
     }
 }
 
@@ -131,20 +144,5 @@ script_engine::operator bool() const noexcept
 {
     return pimpl != nullptr;
 }
-
-// Explicit instantiations for common callback signatures
-template void script_engine::invoke<>(std::string_view);
-template void script_engine::invoke<int>(std::string_view, int&&);
-template void script_engine::invoke<double, double, double, double, double, double, double, double, double>(
-    std::string_view,
-    double&&,
-    double&&,
-    double&&,
-    double&&,
-    double&&,
-    double&&,
-    double&&,
-    double&&,
-    double&&);
 
 } // namespace sdk

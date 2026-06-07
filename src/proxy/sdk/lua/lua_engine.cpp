@@ -12,11 +12,9 @@ void load_plugins()
 {
     g_ctx.lua.emplace();
     g_ctx.lua->register_bindings();
+    g_ctx.lua->load_plugins(std::filesystem::path{ "." } / k_plugin_dir);
 
-    const std::filesystem::path plugin_dir{ "plugins" };
-    g_ctx.lua->load_plugins(plugin_dir);
-
-    g_ctx.callbacks.invoke<>("on_load");
+    g_ctx.callbacks.invoke<event::on_load, void()>();
     spdlog::info("[sdk] plugins loaded");
 }
 
@@ -24,7 +22,7 @@ void unload_plugins()
 {
     std::lock_guard lk{ g_ctx.lua_mutex };
 
-    g_ctx.callbacks.invoke<>("on_unload");
+    g_ctx.callbacks.invoke<event::on_unload, void()>();
     g_ctx.callbacks.clear();
     g_ctx.lua.reset();
 

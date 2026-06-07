@@ -1,4 +1,4 @@
-#include "context.hpp"
+#include "sdk/core/context.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_win32.h>
@@ -14,16 +14,18 @@ namespace sdk::overlay
     {
         if (w == k_ui_toggle_key) [[unlikely]]
         {
-            g_ctx.overlay_visible = !g_ctx.overlay_visible;
+            g_ctx.show_ui = !g_ctx.show_ui;
             return 0;
         }
-        if (g_ctx.callbacks.invoke_consuming("on_key_down", static_cast<int>(w)))
+        if (g_ctx.callbacks.invoke_consuming<event::on_key_down, bool(int)>(
+                static_cast<int>(w)))
         {
             return 0;
         }
     }
 
-    if (!g_ctx.should_exit && g_ctx.overlay_visible && ImGui_ImplWin32_WndProcHandler(h, m, w, l))
+    if (!g_ctx.should_unload && g_ctx.show_ui &&
+        ImGui_ImplWin32_WndProcHandler(h, m, w, l))
     {
         return 1;
     }

@@ -76,6 +76,8 @@ void on_dx_detected()
         return;
     }
 
+    g_ctx.overlay_available.store(false, std::memory_order::release);
+
     spdlog::warn("");
     spdlog::warn("╔══════════════════════════════════════════════════════╗");
     spdlog::warn("║  DirectX renderer detected                          ║");
@@ -92,6 +94,8 @@ void on_gl_confirmed()
     {
         return;
     }
+
+    g_ctx.overlay_available.store(true, std::memory_order::release);
 
     spdlog::info("");
     spdlog::info("╔══════════════════════════════════════════════════════╗");
@@ -126,7 +130,14 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
     if ((result != nullptr) && (name != nullptr))
     {
         char buf[128]{};
-        WideCharToMultiByte(CP_ACP, 0, name, -1, buf, static_cast<int>(sizeof(buf)), nullptr, nullptr);
+        WideCharToMultiByte(CP_ACP,
+                            0,
+                            name,
+                            -1,
+                            buf,
+                            static_cast<int>(sizeof(buf)),
+                            nullptr,
+                            nullptr);
         if (is_dx_dll_name(buf))
         {
             on_dx_detected();
@@ -135,6 +146,8 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
 
     return result;
 }
+
+// ─── wglSwapBuffers hook — lazy GL detection + overlay entry point ───────────
 
 static BOOL WINAPI hk_wgl_swap(HDC dc)
 {
@@ -146,15 +159,15 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
         }
     }
 
-    if (g_ctx.detected_api.load(std::memory_order::acquire) == render_api::opengl)
+    if (g_ctx.overlay_available.load(std::memory_order::acquire))
     {
         overlay::init(dc);
 
-        if (g_ctx.overlay_initialized.load(std::memory_order::acquire))
+        if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
         {
-            g_ctx.callbacks.invoke<>("on_frame");
+            g_ctx.callbacks.invoke<event::on_frame, void()>();
 
-            if (g_ctx.overlay_visible.load(std::memory_order::relaxed))
+            if (g_ctx.show_ui.load(std::memory_order::relaxed))
             {
                 overlay::render();
             }
@@ -162,22 +175,20 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
     }
 
     using wgl_swap_fn = BOOL(WINAPI*)(HDC);
-    return reinterpret_cast<wgl_swap_fn>(g_ctx.hooks.wgl_swap_buffers.trampoline().address())(dc);
+    return call_orig<wgl_swap_fn>(g_ctx.hooks.wgl_swap)(dc);
 }
 
 } // namespace
+
+// ─── Public API ──────────────────────────────────────────────────────────────
 
 void install_hooks()
 {
     spdlog::info("[sdk] detecting render API...");
 
     static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {
-        L"d3d8.dll",
-        L"d3d9.dll",
-        L"ddraw.dll",
-        L"dxgi.dll",
-        L"d3d11.dll",
-        L"d3d12.dll",
+        L"d3d8.dll", L"d3d9.dll",  L"ddraw.dll",
+        L"dxgi.dll", L"d3d11.dll", L"d3d12.dll",
     };
 
     for (const auto* dll : k_dx_dlls)
@@ -189,11 +200,13 @@ void install_hooks()
         }
     }
 
-    g_ll_a_hook = safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryA),
-                                              reinterpret_cast<void*>(hk_load_library_a));
+    g_ll_a_hook =
+        safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryA),
+                                  reinterpret_cast<void*>(hk_load_library_a));
 
-    g_ll_w_hook = safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryW),
-                                              reinterpret_cast<void*>(hk_load_library_w));
+    g_ll_w_hook =
+        safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryW),
+                                  reinterpret_cast<void*>(hk_load_library_w));
 
     using namespace win32;
 
@@ -206,7 +219,7 @@ void install_hooks()
     };
 
     auto hooks = std::array{
-        hook_def{ .target = g_ctx.hooks.wgl_swap_buffers,
+        hook_def{ .target = g_ctx.hooks.wgl_swap,
                   .dll    = L"opengl32.dll",
                   .proc   = "wglSwapBuffers",
                   .detour = reinterpret_cast<void*>(hk_wgl_swap) },
@@ -236,23 +249,26 @@ void install_hooks()
 void uninstall_hooks()
 {
     spdlog::info("[sdk] uninstalling...");
-    g_ctx.should_exit.store(true);
+    g_ctx.should_unload.store(true);
 
     lua::unload_plugins();
 
-    if (g_ctx.detected_api.load(std::memory_order::acquire) == render_api::opengl)
+    if (g_ctx.overlay_available.load(std::memory_order::acquire))
     {
         overlay::shutdown();
 
         if ((g_ctx.window != nullptr) && (g_ctx.original_wnd_proc != nullptr))
         {
-            SetWindowLongPtrA(g_ctx.window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
+            SetWindowLongPtrA(
+                g_ctx.window,
+                GWLP_WNDPROC,
+                reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
         }
     }
 
     g_ll_a_hook.reset();
     g_ll_w_hook.reset();
-    g_ctx.hooks = {};
+    g_ctx.hooks.reset();
     spdlog::info("[sdk] shutdown complete");
 }
 
