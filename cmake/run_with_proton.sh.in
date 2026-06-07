@@ -7,7 +7,7 @@ set -o errtrace
 shopt -s nullglob
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-readonly EXE="@game_exe_name@"
+readonly EXE="@game_exe@"
 readonly DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 readonly STARTED_AT="$(date +%Y%m%d-%H%M%S)"
 readonly LOG_DIR="$DIR/logs"
