@@ -53,4 +53,4 @@ target_link_libraries(
             spdlog::spdlog
             sol2::sol2
             lua
-            LuaBridge)
+            $<$<BOOL:${SDK_EXPERIMENTAL_LUABRIDGE3}>:LuaBridge>)

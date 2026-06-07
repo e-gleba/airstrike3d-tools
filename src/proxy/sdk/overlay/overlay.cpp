@@ -64,8 +64,6 @@ void init(HDC dc)
 
 void render()
 {
-    g_ctx.cb.on_frame.invoke();
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();

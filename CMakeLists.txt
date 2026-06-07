@@ -12,6 +12,10 @@ include(CMakePrintHelpers)
 set(CMAKE_UNITY_BUILD ON)
 
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
+option(
+    SDK_EXPERIMENTAL_LUABRIDGE3
+    "Use LuaBridge3 as alternative Lua binding backend (experimental, sol2 is default)"
+    OFF)
 
 # CMAKE_CURRENT_LIST_DIR is used instead of CMAKE_SOURCE_DIR so that this
 # file works correctly if the project is ever consumed as a subdirectory of a
