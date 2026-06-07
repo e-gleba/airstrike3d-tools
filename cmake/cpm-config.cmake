@@ -1,13 +1,10 @@
 include(FetchContent)
 
-set(cpm_version "0.42.1")
-set(cpm_expected_hash
-    "f3a6dcc6a04ce9e7f51a127307fa4f699fb2bade357a8eb4c5b45df76e1dc6a5")
+set(cpm_version "0.42.3")
 
 fetchcontent_declare(
     get_cpm
     URL "https://github.com/cpm-cmake/CPM.cmake/releases/download/v${cpm_version}/CPM.cmake"
-    URL_HASH SHA256=${cpm_expected_hash}
     DOWNLOAD_NO_EXTRACT TRUE)
 
 fetchcontent_makeavailable(get_cpm)
