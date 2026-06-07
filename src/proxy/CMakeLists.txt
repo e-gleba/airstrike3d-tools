@@ -52,4 +52,5 @@ target_link_libraries(
             safetyhook
             spdlog::spdlog
             sol2::sol2
-            lua)
+            lua
+            LuaBridge)

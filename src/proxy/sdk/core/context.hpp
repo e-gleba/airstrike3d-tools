@@ -1,16 +1,16 @@
 #pragma once
 
-#include <windows.h>
 #include <GL/gl.h>
 #include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <windows.h>
 
 #include <safetyhook.hpp>
 #include <sol/sol.hpp>
 
-#include "sdk/util/callback.hpp"
+#include "sdk/lua/callback.hpp"
 
 namespace sdk
 {
@@ -61,8 +61,8 @@ struct context final
 
     // ─── GDI fallback overlay ────────────────────────────────────────────
 
-    HWND                  fallback_window{};
-    WNDPROC               fallback_orig_wnd_proc{};
+    HWND                   fallback_window{};
+    WNDPROC                fallback_orig_wnd_proc{};
     safetyhook::InlineHook fallback_create_window_hook;
 
     struct final
