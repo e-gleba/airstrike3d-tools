@@ -64,7 +64,7 @@
 - [ASProtect 1.0 Analysis](#asprotect-10-analysis)
   - [Identification](#identification)
   - [How It Works](#how-it-works)
-  - [v2.71 — No Protection](#v271--no-protection)
+  - [v2.51 / v2.71 — No Protection](#v251--v271--no-protection)
 - [Toolkit](#toolkit)
   - [APK Archive Extraction](#apk-archive-extraction)
   - [MDL ↔ OBJ Converter](#mdl--obj-converter)
@@ -163,6 +163,7 @@ Before DivoGames was officially founded (~2004), the initial AirStrike chapters 
 |------|-------|-----------|-------|--------|-------------|
 | 2002 | AirStrike 3D: Operation W.A.T. | Alawar | Helicopter shooter | v1.x (OpenGL, Deaddybear era) | *Air Assault 3D*, *Air Hawk* |
 | 2004 | AirStrike 2 | Alawar / self | Helicopter shooter | v2.06 (OpenGL 1.1, MSVC 7.0) | *АвиаНалет 2* (ru) |
+| 2005 | AirStrike 2 D3D8 | Alawar / self | Helicopter shooter | v2.51 (Direct3D 8, MSVC 7.1) | — |
 | 2005 | AirStrike II: Gulf Thunder | Alawar | Helicopter shooter | v2.71 (Direct3D 8, MSVC 8.0) | *Desert Hawk* |
 | 2007 | Air Force Missions | MyPlayCity | Helicopter shooter | v2.50 (unconfirmed, same engine lineage) | — |
 | 2007 | Space Strike | MyPlayCity | Space shooter | unknown | *Galaxy Strike*, *Звёздный Удар* |
@@ -171,6 +172,8 @@ Before DivoGames was officially founded (~2004), the initial AirStrike chapters 
 > - *AirStrike 3D: Operation W.A.T.* → **"Air Assault 3D"** / **"Air Hawk"**
 > - *AirStrike II: Gulf Thunder* → **"Desert Hawk"**
 > - *Space Strike* → **"Galaxy Strike"**
+>
+> **AirStrike 2 D3D8** (v2.51) is the Direct3D 8 port of AirStrike 2 — same game, updated graphics backend. Not to be confused with Gulf Thunder (v2.71), which is a distinct title with new content.
 >
 > **Air Force Missions** and **Space Strike** are distinct DivoGames titles — separate from the Alawar-published trilogy — released in 2007 under a MyPlayCity distribution deal. Air Force Missions is a helicopter shooter sharing visible engine DNA with Operation W.A.T. (version string `2.50` observed in binary); Space Strike is a space shooter, unrelated gameplay-wise. Neither title's asset format compatibility with v2.06/v2.71 tooling has been confirmed — requires binary diff. Issue tracked at [#1](https://github.com/e-gleba/airstrike3d-tools/issues/1).
 >
@@ -369,9 +372,16 @@ The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.
 6. **Checksums** — Code integrity verification to detect runtime patching.
 7. **Anti-disasm** — Junk bytes after `CALL` instructions break linear-sweep disassemblers (W32DASM, SOURCER); IDA handles fine.
 
-### v2.71 — No Protection
+### v2.51 / v2.71 — No Protection
 
-Gulf Thunder ships **completely unprotected**: EP in `.text`, entropy 6.83, full IAT, developer credits and error strings plainly readable. Much better target for engine analysis.
+Both v2.51 and v2.71 ship **completely unprotected** — no ASProtect, no packing, no anti-debug tricks:
+
+| Version | EP location | Entropy | IAT | Strings |
+|---------|-------------|---------|-----|---------|
+| v2.51 (`as3d2.exe`) | `.text` | normal | Full | Readable |
+| v2.71 (`Gulf.exe`) | `.text` | 6.83 | Full | Developer credits, error strings plainly readable |
+
+Much better targets for engine analysis compared to the ASProtect-wrapped v2.06.
 
 ---
 
