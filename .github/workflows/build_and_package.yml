@@ -4,41 +4,35 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'readme.md'
-      - 'license.md'
-      - '.github/contributing.md'
-      - '.github/security.md'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - 'scripts/**'
-      - 'ghidra/**'
-      - '.clang*'
-      - '.editorconfig'
-      - '.cursorignore'
-      - '.gitignore'
-      - '2_06/**'
-      - '2_71/**'
-      - '.cmake-format.py'
-      - '.github/workflows/publish_release.yml'
+      - "readme.md"
+      - "license.md"
+      - ".github/contributing.md"
+      - ".github/security.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/pull_request_template.md"
+      - "scripts/**"
+      - "ghidra/**"
+      - ".editorconfig"
+      - ".cursorignore"
+      - ".gitignore"
+      - ".cmake-format.py"
+      - ".github/workflows/publish_release.yml"
   pull_request:
     branches: [main]
     paths-ignore:
-      - 'readme.md'
-      - 'license.md'
-      - '.github/contributing.md'
-      - '.github/security.md'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - 'scripts/**'
-      - 'ghidra/**'
-      - '.clang*'
-      - '.editorconfig'
-      - '.cursorignore'
-      - '.gitignore'
-      - '2_06/**'
-      - '2_71/**'
-      - '.cmake-format.py'
-      - '.github/workflows/publish_release.yml'
+      - "readme.md"
+      - "license.md"
+      - ".github/contributing.md"
+      - ".github/security.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/pull_request_template.md"
+      - "scripts/**"
+      - "ghidra/**"
+      - ".editorconfig"
+      - ".cursorignore"
+      - ".gitignore"
+      - ".cmake-format.py"
+      - ".github/workflows/publish_release.yml"
 
 permissions:
   contents: read
@@ -64,7 +58,7 @@ jobs:
       - name: setup_python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: cache_dependencies
         uses: actions/cache@v5
@@ -101,7 +95,7 @@ jobs:
       - name: setup_python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: cache_dependencies
         uses: actions/cache@v5
