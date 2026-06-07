@@ -82,6 +82,7 @@
 - [Legal Notice](#legal-notice)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
+- [Related Resources](#related-resources)
 
 ---
 
@@ -371,21 +372,21 @@ Gulf Thunder ships **completely unprotected**: EP in `.text`, entropy 6.83, full
 
 ```bash
 # Extract game assets from encrypted .apk archives
-python extract_apk.py pak0.apk        # Extracts all files
-python pack_apk.py extracted_dir/ new.apk  # Repack modified assets
+python scripts/paktool.py extract pak0.apk          # Extract all files
+python scripts/paktool.py pack extracted_dir/ new.apk  # Repack modified assets
 ```
 
 ### MDL ↔ OBJ Converter
 
 ```bash
-python mdl_obj_converter.py some_file.mdl
-python mdl_obj_converter.py some_file.obj
+python scripts/mdl_obj_converter.py some_file.mdl
+python scripts/mdl_obj_converter.py some_file.obj
 ```
 
-### Save Previewer (+ ImHex Struct Preview)
+### Save Previewer
 
 ```bash
-python decrypt_save.py decrypt game.bin -o decrypted.bin
+python scripts/save_editor.py decrypt game.bin -o decrypted.bin
 ```
 
 ### Audio Conversion
@@ -437,7 +438,7 @@ Add this to the game's launch options in Steam.
 ### Quick Start
 
 1. Clone this repository
-2. Extract game assets: `python extract_pak.py /path/to/pak0.apk`
+2. Extract game assets: `python scripts/paktool.py extract /path/to/pak0.apk`
 3. Browse extracted files in the created directory
 4. Convert audio files as needed
 
@@ -482,13 +483,13 @@ Available for local development when Visual Studio 2022 is preferred. Not used i
 
 ## Ghidra Project
 
-🔒 Since the project uses **ASProtect 1.0**, I decided on Linux using a simple debugger to just walk until we get some kind of loop. The game seems to unpack itself creating some thread, so even the debugger detaches at some moment in `ntdll` magic 🪄, so we need just to pause at any moment and get the address of the desired function (loop).
+🔒 Since the v2.06 executable is protected with **ASProtect 1.0**, I opted for a straightforward approach on Linux: attach a simple debugger and single-step until the unpacking loop surfaces. The game unpacks itself in-place, spawning threads along the way — at some point the debugger detaches into `ntdll` magic 🪄. The trick is to pause at any moment and grab the address of the function you're interested in (e.g., the main loop).
 
-🎯 The next step is using **x64dbg** with **DumpEx** plugin — dump with the address of main loop function. And that's all!
+🎯 The next step is using **x64dbg** with the **DumpEx** plugin — dump at the address of the main loop function. And that's all!
 
 📊 **Stats:**
 
-- 📦 Game weights: **31.2 MB**
+- 📦 Game size: **31.2 MB**
 - 🔍 In the Ghidra project I have marked some of the interesting places:
   - 🎮 Loading models
   - 💾 Working with saves
