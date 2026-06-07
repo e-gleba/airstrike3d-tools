@@ -1,4 +1,5 @@
 #include "gl_hooks.hpp"
+
 #include "sdk/core/context.hpp"
 
 #include <concepts>
@@ -10,24 +11,15 @@ namespace sdk::gl
 
 using gl_matrix_mode_fn   = void(APIENTRY*)(GLenum);
 using gl_load_identity_fn = void(APIENTRY*)();
-using glu_look_at_fn      = void(APIENTRY*)(GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble,
-                                            GLdouble);
+using glu_look_at_fn      = void(APIENTRY*)(GLdouble, GLdouble, GLdouble, GLdouble, GLdouble, GLdouble, GLdouble, GLdouble, GLdouble);
 
 template <typename Fn, typename Hook, typename... Args>
-    requires std::is_pointer_v<Fn> &&
-             std::is_function_v<std::remove_pointer_t<Fn>>
+    requires std::is_pointer_v<Fn> && std::is_function_v<std::remove_pointer_t<Fn>>
 inline void call_if_hooked(Hook& hook, Args&&... args)
 {
     if (hook)
     {
-        call_orig<Fn>(hook)(std::forward<Args>(args)...);
+        reinterpret_cast<Fn>(hook.trampoline().address())(std::forward<Args>(args)...);
     }
 }
 
@@ -43,7 +35,7 @@ void APIENTRY hk_gl_load_identity()
 
     if (g_ctx.current_matrix_mode == GL_MODELVIEW)
     {
-        g_ctx.cb.on_gl_identity.invoke();
+        g_ctx.callbacks.invoke<>("on_gl_identity");
     }
 }
 
@@ -57,13 +49,11 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    auto consumed{ g_ctx.cb.on_glu_lookat.invoke_consuming(
-        ex, ey, ez, cx, cy, cz, ux, uy, uz) };
+    auto consumed = g_ctx.callbacks.invoke_consuming("on_glu_lookat", ex, ey, ez, cx, cy, cz, ux, uy, uz);
 
     if (!consumed)
     {
-        call_if_hooked<glu_look_at_fn>(
-            g_ctx.hooks.glu_look_at, ex, ey, ez, cx, cy, cz, ux, uy, uz);
+        call_if_hooked<glu_look_at_fn>(g_ctx.hooks.glu_look_at, ex, ey, ez, cx, cy, cz, ux, uy, uz);
     }
 }
 

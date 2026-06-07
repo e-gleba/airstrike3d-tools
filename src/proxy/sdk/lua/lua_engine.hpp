@@ -1,16 +1,13 @@
 #pragma once
 
-#include <sol/state.hpp>
-
 namespace sdk::lua
 {
 
-void register_sdk_bindings(sol::state&);
-void register_ui_bindings(sol::state&);
-void register_math_bindings(sol::state&);
-void register_constant_bindings(sol::state&);
-
+/// Load all plugins from plugins/ directory.
+/// Initializes script engine, registers bindings, executes .lua files.
 void load_plugins();
+
+/// Unload all plugins and destroy script engine.
 void unload_plugins();
 
 } // namespace sdk::lua

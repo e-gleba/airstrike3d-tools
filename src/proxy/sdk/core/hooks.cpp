@@ -15,8 +15,6 @@
 namespace sdk
 {
 
-// ─── LoadLibrary hooks (catch late DirectX DLL loads) ────────────────────────
-
 static safetyhook::InlineHook g_ll_a_hook;
 static safetyhook::InlineHook g_ll_w_hook;
 
@@ -73,13 +71,10 @@ bool is_dx_dll_name(const char* name)
 void on_dx_detected()
 {
     auto expected = render_api::unknown;
-    if (!g_ctx.detected_api.compare_exchange_strong(expected,
-                                                    render_api::directx))
+    if (!g_ctx.detected_api.compare_exchange_strong(expected, render_api::directx))
     {
         return;
     }
-
-    g_ctx.overlay_available.store(false, std::memory_order::release);
 
     spdlog::warn("");
     spdlog::warn("╔══════════════════════════════════════════════════════╗");
@@ -93,13 +88,10 @@ void on_dx_detected()
 void on_gl_confirmed()
 {
     auto expected = render_api::unknown;
-    if (!g_ctx.detected_api.compare_exchange_strong(expected,
-                                                    render_api::opengl))
+    if (!g_ctx.detected_api.compare_exchange_strong(expected, render_api::opengl))
     {
         return;
     }
-
-    g_ctx.overlay_available.store(true, std::memory_order::release);
 
     spdlog::info("");
     spdlog::info("╔══════════════════════════════════════════════════════╗");
@@ -134,14 +126,7 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
     if ((result != nullptr) && (name != nullptr))
     {
         char buf[128]{};
-        WideCharToMultiByte(CP_ACP,
-                            0,
-                            name,
-                            -1,
-                            buf,
-                            static_cast<int>(sizeof(buf)),
-                            nullptr,
-                            nullptr);
+        WideCharToMultiByte(CP_ACP, 0, name, -1, buf, static_cast<int>(sizeof(buf)), nullptr, nullptr);
         if (is_dx_dll_name(buf))
         {
             on_dx_detected();
@@ -151,13 +136,9 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
     return result;
 }
 
-// ─── wglSwapBuffers hook — lazy GL detection + overlay entry point ───────────
-
 static BOOL WINAPI hk_wgl_swap(HDC dc)
 {
-    // Lazy detection: first valid GL frame confirms OpenGL
-    if (g_ctx.detected_api.load(std::memory_order::relaxed) ==
-        render_api::unknown)
+    if (g_ctx.detected_api.load(std::memory_order::relaxed) == render_api::unknown)
     {
         if ((wglGetCurrentContext() != nullptr) && (GetPixelFormat(dc) != 0))
         {
@@ -165,16 +146,15 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
         }
     }
 
-    // Init overlay on first valid GL frame
-    if (g_ctx.overlay_available.load(std::memory_order::acquire))
+    if (g_ctx.detected_api.load(std::memory_order::acquire) == render_api::opengl)
     {
         overlay::init(dc);
 
-        if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
+        if (g_ctx.overlay_initialized.load(std::memory_order::acquire))
         {
-            g_ctx.cb.on_frame.invoke();
+            g_ctx.callbacks.invoke<>("on_frame");
 
-            if (g_ctx.show_ui.load(std::memory_order::relaxed))
+            if (g_ctx.overlay_visible.load(std::memory_order::relaxed))
             {
                 overlay::render();
             }
@@ -182,21 +162,22 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
     }
 
     using wgl_swap_fn = BOOL(WINAPI*)(HDC);
-    return call_orig<wgl_swap_fn>(g_ctx.hooks.wgl_swap)(dc);
+    return reinterpret_cast<wgl_swap_fn>(g_ctx.hooks.wgl_swap_buffers.trampoline().address())(dc);
 }
 
 } // namespace
-
-// ─── Public API ──────────────────────────────────────────────────────────────
 
 void install_hooks()
 {
     spdlog::info("[sdk] detecting render API...");
 
-    // 1. Check for already-loaded DirectX DLLs (d3d8, d3d9, ddraw, etc.)
     static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {
-        L"d3d8.dll", L"d3d9.dll",  L"ddraw.dll",
-        L"dxgi.dll", L"d3d11.dll", L"d3d12.dll",
+        L"d3d8.dll",
+        L"d3d9.dll",
+        L"ddraw.dll",
+        L"dxgi.dll",
+        L"d3d11.dll",
+        L"d3d12.dll",
     };
 
     for (const auto* dll : k_dx_dlls)
@@ -208,17 +189,12 @@ void install_hooks()
         }
     }
 
-    // 2. Hook LoadLibrary to catch late DirectX DLL loads
-    g_ll_a_hook =
-        safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryA),
-                                  reinterpret_cast<void*>(hk_load_library_a));
+    g_ll_a_hook = safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryA),
+                                              reinterpret_cast<void*>(hk_load_library_a));
 
-    g_ll_w_hook =
-        safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryW),
-                                  reinterpret_cast<void*>(hk_load_library_w));
+    g_ll_w_hook = safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryW),
+                                              reinterpret_cast<void*>(hk_load_library_w));
 
-    // 3. Always hook GL functions — validate at call time, not at init.
-    //    Safe even for DX games: hooks are no-ops until API is confirmed.
     using namespace win32;
 
     struct hook_def final
@@ -230,7 +206,7 @@ void install_hooks()
     };
 
     auto hooks = std::array{
-        hook_def{ .target = g_ctx.hooks.wgl_swap,
+        hook_def{ .target = g_ctx.hooks.wgl_swap_buffers,
                   .dll    = L"opengl32.dll",
                   .proc   = "wglSwapBuffers",
                   .detour = reinterpret_cast<void*>(hk_wgl_swap) },
@@ -260,26 +236,23 @@ void install_hooks()
 void uninstall_hooks()
 {
     spdlog::info("[sdk] uninstalling...");
-    g_ctx.should_unload.store(true);
+    g_ctx.should_exit.store(true);
 
     lua::unload_plugins();
 
-    if (g_ctx.overlay_available.load(std::memory_order::acquire))
+    if (g_ctx.detected_api.load(std::memory_order::acquire) == render_api::opengl)
     {
         overlay::shutdown();
 
         if ((g_ctx.window != nullptr) && (g_ctx.original_wnd_proc != nullptr))
         {
-            SetWindowLongPtrA(
-                g_ctx.window,
-                GWLP_WNDPROC,
-                reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
+            SetWindowLongPtrA(g_ctx.window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_ctx.original_wnd_proc));
         }
     }
 
     g_ll_a_hook.reset();
     g_ll_w_hook.reset();
-    g_ctx.hooks.reset();
+    g_ctx.hooks = {};
     spdlog::info("[sdk] shutdown complete");
 }
 
