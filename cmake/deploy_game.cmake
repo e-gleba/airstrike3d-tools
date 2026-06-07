@@ -6,6 +6,8 @@
 #       SOURCE_DIR    <path>
 #   )
 #
+# Deploys: data/, plugins/, scripts/ (from project root), bass.dll, exe
+#
 # Creates targets:
 #   bass_proxy_${VERSION}    — proxy DLL (if USE_BASS_PROXY_LIB)
 #   deploy_game_${VERSION}   — copies runtime files to build dir
@@ -36,6 +38,7 @@ function(add_game_deployment)
     set(game_exe ${arg_GAME_EXE_NAME})
     set(src_dir ${arg_SOURCE_DIR})
     set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR})
+    set(project_scripts_dir ${CMAKE_SOURCE_DIR}/scripts)
 
     cmake_path(
         APPEND
@@ -72,6 +75,12 @@ if(EXISTS "@src_dir@/plugins")
     execute_process(
         COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
         COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/plugins" "@deploy_dir@/plugins"
+    )
+endif()
+if(EXISTS "@project_scripts_dir@")
+    execute_process(
+        COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/scripts"
+        COMMAND "@CMAKE_COMMAND@" -E copy_directory "@project_scripts_dir@" "@deploy_dir@/scripts"
     )
 endif()
 execute_process(
@@ -175,5 +184,10 @@ execute_process(
     if(EXISTS "${deploy_dir}/plugins")
         install(DIRECTORY "${deploy_dir}/plugins/"
                 DESTINATION "${install_dest}/plugins")
+    endif()
+
+    if(EXISTS "${deploy_dir}/scripts")
+        install(DIRECTORY "${deploy_dir}/scripts/"
+                DESTINATION "${install_dest}/scripts")
     endif()
 endfunction()
