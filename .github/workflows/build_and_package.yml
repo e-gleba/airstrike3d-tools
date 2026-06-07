@@ -1,9 +1,10 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: continuous_integration
 
 on:
   push:
     branches: [main]
-    paths-ignore:
+    paths-ignore: &paths-ignore
       - "readme.md"
       - "license.md"
       - ".github/contributing.md"
@@ -19,20 +20,7 @@ on:
       - ".github/workflows/publish_release.yml"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "readme.md"
-      - "license.md"
-      - ".github/contributing.md"
-      - ".github/security.md"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/pull_request_template.md"
-      - "scripts/**"
-      - "ghidra/**"
-      - ".editorconfig"
-      - ".cursorignore"
-      - ".gitignore"
-      - ".cmake-format.py"
-      - ".github/workflows/publish_release.yml"
+    paths-ignore: *paths-ignore
 
 permissions:
   contents: read
@@ -45,9 +33,29 @@ env:
   CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm
 
 jobs:
-  llvm_mingw_clang_i686:
-    name: llvm_mingw_clang_i686
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: llvm-mingw-i686
+            artifact_name: airstrike3d_tools_llvm_mingw_i686
+            artifact_path: build/llvm-mingw-i686/*.tar.xz
+            install_deps: |
+              sudo apt-get update
+              sudo apt-get install -y ninja-build
+              pip install "cmake>=3.31"
+          - os: windows-latest
+            preset: clang_windows_x86
+            artifact_name: airstrike3d_tools_clang_windows_x86
+            artifact_path: build/clang_windows_x86/*.zip
+            install_deps: |
+              choco install ninja --yes
+              pip install "cmake>=3.31"
+
+    name: ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       actions: write
@@ -67,53 +75,14 @@ jobs:
           key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
 
       - name: install_dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
-          pip install "cmake>=3.31"
+        run: ${{ matrix.install_deps }}
 
       - name: build_and_package
-        run: cmake --workflow --preset llvm-mingw-i686-release
+        run: cmake --workflow --preset ${{ matrix.preset }}-release
 
       - name: upload_artifact
         uses: actions/upload-artifact@v7
         with:
-          name: airstrike3d_tools_llvm_mingw_i686
-          path: build/llvm-mingw-i686/*.tar.xz
-          if-no-files-found: warn
-
-  clang_windows_x86:
-    name: clang_windows_x86
-    runs-on: windows-latest
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - name: checkout
-        uses: actions/checkout@v6
-
-      - name: setup_python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: cache_dependencies
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.CPM_SOURCE_CACHE }}
-          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
-
-      - name: install_dependencies
-        run: |
-          choco install ninja --yes
-          pip install "cmake>=3.31"
-
-      - name: build_and_package
-        run: cmake --workflow --preset clang_windows_x86-release
-
-      - name: upload_artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: airstrike3d_tools_clang_windows_x86
-          path: build/clang_windows_x86/*.zip
-          if-no-files-found: warn
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
