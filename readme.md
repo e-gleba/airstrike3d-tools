@@ -108,6 +108,7 @@ My nostalgic journey into reverse engineering AirStrike 3D — the first PC game
 | Save file format | ✅ Decryption + preview |
 | ASProtect 1.0 unpacking | ✅ Static unpacker + manual guide |
 | Engine v2.06 analysis | 🔄 In progress (Ghidra) |
+| Engine v2.51 analysis | 🔄 In progress (Ghidra) |
 | Engine v2.71 analysis | 🔄 In progress (Ghidra) |
 | v2.50 / Air Force Missions | ⏳ Pending (tracked in [#1](https://github.com/e-gleba/airstrike3d-tools/issues/1)) |
 
@@ -119,6 +120,7 @@ My nostalgic journey into reverse engineering AirStrike 3D — the first PC game
 airstrike3d-tools/
 ├── .github/              # Branding assets & templates
 ├── 2_06/                 # AirStrike 2 (engine v2.06) binaries & data
+├── 2_51/                 # AirStrike 2 D3D8 (engine v2.51) binaries & data
 ├── 2_71/                 # Gulf Thunder (engine v2.71) binaries & data
 ├── cmake/                # CMake modules, toolchains & code-quality configs
 ├── external/             # Vendored dependencies (GLAD, etc.)
@@ -192,6 +194,7 @@ graph TD
     ENG1["⚙️ Engine v1.x\nOpenGL · Deaddybear era"]
     ENG206["⚙️ Engine v2.06\nOpenGL 1.1 · MSVC 7.0\ncompiled 2004-05-15"]
     ENG250["⚙️ Engine v2.50\nunconfirmed · same lineage"]
+    ENG251["⚙️ Engine v2.51\nDirect3D 8 · MSVC 7.1\nAirStrike 2 D3D8 port"]
     ENG271["⚙️ Engine v2.71\nDirect3D 8 · MSVC 8.0\ncompiled 2007-05-15"]
 
     %% Games
@@ -199,6 +202,7 @@ graph TD
     BVD["🎮 Bomberman vs Digger\n2002"]
     AS1["🎮 AirStrike 3D: Op. W.A.T.\n2002"]
     AS2["🎮 AirStrike 2\n2004"]
+    AS2D3D["🎮 AirStrike 2 D3D8\n2005"]
     GT["🎮 AirStrike II: Gulf Thunder\n2005"]
     AFM["🎮 Air Force Missions\n2007"]
     SS["🎮 Space Strike\n2007"]
@@ -238,11 +242,13 @@ graph TD
     %% Engine lineage
     ENG1 -->|"evolved to"| ENG206
     ENG206 -->|"evolved to"| ENG271
+    ENG206 -->|"D3D8 port"| ENG251
     ENG206 -.->|"possible fork"| ENG250
 
     %% Games → Engine
     AS1 --> ENG1
     AS2 --> ENG206
+    AS2D3D --> ENG251
     GT --> ENG271
     AFM --> ENG250
     SS -.->|"engine unknown"| DG
@@ -254,6 +260,7 @@ graph TD
 
     %% DivoGames games
     DG --> AS2
+    DG --> AS2D3D
     DG --> GT
     DG --> AFM
     DG --> SS
@@ -261,6 +268,7 @@ graph TD
     %% Publishers
     AL -->|"published"| AS1
     AL -->|"published"| AS2
+    AL -->|"published"| AS2D3D
     AL -->|"published"| GT
     MPC -->|"published"| AFM
     MPC -->|"published"| SS
@@ -281,8 +289,8 @@ graph TD
 
     class AP,DZ person
     class DB,DG,GI,CG,AL,MPC org
-    class ENG1,ENG206,ENG250,ENG271 engine
-    class TM,BVD,AS1,AS2,GT,AFM,SS game
+    class ENG1,ENG206,ENG250,ENG251,ENG271 engine
+    class TM,BVD,AS1,AS2,AS2D3D,GT,AFM,SS game
     class AA,DH,GS alias
     class EV1,EV2,EV3,EV4 evidence
     class ACQ event
@@ -308,6 +316,7 @@ Custom C++ engine with no third-party framework. Uses Quake-style subsystem pref
 | Version | API | Compiler | Compile timestamp | Rich header |
 |---------|-----|----------|-------------------|-------------|
 | v2.06 (`as3d2.exe`) | OpenGL 1.1 (`opengl32.dll`, `glu32.dll`) | MSVC 7.0 (.NET 2002/2003) | `2004-05-15 10:12:58 UTC` | ✅ |
+| v2.51 (`as3d2.exe`) | Direct3D 8 (`d3d8.dll`) | MSVC 7.1 (.NET 2003) | — | ✅ |
 | v2.71 (`Gulf.exe`) | Direct3D 8 (`d3d8.dll`) | MSVC 8.0 (VS2005) | `2007-05-15 13:49:28 UTC` | ✅ |
 
 ### Third-Party Libraries
