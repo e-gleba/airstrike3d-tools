@@ -13,17 +13,34 @@ if(lua_ADDED)
         GLOB
         lua_sources
         CONFIGURE_DEPENDS
-        ${lua_SOURCE_DIR}/*.c)
+        "${lua_SOURCE_DIR}/*.c")
     list(
         REMOVE_ITEM
         lua_sources
-        "${lua_SOURCE_DIR}/lua.c"
-        "${lua_SOURCE_DIR}/luac.c"
-        "${lua_SOURCE_DIR}/onelua.c")
+        "${lua_SOURCE_DIR}/lua.c" # Interpreter
+        "${lua_SOURCE_DIR}/luac.c" # Compiler
+        "${lua_SOURCE_DIR}/onelua.c" # Single-file build
+        )
+
     add_library(lua STATIC ${lua_sources})
-    target_include_directories(lua PUBLIC $<BUILD_INTERFACE:${lua_SOURCE_DIR}>)
-    # Build as C
-    set_target_properties(lua PROPERTIES LINKER_LANGUAGE C)
+    add_library(lua::lua ALIAS lua)
+
+    target_include_directories(lua SYSTEM
+                               PUBLIC "$<BUILD_INTERFACE:${lua_SOURCE_DIR}>")
+
+    target_compile_features(lua PUBLIC c_std_23)
+
+    # Professional Lua configuration
+    target_compile_definitions(
+        lua
+        PUBLIC LUA_COMPAT_5_3=0 # Disable Lua 5.3 compatibility bloat
+               $<$<CONFIG:Debug>:LUA_USE_APICHECK> # API checking in debug only
+        )
+
+    # Performance: computed goto (GCC/Clang only)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(lua PRIVATE LUA_USE_JUMPTABLE)
+    endif()
 endif()
 
 option(SOL2_PATCHED "whether sol2 patch has been applied" OFF)

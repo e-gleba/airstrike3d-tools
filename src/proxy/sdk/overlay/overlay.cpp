@@ -42,8 +42,7 @@ void init_imgui(HDC dc)
     // Classic Dear ImGui dark style — clean, recognizable, professional
     ImGui::StyleColorsDark();
 
-    // 2x font scale for crisp, readable text on modern displays
-    io.FontGlobalScale = 2.0f;
+    io.FontAllowUserScaling = true;
 
     ImGui_ImplWin32_Init(g_ctx.window);
     ImGui_ImplOpenGL3_Init(k_glsl_version);

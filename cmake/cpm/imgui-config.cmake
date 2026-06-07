@@ -28,6 +28,10 @@ target_include_directories(
 
 target_compile_features(imgui PUBLIC cxx_std_23)
 
+target_compile_definitions(
+    imgui PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS IMGUI_DISABLE_OBSOLETE_KEYIO
+                 IMGUI_USE_WCHAR32)
+
 # FreeType is fetched via CPM (add_subdirectory), not find_package, so we check
 # for the target name instead of Freetype_FOUND / Freetype::Freetype.
 if(TARGET freetype)

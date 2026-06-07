@@ -1,12 +1,18 @@
 cpmaddpackage(
     NAME
     safetyhook
+    VERSION
+    0.6.9
     GIT_REPOSITORY
     https://github.com/cursey/safetyhook
     GIT_TAG
     v0.6.9
     EXCLUDE_FROM_ALL
-    ON
+    YES
+    SYSTEM
+    YES
     OPTIONS
-    "SAFETYHOOK_FETCH_ZYDIS ON"
+    "SAFETYHOOK_FETCH_ZYDIS YES" # Fetch Zydis disassembler (required)
+    "SAFETYHOOK_BUILD_TESTS OFF" # Skip tests
+    "SAFETYHOOK_BUILD_EXAMPLES OFF" # Skip examples
     "CMAKE_UNITY_BUILD OFF")
