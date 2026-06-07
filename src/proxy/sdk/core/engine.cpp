@@ -1,12 +1,14 @@
 // sdk/core/engine.cpp — Engine implementation
 //
 // Composition root: wires together all abstraction layers.
+// Now includes renderer abstraction for OpenGL/DirectX8 support.
 
 #include "sdk/core/engine.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/hooking/hook.hpp"
 #include "sdk/overlay/overlay.hpp"
 #include "sdk/scripting/callback_registry.hpp"
+#include "sdk/render/renderer.hpp"
 
 #include <safetyhook.hpp>
 #include <spdlog/spdlog.h>
@@ -32,6 +34,7 @@ struct engine::impl
     std::unique_ptr<scripting::callback_registry> callbacks;
     std::unique_ptr<hooking::hook_registry> hooks;
     std::unique_ptr<overlay::manager>      overlay_mgr;
+    std::unique_ptr<render::renderer>      renderer_instance;
     
     // Hook instances
     hooking::inline_hook ll_a_hook;
@@ -93,6 +96,12 @@ void engine::shutdown()
     uninstall_hooks();
     unload_plugins();
 
+    if (pimpl_->renderer_instance)
+    {
+        pimpl_->renderer_instance->shutdown();
+        pimpl_->renderer_instance.reset();
+    }
+
     if (pimpl_->overlay_available.load(std::memory_order_acquire))
     {
         pimpl_->overlay_mgr->shutdown();
@@ -124,11 +133,32 @@ void engine::install_hooks()
         nullptr  // TODO: detour function
     );
 
-    // Hook OpenGL functions
-    pimpl_->hooks->install(L"opengl32.dll", "wglSwapBuffers", nullptr);
-    pimpl_->hooks->install(L"opengl32.dll", "glMatrixMode", nullptr);
-    pimpl_->hooks->install(L"opengl32.dll", "glLoadIdentity", nullptr);
-    pimpl_->hooks->install(L"glu32.dll", "gluLookAt", nullptr);
+    // Detect render API and install appropriate hooks
+    // Check for DirectX8 first
+    if (GetModuleHandleW(L"d3d8.dll") != nullptr)
+    {
+        pimpl_->detected_api.store(render_api::directx, std::memory_order_release);
+        spdlog::info("[engine] DirectX8 detected");
+        
+        // Hook Direct3DCreate8 or device methods
+        // TODO: Implement DirectX8 hooks
+    }
+    else
+    {
+        // Assume OpenGL
+        pimpl_->detected_api.store(render_api::opengl, std::memory_order_release);
+        pimpl_->overlay_available.store(true, std::memory_order_release);
+        spdlog::info("[engine] OpenGL detected");
+        
+        // Hook OpenGL functions
+        pimpl_->hooks->install(L"opengl32.dll", "wglSwapBuffers", nullptr);
+        pimpl_->hooks->install(L"opengl32.dll", "glMatrixMode", nullptr);
+        pimpl_->hooks->install(L"opengl32.dll", "glLoadIdentity", nullptr);
+        pimpl_->hooks->install(L"glu32.dll", "gluLookAt", nullptr);
+    }
+
+    // Create renderer for detected API
+    pimpl_->renderer_instance = render::renderer::create(pimpl_->detected_api.load());
 
     spdlog::info("[engine] hooks installed");
 }
@@ -152,6 +182,11 @@ auto engine::get_render_api() const noexcept -> render_api
 auto engine::is_overlay_available() const noexcept -> bool
 {
     return pimpl_->overlay_available.load(std::memory_order_acquire);
+}
+
+auto engine::get_renderer() -> render::renderer*
+{
+    return pimpl_->renderer_instance.get();
 }
 
 void engine::load_plugins()

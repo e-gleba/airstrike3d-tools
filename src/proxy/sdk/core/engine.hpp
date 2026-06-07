@@ -7,10 +7,12 @@
 // Stefano-style: Concept-constrained configuration.
 //
 // This replaces the global g_ctx with proper RAII lifecycle management.
+// Now includes renderer abstraction for OpenGL/DirectX8 support.
 
 #include "sdk/api/render_api.hpp"
 #include "sdk/platform/types.hpp"
 #include "sdk/scripting/state.hpp"
+#include "sdk/render/renderer.hpp"
 
 #include <atomic>
 #include <filesystem>
@@ -58,7 +60,7 @@ public:
 
     // ─── Lifecycle ──────────────────────────────────────────────────────
 
-    // Initialize engine (logging, overlay, scripting)
+    // Initialize engine (logging, renderer, overlay, scripting)
     void init();
 
     // Shutdown engine (reverse order)
@@ -69,7 +71,7 @@ public:
 
     // ─── Hooks ──────────────────────────────────────────────────────────
 
-    // Install all hooks (LoadLibrary, OpenGL, etc.)
+    // Install all hooks (LoadLibrary, OpenGL/DirectX, etc.)
     void install_hooks();
 
     // Uninstall all hooks
@@ -82,6 +84,11 @@ public:
 
     // Check if overlay is available (OpenGL detected)
     [[nodiscard]] auto is_overlay_available() const noexcept -> bool;
+
+    // ─── Renderer ───────────────────────────────────────────────────────
+
+    // Get renderer instance (OpenGL or DirectX8 based on detected API)
+    [[nodiscard]] auto get_renderer() -> render::renderer*;
 
     // ─── Scripting ──────────────────────────────────────────────────────
 
