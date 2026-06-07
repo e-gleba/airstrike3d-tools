@@ -23,10 +23,58 @@ namespace sdk::lua
 namespace detail
 {
 
-// ─── Descriptor table: event → callback_list add method ──────────────────────
+// ─── sol2 → std::function wrappers ──────────────────────────────────────────
 //
-// Each entry: { event enum, pointer-to-member of callback_list::add_* method }.
-// The add_* methods accept std::function with the correct signature.
+// Converts sol::protected_function into std::function with concrete signatures.
+// Error checking happens at the boundary — consumers never see sol2 types.
+
+inline auto wrap_void(sol::protected_function fn) -> std::function<void()>
+{
+    return [fn = std::move(fn)]()
+    {
+        auto r = fn();
+        if (!r.valid())
+        {
+            sol::error err = r;
+            spdlog::error("[sdk] lua callback error: {}", err.what());
+        }
+    };
+}
+
+inline auto wrap_bool_int(sol::protected_function fn) -> std::function<bool(int)>
+{
+    return [fn = std::move(fn)](int v) -> bool
+    {
+        auto r = fn(v);
+        if (!r.valid())
+        {
+            sol::error err = r;
+            spdlog::error("[sdk] lua callback error: {}", err.what());
+            return false;
+        }
+        return sol::optional<bool>{ r }.value_or(false);
+    };
+}
+
+inline auto wrap_void_9d(sol::protected_function fn)
+    -> std::function<void(double, double, double, double, double, double, double, double, double)>
+{
+    return [fn = std::move(fn)](double a, double b, double c,
+                                double d, double e, double f,
+                                double g, double h, double i)
+    {
+        auto r = fn(a, b, c, d, e, f, g, h, i);
+        if (!r.valid())
+        {
+            sol::error err = r;
+            spdlog::error("[sdk] lua callback error: {}", err.what());
+        }
+    };
+}
+
+// ─── Descriptor table: event → add method pointer ────────────────────────────
+//
+// Each pair maps event to callback_list pointer-to-member-function.
 // Fold expression expands all registrations in a single expression.
 
 inline constexpr auto callback_descriptors = std::tuple{
@@ -39,51 +87,35 @@ inline constexpr auto callback_descriptors = std::tuple{
     std::pair{ event::on_unload,      &callback_list::add_on_unload },
 };
 
-/// Bind a single event: wraps sol::protected_function into std::function with error checking,
-/// then forwards to the appropriate callback_list::add_* method via pointer-to-member.
+/// Register one event: wraps sol2 fn → std::function, dispatches to add_* method.
 template <typename AddPmf>
-void bind_event(sol::table& s, event ev, AddPmf add_method)
+void register_callback(sol::table& s, event ev, AddPmf add_method)
 {
     s.set_function(
         std::string{ to_string_view(ev) },
         [add_method](sol::protected_function fn)
         {
-            // Extract the std::function parameter type from the add_* method signature.
-            // AddPmf is void(callback_list::*)(std::function<Sig>)
-            // We deduce Sig via the lambda below.
-            using pmf_traits = decltype([]<typename C, typename Sig>(void (C::*)(Sig))
-                                        -> Sig {});
-            using fn_type = decltype(pmf_traits{}(add_method));
-
-            auto wrapper = fn_type{ [fn = std::move(fn)](auto&&... args) mutable
+            if constexpr (std::is_same_v<AddPmf, decltype(&callback_list::add_on_key_down)>)
             {
-                auto result = fn(std::forward<decltype(args)>(args)...);
-                if constexpr (std::is_void_v<decltype(result)>)
-                {
-                    return;
-                }
-                else
-                {
-                    if (!result.valid())
-                    {
-                        sol::error err = result;
-                        spdlog::error("[sdk] lua callback error: {}", err.what());
-                    }
-                    return sol::optional<bool>{ result }.value_or(false);
-                }
-            } };
-
-            (g_ctx.callbacks.*add_method)(std::move(wrapper));
+                (g_ctx.callbacks.*add_method)(wrap_bool_int(std::move(fn)));
+            }
+            else if constexpr (std::is_same_v<AddPmf, decltype(&callback_list::add_on_glu_lookat)>)
+            {
+                (g_ctx.callbacks.*add_method)(wrap_void_9d(std::move(fn)));
+            }
+            else
+            {
+                (g_ctx.callbacks.*add_method)(wrap_void(std::move(fn)));
+            }
         });
 }
 
-/// Expand descriptor table and register all events via fold expression.
 template <std::size_t... Is>
 void register_callbacks(sol::table& s, std::index_sequence<Is...>)
 {
-    (bind_event(s,
-                std::get<Is>(callback_descriptors).first,
-                std::get<Is>(callback_descriptors).second),
+    (register_callback(s,
+                       std::get<Is>(callback_descriptors).first,
+                       std::get<Is>(callback_descriptors).second),
      ...);
 }
 
