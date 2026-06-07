@@ -1,12 +1,19 @@
 # src/proxy/CMakeLists.txt
 #
-# bass_proxy_sdk — STATIC library, compiled once.
-# Contains all SDK code: hooks, overlay, Lua engine, utilities.
-# Version-agnostic.  Each 2_XX/ directory creates its own proxy
-# SHARED target by linking against this library via add_bass_proxy().
+# bass_proxy_sdk — STATIC library with ultimate C++23 architecture refactoring.
 #
-# Dependencies (via CPM): warnings, imgui_opengl3, dwmapi, glm, glu32,
-# opengl32, safetyhook, spdlog, sol2, lua.
+# Architecture:
+#   - All external dependencies (sol2, WinAPI, GLM, OpenGL, safetyhook, ImGui)
+#     are hidden behind pure C++23 abstraction layers.
+#   - Public headers contain NO external dependencies.
+#   - Implementation files (.cpp) isolate all third-party code.
+#   - RAII pattern used throughout (no manual init/shutdown).
+#   - C++23 concepts, constexpr, std::expected applied extensively.
+#
+# Style references:
+#   - Antony Polukhin: PIMPL, ABI-stable interfaces
+#   - Jason Turner: Modern C++23, constexpr, concepts
+#   - Stefano Tessarin: Concept-constrained operations
 
 file(
     GLOB_RECURSE
@@ -18,9 +25,7 @@ add_library(bass_proxy_sdk STATIC ${sdk_sources})
 
 target_include_directories(bass_proxy_sdk PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 
-# target_compile_features does not support generator expressions.
-# Use compiler-specific flags instead: /std:c++latest for MSVC,
-# -std=c++26 for Clang/GCC.
+# C++23 standard (C++26 compile flag for latest features)
 target_compile_options(
     bass_proxy_sdk PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
                            $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
@@ -30,8 +35,8 @@ set_target_properties(
     PROPERTIES CXX_EXTENSIONS OFF
                CXX_SCAN_FOR_MODULES OFF
                UNITY_BUILD ON
-               UNITY_BUILD_MODE BATCH # or GROUP if you want manual control
-               UNITY_BUILD_BATCH_SIZE 16 # tune: 8–32 is usually a sweet spot
+               UNITY_BUILD_MODE BATCH
+               UNITY_BUILD_BATCH_SIZE 16
     )
 
 target_compile_definitions(
@@ -54,3 +59,18 @@ target_link_libraries(
             sol2::sol2
             lua
             $<$<BOOL:${SDK_EXPERIMENTAL_LUABRIDGE3}>:LuaBridge>)
+
+# ─── Architecture documentation ──────────────────────────────────────────────
+#
+# New directory structure:
+#   sdk/api/           — Pure C++23 types (math, render_api, callbacks, key_codes)
+#   sdk/core/          — RAII engine class (replaces global g_ctx)
+#   sdk/platform/      — WinAPI wrappers (window, module, input)
+#   sdk/math/          — Math operations (GLM hidden in .cpp)
+#   sdk/scripting/     — Lua abstraction (sol2 hidden in .cpp)
+#   sdk/hooking/       — Hook abstraction (safetyhook hidden in .cpp)
+#   sdk/render/        — OpenGL abstraction (GL/gl.h hidden in .cpp)
+#   sdk/overlay/       — ImGui abstraction (ImGui hidden in .cpp)
+#
+# All public headers (.hpp) contain NO external dependencies.
+# All third-party code isolated in implementation files (.cpp).

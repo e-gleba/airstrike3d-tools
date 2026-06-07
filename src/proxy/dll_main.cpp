@@ -1,34 +1,54 @@
-#include "sdk/core/logging.hpp"
+// dll_main.cpp — DLL entry point using RAII engine
+//
+// Replaces manual init/shutdown with automatic RAII lifecycle.
+
 #include "sdk/sdk.hpp"
 
-#include <spdlog/spdlog.h>
-#include <thread>
 #include <windows.h>
+#include <thread>
 
-BOOL APIENTRY DllMain(HMODULE                 h_module,
-                      DWORD                   reason,
-                      [[maybe_unused]] LPVOID lp_reserved)
+namespace
+{
+
+// Global engine instance (RAII-managed)
+std::unique_ptr<sdk::engine> g_engine;
+
+} // namespace
+
+BOOL APIENTRY DllMain(HMODULE h_module, DWORD reason, LPVOID lp_reserved)
 {
     switch (reason)
     {
         case DLL_PROCESS_ATTACH:
         {
             DisableThreadLibraryCalls(h_module);
-            sdk::logging::init("logs");
 
-            spdlog::set_level(spdlog::level::info);
-            spdlog::info("[bass_proxy] attached");
+            // Configure engine
+            sdk::config cfg{
+                .log_dir         = "logs",
+                .plugin_dir      = "plugins",
+                .log_level       = "info",
+                .enable_overlay  = true,
+                .enable_scripting = true,
+            };
 
-            std::jthread([]() static { sdk::install_hooks(); }).detach();
+            // Create and initialize engine (RAII)
+            g_engine = std::make_unique<sdk::engine>(std::move(cfg));
+            g_engine->init();
+
+            // Install hooks in background thread
+            std::jthread([]() {
+                g_engine->install_hooks();
+                g_engine->load_plugins();
+            }).detach();
+
             break;
         }
 
         case DLL_PROCESS_DETACH:
         {
-            sdk::uninstall_hooks();
-            spdlog::info("[bass_proxy] detached");
-
-            sdk::logging::shutdown();
+            // Engine destructor handles cleanup automatically (RAII)
+            g_engine.reset();
             break;
         }
 
