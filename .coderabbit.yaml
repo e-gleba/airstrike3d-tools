@@ -5,15 +5,15 @@ early_access: false
 enable_free_tier: true
 
 reviews:
-  profile: "chill"
-  request_changes_workflow: false
+  profile: "assertive"
+  request_changes_workflow: true
   high_level_summary: true
   poem: false
   review_status: true
-  review_details: false
+  review_details: true
   collapse_walkthrough: false
   changed_files_summary: true
-  sequence_diagrams: false
+  sequence_diagrams: true
   estimate_code_review_effort: true
   assess_linked_issues: true
   related_issues: true
@@ -30,52 +30,183 @@ reviews:
   path_filters:
     - "!external/**"
     - "!ghidra/**"
+    - "!src/game/**"
     - "!**/*.md"
+    - "!**/*.txt"
 
   path_instructions:
     - path: "src/**"
       instructions: |
-        This is C/C++ source code. Focus on:
-        - Memory safety (leaks, buffer overflows, use-after-free, null derefs)
-        - Correct pointer arithmetic and lifetime management
-        - Thread safety where applicable
-        - Proper error handling and return value checks
-        - Adherence to modern C++ idioms (RAII, smart pointers where possible)
-        - Avoid raw new/delete; prefer stack allocation or smart pointers
-        - Flag any hardcoded magic numbers without named constants
+        This is production C/C++ source code. Apply STRICT review standards.
+
+        **Mandatory Compliance:**
+        - C++ Core Guidelines (https://isocpp.github.io/CppCoreGuidelines/)
+        - Modern C++ standards (C++17/20/23 features where safe and appropriate)
+        - CERT C/C++ Coding Standard
+        - MISRA C++ where applicable for safety-critical code
+
+        **Memory Safety (CRITICAL - ZERO TOLERANCE):**
+        - NO memory leaks allowed - flag ANY potential leak immediately
+        - NO raw new/delete - use RAII, smart pointers (std::unique_ptr, std::shared_ptr), or containers
+        - NO manual memory management - use std::vector, std::array, std::string
+        - NO buffer overflows - validate all array bounds, use std::span for safe views
+        - NO use-after-free - verify object lifetimes, prefer value semantics
+        - NO null pointer dereferences - check all pointers before use, prefer std::optional
+        - NO dangling references - ensure references outlive their use
+        - NO uninitialized variables - always initialize at declaration
+
+        **Type Safety:**
+        - Prefer strong typing - avoid void*, use templates or std::variant
+        - Use enum class instead of plain enum
+        - Avoid implicit conversions - use explicit constructors
+        - Prefer size_t for sizes, ptrdiff_t for differences
+        - Use std::byte for raw byte operations, not char
+
+        **Resource Management:**
+        - Follow RAII strictly - every resource must have an owner object
+        - Use scope guards (std::unique_ptr with custom deleter) for non-memory resources
+        - Avoid naked handles (file descriptors, sockets) - wrap in RAII classes
+        - Exception safety: prefer noexcept where possible, guarantee no-leak on throw
+
+        **Concurrency:**
+        - NO data races - use std::mutex, std::atomic, or lock-free structures
+        - Prefer std::jthread over std::thread (automatic joining)
+        - Use std::scoped_lock for multiple mutexes
+        - Avoid shared mutable state - prefer message passing
+
+        **Error Handling:**
+        - Use exceptions for exceptional cases, not control flow
+        - Return std::expected (C++23) or std::optional for expected failures
+        - Never let exceptions escape destructors
+        - Use [[nodiscard]] on functions returning important values
+
+        **Code Quality:**
+        - NO magic numbers - use named constants or constexpr
+        - NO code duplication - extract common patterns
+        - Prefer algorithms (std::ranges) over raw loops
+        - Use const correctness - mark everything const that can be
+        - Prefer value semantics over pointers/references where possible
+        - Use structured bindings for clarity
+        - Follow existing code style (check .clang-format)
+
+        **Forbidden Patterns:**
+        - C-style casts (use static_cast, dynamic_cast, const_cast, reinterpret_cast)
+        - malloc/free (use new/delete only if smart pointers impossible, then document why)
+        - strcpy/strcat (use std::string or std::string_view)
+        - printf (use std::format C++20 or fmt library, or std::cout)
+        - Global mutable state (use singletons sparingly with clear ownership)
+        - Deep inheritance hierarchies (prefer composition)
+        - Premature optimization without profiling data
 
     - path: "cmake/**"
       instructions: |
-        CMake build scripts. Focus on:
-        - Correct target linkage and dependency declarations
-        - Proper use of generator expressions
-        - Avoid global include/link directives
-        - Ensure cross-platform compatibility
+        CMake build scripts. Apply STRICT standards.
+
+        **Mandatory:**
+        - Use target-based CMake (target_include_directories, target_link_libraries)
+        - NO global include_directories() or link_directories()
+        - Specify minimum CMake version and C++ standard explicitly
+        - Use generator expressions for configuration-specific settings
+        - Validate all find_package() results before use
+
+        **Modern CMake Practices:**
+        - Prefer ALIAS targets for namespacing
+        - Use INTERFACE libraries for header-only code
+        - Set POSITION_INDEPENDENT_CODE explicitly
+        - Use CMAKE_EXPORT_COMPILE_COMMANDS for tooling
+        - Avoid hardcoded paths - use GNUInstallDirs
+
+        **Cross-Platform:**
+        - Test compiler flag support before adding (check_cxx_compiler_flag)
+        - Use CMAKE_SYSTEM_NAME for platform detection, not hardcoded checks
+        - Avoid compiler-specific extensions (-std=gnu++ vs -std=c++)
+
+        **Dependencies:**
+        - Use FetchContent or find_package, avoid add_subdirectory for external libs
+        - Pin dependency versions where possible
+        - Document all required dependencies
 
     - path: "scripts/**"
       instructions: |
-        Utility scripts (shell/python). Focus on:
-        - Error handling (set -e, trap, exit codes)
-        - Quoting variables to prevent word splitting
-        - Portability (POSIX compliance where expected)
-        - Avoid hardcoded paths
+        Utility scripts (shell/python). Apply STRICT standards.
+
+        **Shell Scripts:**
+        - Use #!/usr/bin/env bash (not sh) for bash features
+        - set -euo pipefail at top of every script
+        - Quote ALL variables: "$var" not $var
+        - Use [[ ]] for conditionals, not [ ]
+        - Use local for function variables
+        - Validate all inputs before use
+        - Use trap for cleanup on exit/error
+        - Avoid eval unless absolutely necessary (then document why)
+        - Use shellcheck-compliant syntax
+
+        **Python Scripts:**
+        - Use type hints for all functions
+        - Use pathlib instead of os.path
+        - Use f-strings for formatting
+        - Handle exceptions explicitly (no bare except)
+        - Use context managers (with) for resources
+        - Follow PEP 8 and PEP 257
+
+        **General:**
+        - NO hardcoded paths or credentials
+        - Document all script arguments
+        - Exit with meaningful codes (0 success, non-zero failure)
+        - Make scripts idempotent where possible
 
     - path: "CMakeLists.txt"
       instructions: |
-        Root CMake configuration. Focus on:
-        - Compiler flag correctness and consistency across build types
-        - Proper project structure and target definitions
-        - Avoid redundant or conflicting compile options
+        Root CMake configuration. CRITICAL - affects entire build.
+
+        **Mandatory:**
+        - Set CMAKE_CXX_STANDARD to at least 17 (prefer 20 or 23)
+        - Set CMAKE_CXX_STANDARD_REQUIRED ON
+        - Set CMAKE_CXX_EXTENSIONS OFF (use -std=c++ not -std=gnu++)
+        - Enable warnings: -Wall -Wextra -Wpedantic -Werror for CI
+        - Use CMAKE_INTERPROCEDURAL_OPTIMIZATION for Release builds
+
+        **Compiler Flags:**
+        - Debug: -g -O0 -DDEBUG
+        - Release: -O3 -DNDEBUG -march=native (if appropriate)
+        - RelWithDebInfo: -O2 -g -DNDEBUG
+        - MinSizeRel: -Os -DNDEBUG
+
+        **Security Flags (enable where supported):**
+        - Stack protector: -fstack-protector-strong
+        - Position independent: -fPIE
+        - Format security: -Wformat -Wformat-security
+        - Undefined behavior: -fsanitize=undefined (Debug only)
+
+        **Build Structure:**
+        - Use add_subdirectory() for modular builds
+        - Define project() with VERSION
+        - Use target_compile_features() for feature requirements
+        - Export compile_commands.json for tooling
 
     - path: ".clang-format"
       instructions: |
-        Clang-format configuration. Only flag if style rules conflict
-        or produce ambiguous formatting.
+        Clang-format configuration. Flag only if:
+        - Style rules are internally contradictory
+        - Rules produce ambiguous or hard-to-read formatting
+        - Settings conflict with team conventions documented elsewhere
+        - Missing important formatting rules (e.g., IncludeBlocks, SortIncludes)
 
     - path: ".clang-tidy"
       instructions: |
-        Clang-tidy configuration. Only flag if checks are contradictory,
-        overly broad for the codebase, or missing important safety checks.
+        Clang-tidy configuration. Flag only if:
+        - Checks are contradictory or mutually exclusive
+        - Missing critical safety checks (bugprone-*, clang-analyzer-*)
+        - Overly broad checks that produce excessive false positives
+        - Missing modernize-* checks for C++17/20/23 migration
+
+        **Recommended checks for this codebase:**
+        - bugprone-* (all)
+        - clang-analyzer-* (all)
+        - modernize-* (most)
+        - performance-* (all)
+        - readability-* (selective)
+        - cppcoreguidelines-* (all)
 
   auto_review:
     enabled: true
@@ -83,6 +214,10 @@ reviews:
     auto_incremental_review: true
     base_branches:
       - "main"
+    ignore_title_keywords:
+      - "wip"
+      - "draft"
+      - "temp"
 
   finishing_touches:
     docstrings:
@@ -114,9 +249,11 @@ reviews:
     clang:
       enabled: false
     semgrep:
-      enabled: false
+      enabled: true
     hadolint:
       enabled: false
+    ast-grep:
+      enabled: true
 
 chat:
   auto_reply: true
@@ -135,6 +272,7 @@ knowledge_base:
       - "**/.clang-format"
       - "**/.clang-tidy"
       - "**/CMakeLists.txt"
+      - "**/cmake/**"
 
 code_generation:
   docstrings:
