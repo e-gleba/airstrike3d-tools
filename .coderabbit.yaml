@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+early_access: false
+enable_free_tier: true
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  review_details: false
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: true
+  auto_assign_reviewers: false
+  in_progress_fortune: false
+  abort_on_close: true
+  disable_cache: false
+  auto_incremental_review: true
+
+  path_filters:
+    - "!external/**"
+    - "!ghidra/**"
+    - "!**/*.md"
+
+  path_instructions:
+    - path: "src/**"
+      instructions: |
+        This is C/C++ source code. Focus on:
+        - Memory safety (leaks, buffer overflows, use-after-free, null derefs)
+        - Correct pointer arithmetic and lifetime management
+        - Thread safety where applicable
+        - Proper error handling and return value checks
+        - Adherence to modern C++ idioms (RAII, smart pointers where possible)
+        - Avoid raw new/delete; prefer stack allocation or smart pointers
+        - Flag any hardcoded magic numbers without named constants
+
+    - path: "cmake/**"
+      instructions: |
+        CMake build scripts. Focus on:
+        - Correct target linkage and dependency declarations
+        - Proper use of generator expressions
+        - Avoid global include/link directives
+        - Ensure cross-platform compatibility
+
+    - path: "scripts/**"
+      instructions: |
+        Utility scripts (shell/python). Focus on:
+        - Error handling (set -e, trap, exit codes)
+        - Quoting variables to prevent word splitting
+        - Portability (POSIX compliance where expected)
+        - Avoid hardcoded paths
+
+    - path: "CMakeLists.txt"
+      instructions: |
+        Root CMake configuration. Focus on:
+        - Compiler flag correctness and consistency across build types
+        - Proper project structure and target definitions
+        - Avoid redundant or conflicting compile options
+
+    - path: ".clang-format"
+      instructions: |
+        Clang-format configuration. Only flag if style rules conflict
+        or produce ambiguous formatting.
+
+    - path: ".clang-tidy"
+      instructions: |
+        Clang-tidy configuration. Only flag if checks are contradictory,
+        overly broad for the codebase, or missing important safety checks.
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches:
+      - "main"
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: true
+
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    issue_assessment:
+      mode: "on"
+
+  tools:
+    cppcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+    actionlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: false
+    clang:
+      enabled: false
+    semgrep:
+      enabled: false
+    hadolint:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/.clang-format"
+      - "**/.clang-tidy"
+      - "**/CMakeLists.txt"
+
+code_generation:
+  docstrings:
+    language: "en-US"
+  unit_tests:
+    enabled: false
+
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+  auto_planning:
+    enabled: true
+  labeling:
+    enabled: true
+    auto_apply_labels: false
