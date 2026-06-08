@@ -1,17 +1,13 @@
 #pragma once
 
+#include "sdk/lua/lua_engine.hpp"
+
 #include <GL/gl.h>
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
-#include <utility>
-#include <windows.h>
-
 #include <safetyhook.hpp>
-#include <sol/sol.hpp>
-
-#include "sdk/lua/callback.hpp"
+#include <windows.h>
 
 namespace sdk
 {
@@ -41,44 +37,10 @@ struct context final
     GLenum        current_matrix_mode{ GL_MODELVIEW };
     hook_registry hooks;
 
-    std::unique_ptr<sol::state> lua;
-    std::recursive_mutex        lua_mutex;
+    std::unique_ptr<lua::engine> lua_engine;
 
     std::atomic<render_api> detected_api{ render_api::unknown };
     std::atomic<bool>       overlay_available{ false };
-
-    struct final
-    {
-        callback_list on_frame, on_overlay, on_gl_identity, on_glu_lookat,
-            on_key_down, on_load, on_unload;
-    } cb;
-
-    context()
-        : cb{ .on_frame       = callback_list{ lua_mutex },
-              .on_overlay     = callback_list{ lua_mutex },
-              .on_gl_identity = callback_list{ lua_mutex },
-              .on_glu_lookat  = callback_list{ lua_mutex },
-              .on_key_down    = callback_list{ lua_mutex },
-              .on_load        = callback_list{ lua_mutex },
-              .on_unload      = callback_list{ lua_mutex } }
-    {
-    }
-
-    template <typename... CBs> static void clear_all(CBs&... cbs)
-    {
-        (cbs.clear(), ...);
-    }
-
-    void clear_callbacks()
-    {
-        clear_all(cb.on_frame,
-                  cb.on_overlay,
-                  cb.on_gl_identity,
-                  cb.on_glu_lookat,
-                  cb.on_key_down,
-                  cb.on_load,
-                  cb.on_unload);
-    }
 };
 
 inline context g_ctx;
