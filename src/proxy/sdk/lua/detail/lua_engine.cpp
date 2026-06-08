@@ -116,16 +116,18 @@ struct LuaState::impl
     }
     
     auto wrap_glu_lookat(sol::protected_function fn) 
-        -> callback_list<double, double, double, double, double, double, double, double, double>::slot_fn
+        -> consuming_callback_list<double, double, double, double, double, double, double, double, double>::slot_fn
     {
         return [fn = std::move(fn)](double eyeX, double eyeY, double eyeZ,
                                      double centerX, double centerY, double centerZ,
-                                     double upX, double upY, double upZ) {
+                                     double upX, double upY, double upZ) -> bool {
             auto result = fn(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
             if (!result.valid()) {
                 sol::error err = result;
                 spdlog::error("Lua callback error: {}", err.what());
+                return false;
             }
+            return result.get_type() == sol::type::boolean && result.get<bool>();
         };
     }
     
