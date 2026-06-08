@@ -258,11 +258,29 @@ void install_hooks()
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    spdlog::info("[sdk] hooks installed, initializing Lua...");
+    spdlog::info("[sdk] hooks installed");
     
-    // Initialize Lua state (RAII - will clean up on destruction)
-    g_lua_state = std::make_unique<lua::LuaState>();
-    g_lua_state->load_plugins();
+    // Initialize Lua state with error handling
+    try
+    {
+        spdlog::info("[sdk] creating Lua state...");
+        g_lua_state = std::make_unique<lua::LuaState>();
+        spdlog::info("[sdk] Lua state created");
+        
+        spdlog::info("[sdk] loading plugins...");
+        g_lua_state->load_plugins();
+        spdlog::info("[sdk] plugins loaded");
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::error("[sdk] Lua initialization failed: {}", e.what());
+        g_lua_state.reset();
+    }
+    catch (...)
+    {
+        spdlog::error("[sdk] Lua initialization failed: unknown exception");
+        g_lua_state.reset();
+    }
 }
 
 void uninstall_hooks()
