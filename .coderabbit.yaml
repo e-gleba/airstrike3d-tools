@@ -231,7 +231,7 @@ reviews:
     docstrings:
       mode: "off"
     issue_assessment:
-      mode: "on"
+      mode: "warning"
 
   tools:
     cppcheck:
