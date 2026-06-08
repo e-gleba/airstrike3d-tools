@@ -1,10 +1,5 @@
 #include "script_engine.hpp"
 
-#include "bindings_constants.hpp"
-#include "bindings_math.hpp"
-#include "bindings_sdk.hpp"
-#include "bindings_ui.hpp"
-
 #include <sol/sol.hpp>
 
 #include <algorithm>
@@ -12,6 +7,17 @@
 #include <ranges>
 #include <spdlog/spdlog.h>
 #include <vector>
+
+namespace sdk::lua
+{
+
+// Forward declarations — binding functions are internal, no public header needed.
+void register_sdk_bindings(sol::state& lua);
+void register_ui_bindings(sol::state& lua);
+void register_math_bindings(sol::state& lua);
+void register_constant_bindings(sol::state& lua);
+
+} // namespace sdk::lua
 
 namespace sdk
 {

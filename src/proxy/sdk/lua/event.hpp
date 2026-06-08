@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 namespace sdk
@@ -21,7 +22,7 @@ enum class event : std::uint8_t
 };
 
 /// Compile-time event name lookup. Zero-cost: returns std::string_view into static data.
-[[nodiscard]] consteval auto to_string_view(event e) noexcept -> std::string_view
+[[nodiscard]] constexpr auto to_string_view(event e) noexcept -> std::string_view
 {
     constexpr std::array names = {
         std::string_view{ "on_frame" },

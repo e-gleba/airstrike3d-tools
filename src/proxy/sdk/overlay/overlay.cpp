@@ -1,5 +1,6 @@
 #include "overlay.hpp"
 #include "sdk/core/context.hpp"
+#include "sdk/lua/event.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
@@ -68,7 +69,7 @@ void render()
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    g_ctx.cb.on_overlay.invoke();
+    g_ctx.callbacks.invoke<event::on_overlay, void()>();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
