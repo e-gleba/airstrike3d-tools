@@ -1,5 +1,7 @@
 #include "sdk/sdk.hpp"
 #include "sdk/scripting_backend.hpp"
+#include "sdk/core/hooks.hpp"
+#include "sdk/core/logging.hpp"
 
 #include <spdlog/spdlog.h>
 #include <windows.h>
