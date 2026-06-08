@@ -45,35 +45,7 @@ struct LuaState::impl
         register_constants();
         register_sdk_bindings();
         register_ui_bindings();
-        
-        // Register callback hooks
-        lua["hook_frame"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_frame.add(wrap_void(std::move(fn)));
-        };
-        
-        lua["hook_overlay"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_overlay.add(wrap_void(std::move(fn)));
-        };
-        
-        lua["hook_key_down"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_key_down.add(wrap_bool(std::move(fn)));
-        };
-        
-        lua["hook_gl_identity"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_gl_identity.add(wrap_gl_identity(std::move(fn)));
-        };
-        
-        lua["hook_glu_lookat"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_glu_lookat.add(wrap_glu_lookat(std::move(fn)));
-        };
-        
-        lua["hook_load"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_load.add(wrap_void(std::move(fn)));
-        };
-        
-        lua["hook_unload"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_unload.add(wrap_void(std::move(fn)));
-        };
+        register_callback_hooks();
         
         spdlog::info("[sdk] Lua interpreter initialized");
     }
@@ -131,31 +103,68 @@ struct LuaState::impl
         };
     }
     
+    // ── Callback hook registration ───────────────────────────────────────────
+    
+    void register_callback_hooks()
+    {
+        // Lua scripts call these as sdk.on_frame(fn), sdk.on_load(fn), etc.
+        auto sdk_table = lua["sdk"];
+        
+        sdk_table["on_frame"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_frame.add(wrap_void(std::move(fn)));
+        };
+        
+        sdk_table["on_overlay"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_overlay.add(wrap_void(std::move(fn)));
+        };
+        
+        sdk_table["on_key_down"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_key_down.add(wrap_bool(std::move(fn)));
+        };
+        
+        sdk_table["on_gl_identity"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_gl_identity.add(wrap_gl_identity(std::move(fn)));
+        };
+        
+        sdk_table["on_glu_lookat"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_glu_lookat.add(wrap_glu_lookat(std::move(fn)));
+        };
+        
+        sdk_table["on_load"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_load.add(wrap_void(std::move(fn)));
+        };
+        
+        sdk_table["on_unload"] = [this](sol::protected_function fn) {
+            g_ctx.cb.on_unload.add(wrap_void(std::move(fn)));
+        };
+    }
+    
     // ── Binding registration ─────────────────────────────────────────────────
     
     void register_math_bindings()
     {
-        auto math_table = lua.create_named_table("math");
+        // Scripts use "gmath" not "math" to avoid conflict with Lua's math lib
+        auto gmath_table = lua.create_named_table("gmath");
         
-        math_table.set_function("radians", &bindings::math::radians);
-        math_table.set_function("cos", &bindings::math::cos);
-        math_table.set_function("sin", &bindings::math::sin);
-        math_table.set_function("mod", &bindings::math::mod);
-        math_table.set_function("clamp", &bindings::math::clamp);
+        gmath_table.set_function("radians", &bindings::math::radians);
+        gmath_table.set_function("cos", &bindings::math::cos);
+        gmath_table.set_function("sin", &bindings::math::sin);
+        gmath_table.set_function("mod", &bindings::math::mod);
+        gmath_table.set_function("clamp", &bindings::math::clamp);
         
         // Vector operations - wrap to return tuples for Lua
-        math_table.set_function("normalize", [](double x, double y, double z) {
+        gmath_table.set_function("normalize", [](double x, double y, double z) {
             auto v = bindings::math::normalize(x, y, z);
             return std::make_tuple(v.x, v.y, v.z);
         });
         
-        math_table.set_function("cross", [](double ax, double ay, double az,
+        gmath_table.set_function("cross", [](double ax, double ay, double az,
                                              double bx, double by, double bz) {
             auto v = bindings::math::cross(ax, ay, az, bx, by, bz);
             return std::make_tuple(v.x, v.y, v.z);
         });
         
-        math_table.set_function("lookat_matrix", [](double ex, double ey, double ez,
+        gmath_table.set_function("lookat_matrix", [](double ex, double ey, double ez,
                                                       double cx, double cy, double cz,
                                                       double ux, double uy, double uz) {
             return bindings::math::lookat_matrix(ex, ey, ez, cx, cy, cz, ux, uy, uz);
@@ -241,6 +250,17 @@ struct LuaState::impl
         sdk_table.set_function("gl_rotate", &bindings::sdk::gl_rotate);
         sdk_table.set_function("gl_scale", &bindings::sdk::gl_scale);
         
+        // gl_apply_lookat - alias for glu_lookat to apply custom camera
+        sdk_table.set_function("gl_apply_lookat", [](double ex, double ey, double ez,
+                                                      double cx, double cy, double cz,
+                                                      double ux, double uy, double uz) {
+            // Call gluLookAt directly - this is used by freecam to apply custom camera
+            if (auto fn = reinterpret_cast<void(APIENTRY*)(double,double,double,double,double,double,double,double,double)>(
+                    GetProcAddress(GetModuleHandleW(L"glu32.dll"), "gluLookAt"))) {
+                fn(ex, ey, ez, cx, cy, cz, ux, uy, uz);
+            }
+        });
+        
         // Input
         sdk_table.set_function("is_key_down", &bindings::sdk::is_key_down);
         sdk_table.set_function("get_cursor_pos", []() {
@@ -254,6 +274,20 @@ struct LuaState::impl
         sdk_table.set_function("get_window_rect", []() {
             auto rect = bindings::sdk::get_window_rect();
             return std::make_tuple(rect.left, rect.top, rect.right, rect.bottom);
+        });
+        
+        // send_chars - simulate keyboard input for cheat codes
+        sdk_table.set_function("send_chars", [](const std::string& chars) {
+            for (char c : chars) {
+                INPUT input{};
+                input.type = INPUT_KEYBOARD;
+                input.ki.wVk = 0;
+                input.ki.wScan = static_cast<WORD>(c);
+                input.ki.dwFlags = KEYEVENTF_UNICODE;
+                SendInput(1, &input, sizeof(INPUT));
+                input.ki.dwFlags |= KEYEVENTF_KEYUP;
+                SendInput(1, &input, sizeof(INPUT));
+            }
         });
         
         // Logging
