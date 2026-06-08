@@ -165,7 +165,7 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
         if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
         {
-            g_ctx.callbacks.invoke<event::on_frame, void()>();
+            g_ctx.callbacks.invoke_on_frame();
 
             if (g_ctx.show_ui.load(std::memory_order::relaxed))
             {

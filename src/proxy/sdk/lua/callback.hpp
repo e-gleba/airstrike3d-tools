@@ -1,117 +1,60 @@
-#include "callback.hpp"
+#pragma once
 
-namespace sdk {
+#include <functional>
+#include <mutex>
+#include <vector>
 
-void callback_list::add_on_frame(std::function<void()> fn) {
-    std::lock_guard lock(mtx);
-    on_frame_fns.push_back(std::move(fn));
-}
+namespace sdk
+{
 
-void callback_list::add_on_overlay(std::function<void()> fn) {
-    std::lock_guard lock(mtx);
-    on_overlay_fns.push_back(std::move(fn));
-}
+/// Type-safe callback registry for SDK events.
+///
+/// Thread-safe via recursive_mutex. Callbacks stored as std::function.
+/// Consuming callbacks (on_key_down, on_glu_lookat) return bool to indicate consumption.
+class callback_list
+{
+    std::recursive_mutex& mtx;
 
-void callback_list::add_on_gl_identity(std::function<void()> fn) {
-    std::lock_guard lock(mtx);
-    on_gl_identity_fns.push_back(std::move(fn));
-}
+    std::vector<std::function<void()>>
+        on_frame_fns,
+        on_overlay_fns,
+        on_gl_identity_fns,
+        on_load_fns,
+        on_unload_fns;
 
-void callback_list::add_on_glu_lookat(std::function<bool(double, double, double, double, double, double, double, double, double)> fn) {
-    std::lock_guard lock(mtx);
-    on_glu_lookat_fns.push_back(std::move(fn));
-}
+    std::vector<std::function<bool(double, double, double, double, double, double, double, double, double)>>
+        on_glu_lookat_fns;
 
-void callback_list::add_on_key_down(std::function<bool(int)> fn) {
-    std::lock_guard lock(mtx);
-    on_key_down_fns.push_back(std::move(fn));
-}
+    std::vector<std::function<bool(int)>> on_key_down_fns;
 
-void callback_list::add_on_load(std::function<void()> fn) {
-    std::lock_guard lock(mtx);
-    on_load_fns.push_back(std::move(fn));
-}
-
-void callback_list::add_on_unload(std::function<void()> fn) {
-    std::lock_guard lock(mtx);
-    on_unload_fns.push_back(std::move(fn));
-}
-
-void callback_list::invoke_on_frame() {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_frame_fns) {
-        fn();
+public:
+    explicit callback_list(std::recursive_mutex& m) noexcept : mtx{ m }
+    {
     }
-}
 
-void callback_list::invoke_on_overlay() {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_overlay_fns) {
-        fn();
-    }
-}
+    void add_on_frame(std::function<void()> fn);
+    void add_on_overlay(std::function<void()> fn);
+    void add_on_gl_identity(std::function<void()> fn);
+    void add_on_glu_lookat(
+        std::function<bool(double, double, double, double, double, double, double, double, double)>
+            fn);
+    void add_on_key_down(std::function<bool(int)> fn);
+    void add_on_load(std::function<void()> fn);
+    void add_on_unload(std::function<void()> fn);
 
-void callback_list::invoke_on_gl_identity() {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_gl_identity_fns) {
-        fn();
-    }
-}
+    void invoke_on_frame();
+    void invoke_on_overlay();
+    void invoke_on_gl_identity();
+    void invoke_on_load();
+    void invoke_on_unload();
 
-bool callback_list::invoke_on_glu_lookat(double ex, double ey, double ez, double cx, double cy, double cz, double ux, double uy, double uz) {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_glu_lookat_fns) {
-        if (fn(ex, ey, ez, cx, cy, cz, ux, uy, uz)) {
-            return true; // consumed
-        }
-    }
-    return false;
-}
+    [[nodiscard]] bool invoke_on_glu_lookat(double ex, double ey, double ez,
+                                            double cx, double cy, double cz,
+                                            double ux, double uy, double uz);
+    [[nodiscard]] bool invoke_on_key_down(int vk);
 
-bool callback_list::invoke_on_key_down(int vk) {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_key_down_fns) {
-        if (fn(vk)) {
-            return true; // consumed
-        }
-    }
-    return false;
-}
-
-void callback_list::invoke_on_load() {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_load_fns) {
-        fn();
-    }
-}
-
-void callback_list::invoke_on_unload() {
-    std::lock_guard lock(mtx);
-    for (auto& fn : on_unload_fns) {
-        fn();
-    }
-}
-
-void callback_list::clear() {
-    std::lock_guard lock(mtx);
-    on_frame_fns.clear();
-    on_overlay_fns.clear();
-    on_gl_identity_fns.clear();
-    on_glu_lookat_fns.clear();
-    on_key_down_fns.clear();
-    on_load_fns.clear();
-    on_unload_fns.clear();
-}
-
-bool callback_list::empty() const {
-    std::lock_guard lock(mtx);
-    return on_frame_fns.empty() &&
-           on_overlay_fns.empty() &&
-           on_gl_identity_fns.empty() &&
-           on_glu_lookat_fns.empty() &&
-           on_key_down_fns.empty() &&
-           on_load_fns.empty() &&
-           on_unload_fns.empty();
-}
+    void clear();
+    [[nodiscard]] bool empty() const;
+};
 
 } // namespace sdk

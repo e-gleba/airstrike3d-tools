@@ -14,7 +14,6 @@
 #include <sol/sol.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
-#include <tuple>
 #include <utility>
 
 namespace sdk::lua
@@ -56,73 +55,49 @@ inline auto wrap_bool_int(sol::protected_function fn) -> std::function<bool(int)
     };
 }
 
-inline auto wrap_void_9d(sol::protected_function fn)
-    -> std::function<void(double, double, double, double, double, double, double, double, double)>
+inline auto wrap_bool_9d(sol::protected_function fn)
+    -> std::function<bool(double, double, double, double, double, double, double, double, double)>
 {
     return [fn = std::move(fn)](double a, double b, double c,
                                 double d, double e, double f,
-                                double g, double h, double i)
+                                double g, double h, double i) -> bool
     {
         auto r = fn(a, b, c, d, e, f, g, h, i);
         if (!r.valid())
         {
             sol::error err = r;
             spdlog::error("[sdk] lua callback error: {}", err.what());
+            return false;
         }
+        return sol::optional<bool>{ r }.value_or(false);
     };
 }
 
-// ─── Descriptor table: event → add method pointer ────────────────────────────
-//
-// Each pair maps event to callback_list pointer-to-member-function.
-// Fold expression expands all registrations in a single expression.
-
-inline constexpr auto callback_descriptors = std::tuple{
-    std::pair{ event::on_frame,       &callback_list::add_on_frame },
-    std::pair{ event::on_overlay,     &callback_list::add_on_overlay },
-    std::pair{ event::on_gl_identity, &callback_list::add_on_gl_identity },
-    std::pair{ event::on_glu_lookat,  &callback_list::add_on_glu_lookat },
-    std::pair{ event::on_key_down,    &callback_list::add_on_key_down },
-    std::pair{ event::on_load,        &callback_list::add_on_load },
-    std::pair{ event::on_unload,      &callback_list::add_on_unload },
-};
-
-/// Register one event: wraps sol2 fn → std::function, dispatches to add_* method.
-template <typename AddPmf>
-void register_callback(sol::table& s, event ev, AddPmf add_method)
-{
-    s.set_function(
-        std::string{ to_string_view(ev) },
-        [add_method](sol::protected_function fn)
-        {
-            if constexpr (std::is_same_v<AddPmf, decltype(&callback_list::add_on_key_down)>)
-            {
-                (g_ctx.callbacks.*add_method)(wrap_bool_int(std::move(fn)));
-            }
-            else if constexpr (std::is_same_v<AddPmf, decltype(&callback_list::add_on_glu_lookat)>)
-            {
-                (g_ctx.callbacks.*add_method)(wrap_void_9d(std::move(fn)));
-            }
-            else
-            {
-                (g_ctx.callbacks.*add_method)(wrap_void(std::move(fn)));
-            }
-        });
-}
-
-template <std::size_t... Is>
-void register_callbacks(sol::table& s, std::index_sequence<Is...>)
-{
-    (register_callback(s,
-                       std::get<Is>(callback_descriptors).first,
-                       std::get<Is>(callback_descriptors).second),
-     ...);
-}
+// ─── Callback registration ──────────────────────────────────────────────────
 
 inline void register_callbacks(sol::table& s)
 {
-    register_callbacks(
-        s, std::make_index_sequence<std::tuple_size_v<decltype(callback_descriptors)>>{});
+    s.set_function("on_frame", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_frame(wrap_void(std::move(fn)));
+    });
+    s.set_function("on_overlay", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_overlay(wrap_void(std::move(fn)));
+    });
+    s.set_function("on_gl_identity", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_gl_identity(wrap_void(std::move(fn)));
+    });
+    s.set_function("on_glu_lookat", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_glu_lookat(wrap_bool_9d(std::move(fn)));
+    });
+    s.set_function("on_key_down", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_key_down(wrap_bool_int(std::move(fn)));
+    });
+    s.set_function("on_load", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_load(wrap_void(std::move(fn)));
+    });
+    s.set_function("on_unload", [](sol::protected_function fn) {
+        g_ctx.callbacks.add_on_unload(wrap_void(std::move(fn)));
+    });
 }
 
 // ─── GL wrapper utilities ────────────────────────────────────────────────────
