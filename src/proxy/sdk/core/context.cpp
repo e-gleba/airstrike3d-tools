@@ -20,7 +20,7 @@ namespace sdk::overlay
             g_ctx.show_ui = !g_ctx.show_ui;
             return 0;
         }
-        if (g_ctx.cb.on_key_down.invoke_consuming(static_cast<int>(w)))
+        if (g_ctx.lua_engine && g_ctx.lua_engine->invoke_on_key_down(static_cast<int>(w)))
         {
             return 0;
         }
