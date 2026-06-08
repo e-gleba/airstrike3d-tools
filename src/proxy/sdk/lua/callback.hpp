@@ -1,86 +1,102 @@
 /// @file callback.hpp
-/// @brief Type-erased callback storage for Lua ↔ C++ events.
+/// @brief Type-erased, thread-safe callback lists for Lua ↔ C++ events.
 ///
-/// Provides two callback list types:
-/// - `callback_list` for void() callbacks (on_frame, on_overlay, etc.)
-/// - `consuming_callbacks` for bool() callbacks (on_key_down)
+/// Stores `std::function` — **no sol2 types** leak through this interface.
+/// The conversion from `sol::protected_function` to `std::function` happens
+/// inside `detail/lua_engine.cpp`.
 ///
-/// Both store `std::function` — no sol2 types leak into the public API.
-/// The Lua engine adapter converts `sol::protected_function` to
-/// `std::function` before storing.
+/// Two list types:
+///   - `callback_list<Args...>` — fire-and-forget, invokes all slots
+///   - `consuming_callback_list<Args...>` — short-circuits on first `true`
 
 #pragma once
 
 #include <functional>
-#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 namespace sdk::lua
 {
 
-/// Thread-safe list of void() callbacks.
+/// Thread-safe list of `void(Args...)` callbacks.
+template <typename... Args>
 class callback_list
 {
 public:
-    using fn_type = std::function<void()>;
+    using slot_fn = std::function<void(Args...)>;
 
-    callback_list();
-    ~callback_list();
+    explicit callback_list(std::recursive_mutex& m) noexcept : mtx_{m} {}
 
-    callback_list(callback_list&&) noexcept;
-    callback_list& operator=(callback_list&&) noexcept;
+    void add(slot_fn fn)
+    {
+        std::lock_guard lk{mtx_};
+        fns_.push_back(std::move(fn));
+    }
 
-    callback_list(const callback_list&)            = delete;
-    callback_list& operator=(const callback_list&) = delete;
+    void invoke(Args... args)
+    {
+        std::lock_guard lk{mtx_};
+        for (auto& fn : fns_) { fn(args...); }
+    }
 
-    /// Add a callback to the list.
-    void add(fn_type fn);
+    void clear()
+    {
+        std::lock_guard lk{mtx_};
+        fns_.clear();
+    }
 
-    /// Invoke all callbacks in order.
-    void invoke();
-
-    /// Remove all callbacks.
-    void clear();
-
-    /// Check if the list is empty.
-    [[nodiscard]] bool empty() const;
+    [[nodiscard]] bool empty() const
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.empty();
+    }
 
 private:
-    struct impl;
-    std::unique_ptr<impl> pimpl;
+    std::recursive_mutex&     mtx_;
+    std::vector<slot_fn>      fns_;
 };
 
-/// Thread-safe list of bool() callbacks with consuming semantics.
-/// Returns true from invoke() if any callback returned true.
-class consuming_callbacks
+/// Thread-safe list of `bool(Args...)` callbacks with consuming semantics.
+/// `invoke()` returns `true` as soon as any slot returns `true`.
+template <typename... Args>
+class consuming_callback_list
 {
 public:
-    using fn_type = std::function<bool()>;
+    using slot_fn = std::function<bool(Args...)>;
 
-    consuming_callbacks();
-    ~consuming_callbacks();
+    explicit consuming_callback_list(std::recursive_mutex& m) noexcept : mtx_{m} {}
 
-    consuming_callbacks(consuming_callbacks&&) noexcept;
-    consuming_callbacks& operator=(consuming_callbacks&&) noexcept;
+    void add(slot_fn fn)
+    {
+        std::lock_guard lk{mtx_};
+        fns_.push_back(std::move(fn));
+    }
 
-    consuming_callbacks(const consuming_callbacks&)            = delete;
-    consuming_callbacks& operator=(const consuming_callbacks&) = delete;
+    [[nodiscard]] bool invoke(Args... args)
+    {
+        std::lock_guard lk{mtx_};
+        for (auto& fn : fns_) {
+            if (fn(args...)) return true;
+        }
+        return false;
+    }
 
-    /// Add a callback to the list.
-    void add(fn_type fn);
+    void clear()
+    {
+        std::lock_guard lk{mtx_};
+        fns_.clear();
+    }
 
-    /// Invoke callbacks until one returns true, then stop.
-    /// Returns true if any callback consumed the event.
-    [[nodiscard]] bool invoke();
-
-    /// Remove all callbacks.
-    void clear();
-
-    /// Check if the list is empty.
-    [[nodiscard]] bool empty() const;
+    [[nodiscard]] bool empty() const
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.empty();
+    }
 
 private:
-    struct impl;
-    std::unique_ptr<impl> pimpl;
+    std::recursive_mutex&     mtx_;
+    std::vector<slot_fn>      fns_;
 };
 
 } // namespace sdk::lua
