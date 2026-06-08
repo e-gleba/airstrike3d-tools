@@ -1,7 +1,6 @@
 #include "sdk/core/logging.hpp"
 #include "sdk/sdk.hpp"
 
-#include <spdlog/spdlog.h>
 #include <thread>
 #include <windows.h>
 
@@ -15,9 +14,9 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
         {
             DisableThreadLibraryCalls(h_module);
             sdk::logging::init("logs");
+            sdk::logging::set_level(sdk::logging::level::info);
 
-            spdlog::set_level(spdlog::level::info);
-            spdlog::info("[bass_proxy] attached");
+            SDK_INFO("[bass_proxy] attached");
 
             std::jthread([]() static { sdk::install_hooks(); }).detach();
             break;
@@ -26,7 +25,7 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
         case DLL_PROCESS_DETACH:
         {
             sdk::uninstall_hooks();
-            spdlog::info("[bass_proxy] detached");
+            SDK_INFO("[bass_proxy] detached");
 
             sdk::logging::shutdown();
             break;

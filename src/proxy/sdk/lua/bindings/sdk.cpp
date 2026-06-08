@@ -3,13 +3,12 @@
 // Pure C++ — no sol2 types.
 
 #include "sdk/core/context.hpp"
+#include "sdk/core/logging.hpp"
 #include "sdk/util/win32.hpp"
 
 #include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
-#include <spdlog/spdlog.h>
 
 namespace sdk::lua::bindings::sdk
 {
@@ -147,17 +146,17 @@ RECT get_window_rect() noexcept
 // Logging
 void log_info(const std::string& m)
 {
-    spdlog::info("[lua] {}", m);
+    SDK_INFO("[lua] {}", m);
 }
 
 void log_warn(const std::string& m)
 {
-    spdlog::warn("[lua] {}", m);
+    SDK_WARN("[lua] {}", m);
 }
 
 void log_error(const std::string& m)
 {
-    spdlog::error("[lua] {}", m);
+    SDK_ERROR("[lua] {}", m);
 }
 
 std::string get_log_dir() noexcept
