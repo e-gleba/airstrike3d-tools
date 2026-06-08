@@ -1,3 +1,6 @@
+/// @file context.hpp
+/// @brief Global application context — no sol2 / Lua types exposed.
+
 #pragma once
 
 #include <GL/gl.h>
@@ -9,7 +12,6 @@
 #include <windows.h>
 
 #include <safetyhook.hpp>
-#include <sol/sol.hpp>
 
 #include "sdk/lua/callback.hpp"
 
@@ -41,30 +43,42 @@ struct context final
     GLenum        current_matrix_mode{ GL_MODELVIEW };
     hook_registry hooks;
 
-    std::unique_ptr<sol::state> lua;
-    std::recursive_mutex        lua_mutex;
+    // Lua subsystem — owned by the lua module, not exposed here.
+    // The lua engine manages its own state lifetime internally.
+    std::recursive_mutex lua_mutex;
 
     std::atomic<render_api> detected_api{ render_api::unknown };
     std::atomic<bool>       overlay_available{ false };
 
+    // Callbacks — type-erased, no sol2 leakage.
     struct final
     {
-        callback_list on_frame, on_overlay, on_gl_identity, on_glu_lookat,
-            on_key_down, on_load, on_unload;
+        lua::callback_list<>               on_frame;
+        lua::callback_list<>               on_overlay;
+        lua::callback_list<GLenum>         on_gl_identity;
+        lua::consuming_callback_list<double, double, double,
+                                       double, double, double,
+                                       double, double, double>  on_glu_lookat;
+        lua::consuming_callback_list<int>  on_key_down;
+        lua::callback_list<>               on_load;
+        lua::callback_list<>               on_unload;
     } cb;
 
     context()
-        : cb{ .on_frame       = callback_list{ lua_mutex },
-              .on_overlay     = callback_list{ lua_mutex },
-              .on_gl_identity = callback_list{ lua_mutex },
-              .on_glu_lookat  = callback_list{ lua_mutex },
-              .on_key_down    = callback_list{ lua_mutex },
-              .on_load        = callback_list{ lua_mutex },
-              .on_unload      = callback_list{ lua_mutex } }
+        : cb{ .on_frame       = lua::callback_list<>{ lua_mutex },
+              .on_overlay     = lua::callback_list<>{ lua_mutex },
+              .on_gl_identity = lua::callback_list<GLenum>{ lua_mutex },
+              .on_glu_lookat  = lua::consuming_callback_list<double, double, double,
+                                                   double, double, double,
+                                                   double, double, double>{ lua_mutex },
+              .on_key_down    = lua::consuming_callback_list<int>{ lua_mutex },
+              .on_load        = lua::callback_list<>{ lua_mutex },
+              .on_unload      = lua::callback_list<>{ lua_mutex } }
     {
     }
 
-    template <typename... CBs> static void clear_all(CBs&... cbs)
+    template <typename... CBs>
+    static void clear_all(CBs&... cbs)
     {
         (cbs.clear(), ...);
     }

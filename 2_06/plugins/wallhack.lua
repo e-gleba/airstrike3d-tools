@@ -1,15 +1,23 @@
--- Wallhack / visual-mod plugin: X-Ray, wireframe, ghost, Z-bias modes
+--- Airstrike 3D Tools — Wallhack / Visual-Mod Plugin
+--- Four overlay modes for seeing through geometry:
+---   1. X-Ray (depth disable)
+---   2. Wireframe overlay
+---   3. Ghost (transparent + wireframe)
+---   4. Z-Bias only
+---
+--- Hotkeys:
+---   F2 — Toggle wallhack on/off
+---   F3 — Cycle through modes (while enabled)
+
+-- ── Configuration ────────────────────────────────────────────────────────────
 
 local cfg = {
-    enabled = true,
-    mode = 1,
-    depth_disable = true,
-    wireframe = false,
-    wire_color = { 0.0, 1.0, 0.0, 0.7 },
-    wire_width = 1.5,
-    z_bias = true,
-    bias_amount = -0.05,
-    xray_alpha = 0.3,
+    enabled      = true,
+    mode         = 1,
+    wire_color   = { 0.0, 1.0, 0.0, 0.7 },
+    wire_width   = 1.5,
+    bias_amount  = -0.05,
+    xray_alpha   = 0.3,
 }
 
 local MODE_NAMES = {
@@ -18,13 +26,20 @@ local MODE_NAMES = {
     "Ghost (transparent + wireframe)",
     "Z-Bias only",
 }
-local VK_TOGGLE, VK_CYCLE = VK.F2, VK.F3
+
+local VK_TOGGLE = VK.F2
+local VK_CYCLE  = VK.F3
+
+-- ── Mode applicators ─────────────────────────────────────────────────────────
 
 local mode_applicators = {
+    -- Mode 1: X-Ray (depth disable)
     function()
         sdk.gl_disable(GL.DEPTH_TEST)
         sdk.gl_depth_mask(false)
     end,
+
+    -- Mode 2: Wireframe overlay
     function()
         sdk.gl_polygon_mode(GL.FRONT_AND_BACK, GL.LINE)
         sdk.gl_line_width(cfg.wire_width)
@@ -33,6 +48,8 @@ local mode_applicators = {
         local wc = cfg.wire_color
         sdk.gl_color4f(wc[1], wc[2], wc[3], wc[4])
     end,
+
+    -- Mode 3: Ghost (transparent + wireframe)
     function()
         sdk.gl_disable(GL.DEPTH_TEST)
         sdk.gl_depth_mask(false)
@@ -42,28 +59,20 @@ local mode_applicators = {
         sdk.gl_polygon_mode(GL.FRONT_AND_BACK, GL.LINE)
         sdk.gl_line_width(cfg.wire_width)
     end,
+
+    -- Mode 4: Z-Bias only
     function()
         sdk.gl_push_matrix()
         sdk.gl_mult_matrix_d({
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            cfg.bias_amount,
-            1,
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, cfg.bias_amount, 1,
         })
     end,
 }
+
+-- ── State restore ────────────────────────────────────────────────────────────
 
 local function restore_state()
     sdk.gl_pop_attrib()
@@ -72,19 +81,21 @@ local function restore_state()
     end
 end
 
+-- ── Hooks ────────────────────────────────────────────────────────────────────
+
 sdk.on_key_down(function(vk)
     if vk == VK_TOGGLE then
         cfg.enabled = not cfg.enabled
-        sdk.log_info(
-            string.format("wallhack: %s", cfg.enabled and "ON" or "OFF")
-        )
+        sdk.log_info(string.format("wallhack: %s", cfg.enabled and "ON" or "OFF"))
         return true
     end
+
     if vk == VK_CYCLE and cfg.enabled then
         cfg.mode = (cfg.mode % #MODE_NAMES) + 1
         sdk.log_info(string.format("wallhack mode: %s", MODE_NAMES[cfg.mode]))
         return true
     end
+
     return false
 end)
 
@@ -92,7 +103,9 @@ sdk.on_gl_identity(function()
     if not cfg.enabled then
         return
     end
+
     sdk.gl_push_attrib(GL.ALL_ATTRIB_BITS)
+
     local apply = mode_applicators[cfg.mode]
     if apply then
         apply()
@@ -105,15 +118,16 @@ sdk.on_frame(function()
     end
 end)
 
+-- ── UI Panel ─────────────────────────────────────────────────────────────────
+
 local function draw_panel()
     TOOLS_UI.header("Wallhack")
     TOOLS_UI.status_badge(cfg.enabled)
     ui.same_line()
     ui.text("wallhack state")
+
     TOOLS_UI.checkbox(
-        "Enable Wallhack",
-        cfg,
-        "enabled",
+        "Enable Wallhack", cfg, "enabled",
         "Visual overlay modes for seeing through geometry"
     )
 
@@ -121,6 +135,7 @@ local function draw_panel()
         return
     end
 
+    -- Mode selector
     TOOLS_UI.header("Mode")
     ui.text("Active:")
     ui.same_line()
@@ -132,6 +147,7 @@ local function draw_panel()
     end
     ui.tooltip("Switch to the previous mode")
     ui.same_line()
+
     if ui.button("Next##wallhack") then
         cfg.mode = (cfg.mode % #MODE_NAMES) + 1
     end
@@ -140,49 +156,44 @@ local function draw_panel()
     ui.text_disabled("or press F3")
     ui.spacing()
 
+    -- Mode-specific settings
     if cfg.mode == 2 or cfg.mode == 3 then
         TOOLS_UI.slider_float(
-            "Line Width",
-            cfg,
-            "wire_width",
-            0.5,
-            5.0,
+            "Line Width", cfg, "wire_width",
+            0.5, 5.0,
             "Thickness of wireframe lines"
         )
         TOOLS_UI.color_edit4("Wire Color", "Wire Alpha", cfg.wire_color)
     end
+
     if cfg.mode == 3 then
         TOOLS_UI.slider_float(
-            "Ghost Alpha",
-            cfg,
-            "xray_alpha",
-            0.05,
-            0.8,
+            "Ghost Alpha", cfg, "xray_alpha",
+            0.05, 0.8,
             "Transparency of the ghost overlay"
         )
     end
+
     if cfg.mode == 4 then
         TOOLS_UI.slider_float(
-            "Z Bias",
-            cfg,
-            "bias_amount",
-            -1.0,
-            0.0,
+            "Z Bias", cfg, "bias_amount",
+            -1.0, 0.0,
             "Subtle depth offset to reveal overlapping geometry"
         )
     end
 
+    -- Hotkey reference
     ui.spacing()
     TOOLS_UI.keybind("F2", "Toggle wallhack on / off")
     TOOLS_UI.keybind("F3", "Cycle mode (while enabled)")
 end
+
+-- ── Registration ─────────────────────────────────────────────────────────────
 
 if _G.TOOLS_UI then
     TOOLS_UI.register_panel("wallhack", "Wallhack", draw_panel)
 end
 
 sdk.on_load(function()
-    sdk.log_info(
-        string.format("wallhack plugin loaded (%d modes)", #MODE_NAMES)
-    )
+    sdk.log_info(string.format("wallhack plugin loaded (%d modes)", #MODE_NAMES))
 end)

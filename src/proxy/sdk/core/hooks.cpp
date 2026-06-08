@@ -2,13 +2,14 @@
 
 #include "sdk/core/context.hpp"
 #include "sdk/gl/gl_hooks.hpp"
-#include "sdk/lua/lua_engine.hpp"
+#include "sdk/lua/lua_state.hpp"
 #include "sdk/overlay/overlay.hpp"
 #include "sdk/util/win32.hpp"
 
 #include <array>
 #include <cctype>
 #include <cstring>
+#include <memory>
 #include <safetyhook.hpp>
 #include <spdlog/spdlog.h>
 
@@ -19,6 +20,10 @@ namespace sdk
 
 static safetyhook::InlineHook g_ll_a_hook;
 static safetyhook::InlineHook g_ll_w_hook;
+
+// ─── Lua state (RAII managed) ───────────────────────────────────────────────
+
+static std::unique_ptr<lua::LuaState> g_lua_state;
 
 namespace
 {
@@ -253,8 +258,29 @@ void install_hooks()
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    spdlog::info("[sdk] hooks installed, loading plugins...");
-    lua::load_plugins();
+    spdlog::info("[sdk] hooks installed");
+    
+    // Initialize Lua state with error handling
+    try
+    {
+        spdlog::info("[sdk] creating Lua state...");
+        g_lua_state = std::make_unique<lua::LuaState>();
+        spdlog::info("[sdk] Lua state created");
+        
+        spdlog::info("[sdk] loading plugins...");
+        g_lua_state->load_plugins();
+        spdlog::info("[sdk] plugins loaded");
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::error("[sdk] Lua initialization failed: {}", e.what());
+        g_lua_state.reset();
+    }
+    catch (...)
+    {
+        spdlog::error("[sdk] Lua initialization failed: unknown exception");
+        g_lua_state.reset();
+    }
 }
 
 void uninstall_hooks()
@@ -262,7 +288,12 @@ void uninstall_hooks()
     spdlog::info("[sdk] uninstalling...");
     g_ctx.should_unload.store(true);
 
-    lua::unload_plugins();
+    // Clean up Lua state (RAII - destructor handles cleanup)
+    if (g_lua_state)
+    {
+        g_lua_state->unload_plugins();
+        g_lua_state.reset();
+    }
 
     if (g_ctx.overlay_available.load(std::memory_order::acquire))
     {
