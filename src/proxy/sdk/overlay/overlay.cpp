@@ -1,11 +1,11 @@
 #include "overlay.hpp"
 #include "sdk/core/context.hpp"
+#include "sdk/core/logging.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
 #include <mutex>
-#include <spdlog/spdlog.h>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
                                                              UINT,
@@ -45,7 +45,7 @@ void init_imgui(HDC dc)
     ImGui_ImplOpenGL3_Init(k_glsl_version);
 
     g_ctx.imgui_initialized = true;
-    spdlog::info("[sdk] imgui initialized (classic dark, 2x scale)");
+    logging::info("imgui initialized (classic dark, 2x scale)");
 }
 
 } // namespace
