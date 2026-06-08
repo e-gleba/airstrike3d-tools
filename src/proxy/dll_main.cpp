@@ -12,7 +12,7 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
     {
         case DLL_PROCESS_ATTACH:
         {
-            DisableThreadDllCalls(h_module);
+            DisableThreadLibraryCalls(h_module);
             sdk::logging::init("logs");
             sdk::logging::set_level(sdk::logging::level::info);
 
