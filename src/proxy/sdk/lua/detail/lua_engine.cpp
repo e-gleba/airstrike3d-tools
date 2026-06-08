@@ -197,9 +197,12 @@ struct LuaState::impl
     {
         auto vk = lua.create_named_table("VK");
 
+        // ── Modifiers ──
         vk.set_function("SHIFT",    &bindings::constants::vk_shift);
         vk.set_function("CONTROL",  &bindings::constants::vk_control);
         vk.set_function("SPACE",    &bindings::constants::vk_space);
+
+        // ── Navigation ──
         vk.set_function("INSERT",   &bindings::constants::vk_insert);
         vk.set_function("ESCAPE",   &bindings::constants::vk_escape);
         vk.set_function("TAB",      &bindings::constants::vk_tab);
@@ -210,29 +213,73 @@ struct LuaState::impl
         vk.set_function("END",      &bindings::constants::vk_end);
         vk.set_function("PRIOR",    &bindings::constants::vk_prior);
         vk.set_function("NEXT",     &bindings::constants::vk_next);
+
+        // ── Arrow keys ──
         vk.set_function("LEFT",     &bindings::constants::vk_left);
         vk.set_function("RIGHT",    &bindings::constants::vk_right);
         vk.set_function("UP",       &bindings::constants::vk_up);
         vk.set_function("DOWN",     &bindings::constants::vk_down);
 
+        // ── F-keys ──
+        vk.set_function("F1",       &bindings::constants::vk_f1);
+        vk.set_function("F2",       &bindings::constants::vk_f2);
+        vk.set_function("F3",       &bindings::constants::vk_f3);
+        vk.set_function("F4",       &bindings::constants::vk_f4);
+        vk.set_function("F5",       &bindings::constants::vk_f5);
+        vk.set_function("F6",       &bindings::constants::vk_f6);
+        vk.set_function("F7",       &bindings::constants::vk_f7);
+        vk.set_function("F8",       &bindings::constants::vk_f8);
+        vk.set_function("F9",       &bindings::constants::vk_f9);
+        vk.set_function("F10",      &bindings::constants::vk_f10);
+        vk.set_function("F11",      &bindings::constants::vk_f11);
+        vk.set_function("F12",      &bindings::constants::vk_f12);
+
+        // ── Mouse buttons ──
+        vk.set_function("LBUTTON",  &bindings::constants::vk_lbutton);
+        vk.set_function("RBUTTON",  &bindings::constants::vk_rbutton);
+        vk.set_function("MBUTTON",  &bindings::constants::vk_mbutton);
+
+        // ── Letter keys ──
+        vk.set_function("W",        &bindings::constants::vk_w);
+        vk.set_function("A",        &bindings::constants::vk_a);
+        vk.set_function("S",        &bindings::constants::vk_s);
+        vk.set_function("D",        &bindings::constants::vk_d);
+        vk.set_function("Q",        &bindings::constants::vk_q);
+        vk.set_function("E",        &bindings::constants::vk_e);
+        vk.set_function("C",        &bindings::constants::vk_c);
+        vk.set_function("R",        &bindings::constants::vk_r);
+        vk.set_function("Z",        &bindings::constants::vk_z);
+        vk.set_function("X",        &bindings::constants::vk_x);
+        vk.set_function("V",        &bindings::constants::vk_v);
+
         auto gl = lua.create_named_table("GL");
 
+        // ── Matrix mode ──
         gl.set_function("MODELVIEW",               &bindings::constants::gl_modelview);
         gl.set_function("PROJECTION",              &bindings::constants::gl_projection);
         gl.set_function("TEXTURE",                 &bindings::constants::gl_texture);
+
+        // ── State caps ──
         gl.set_function("DEPTH_TEST",              &bindings::constants::gl_depth_test);
         gl.set_function("BLEND",                   &bindings::constants::gl_blend);
         gl.set_function("ALPHA_TEST",              &bindings::constants::gl_alpha_test);
         gl.set_function("CULL_FACE",               &bindings::constants::gl_cull_face);
         gl.set_function("LIGHTING",                &bindings::constants::gl_lighting);
         gl.set_function("FOG",                     &bindings::constants::gl_fog);
+        gl.set_function("TEXTURE_2D",              &bindings::constants::gl_texture_2d);
+
+        // ── Face selection ──
         gl.set_function("FRONT",                   &bindings::constants::gl_front);
         gl.set_function("BACK",                    &bindings::constants::gl_back);
         gl.set_function("FRONT_AND_BACK",          &bindings::constants::gl_front_and_back);
+
+        // ── Blend factors ──
         gl.set_function("SRC_ALPHA",               &bindings::constants::gl_src_alpha);
         gl.set_function("ONE_MINUS_SRC_ALPHA",     &bindings::constants::gl_one_minus_src_alpha);
         gl.set_function("ONE",                     &bindings::constants::gl_one);
         gl.set_function("ZERO",                    &bindings::constants::gl_zero);
+
+        // ── Primitive types (for glBegin) ──
         gl.set_function("LINES",                   &bindings::constants::gl_lines);
         gl.set_function("LINE_STRIP",              &bindings::constants::gl_line_strip);
         gl.set_function("LINE_LOOP",               &bindings::constants::gl_line_loop);
@@ -242,6 +289,13 @@ struct LuaState::impl
         gl.set_function("QUADS",                   &bindings::constants::gl_quads);
         gl.set_function("POINTS",                  &bindings::constants::gl_points);
         gl.set_function("POLYGON",                 &bindings::constants::gl_polygon);
+
+        // ── Polygon mode (for glPolygonMode) ──
+        gl.set_function("LINE",                    &bindings::constants::gl_line);
+        gl.set_function("FILL",                    &bindings::constants::gl_fill);
+
+        // ── State masks ──
+        gl.set_function("ALL_ATTRIB_BITS",         &bindings::constants::gl_all_attrib_bits);
     }
 
     void register_sdk_bindings()
@@ -270,6 +324,20 @@ struct LuaState::impl
         sdk.set_function("gl_translate",    &bindings::sdk::gl_translate);
         sdk.set_function("gl_rotate",       &bindings::sdk::gl_rotate);
         sdk.set_function("gl_scale",        &bindings::sdk::gl_scale);
+
+        // ── Matrix operations ──
+        //
+        // gl_mult_matrix_d takes a table of 16 doubles (column-major order)
+        // and multiplies the current matrix by it.
+
+        sdk.set_function("gl_mult_matrix_d", [](sol::as_table_t<std::vector<double>> m) {
+            auto& vec = m.value();
+            if (vec.size() >= 16) {
+                glMultMatrixd(vec.data());
+            } else {
+                spdlog::warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
+            }
+        });
 
         // ── Camera override ──
         //
@@ -329,21 +397,21 @@ struct LuaState::impl
     {
         auto ui = lua.create_named_table("ui");
 
-        // Window management
+        // ── Window management ──
         ui.set_function("begin_window", &bindings::ui::begin_window);
         ui.set_function("end_window",   &bindings::ui::end_window);
 
-        // Text rendering
+        // ── Text rendering ──
         ui.set_function("text",          &bindings::ui::text);
         ui.set_function("text_wrapped",  &bindings::ui::text_wrapped);
         ui.set_function("text_disabled", &bindings::ui::text_disabled);
         ui.set_function("text_colored",  &bindings::ui::text_colored);
 
-        // Buttons
+        // ── Buttons ──
         ui.set_function("button",       &bindings::ui::button);
         ui.set_function("button_sized", &bindings::ui::button_sized);
 
-        // Input widgets — return (value, changed)
+        // ── Input widgets (return value, changed) ──
         ui.set_function("checkbox", [](const std::string& label, bool v) {
             bool changed = bindings::ui::checkbox(label, v);
             return std::make_tuple(v, changed);
@@ -380,7 +448,7 @@ struct LuaState::impl
                 return std::make_tuple(r, g, b, changed);
             });
 
-        // Layout
+        // ── Layout ──
         ui.set_function("separator",        &bindings::ui::separator);
         ui.set_function("same_line",        &bindings::ui::same_line);
         ui.set_function("spacing",          &bindings::ui::spacing);
@@ -392,25 +460,29 @@ struct LuaState::impl
         ui.set_function("tab_item_end",     &bindings::ui::tab_item_end);
         ui.set_function("collapsing_header",&bindings::ui::collapsing_header);
 
-        // Positioning
+        // ── Groups ──
+        ui.set_function("begin_group",      &bindings::ui::begin_group);
+        ui.set_function("end_group",        &bindings::ui::end_group);
+
+        // ── Positioning ──
         ui.set_function("set_next_window_pos",  &bindings::ui::set_next_window_pos);
         ui.set_function("set_next_window_size", &bindings::ui::set_next_window_size);
         ui.set_function("set_cursor_pos_x",     &bindings::ui::set_cursor_pos_x);
         ui.set_function("get_window_width",     &bindings::ui::get_window_width);
 
-        // Styling
+        // ── Styling ──
         ui.set_function("push_style_color",    &bindings::ui::push_style_color);
         ui.set_function("pop_style_color",     &bindings::ui::pop_style_color);
         ui.set_function("push_style_var_float",&bindings::ui::push_style_var_float);
         ui.set_function("push_style_var_vec2", &bindings::ui::push_style_var_vec2);
         ui.set_function("pop_style_var",       &bindings::ui::pop_style_var);
 
-        // Columns
+        // ── Columns ──
         ui.set_function("columns",          &bindings::ui::columns);
         ui.set_function("next_column",      &bindings::ui::next_column);
         ui.set_function("set_column_width", &bindings::ui::set_column_width);
 
-        // Utilities
+        // ── Utilities ──
         ui.set_function("get_delta_time",        &bindings::ui::get_delta_time);
         ui.set_function("get_framerate",         &bindings::ui::get_framerate);
         ui.set_function("want_capture_keyboard", &bindings::ui::want_capture_keyboard);
