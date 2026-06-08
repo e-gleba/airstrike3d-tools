@@ -1,6 +1,7 @@
 #include "hooks.hpp"
 
 #include "sdk/core/context.hpp"
+#include "sdk/core/logging.hpp"
 #include "sdk/gl/gl_hooks.hpp"
 #include "sdk/lua/lua_state.hpp"
 #include "sdk/overlay/overlay.hpp"
@@ -11,7 +12,6 @@
 #include <cstring>
 #include <memory>
 #include <safetyhook.hpp>
-#include <spdlog/spdlog.h>
 
 namespace sdk
 {
@@ -86,13 +86,13 @@ void on_dx_detected()
 
     g_ctx.overlay_available.store(false, std::memory_order::release);
 
-    spdlog::warn("");
-    spdlog::warn("╔══════════════════════════════════════════════════════╗");
-    spdlog::warn("║  DirectX renderer detected                          ║");
-    spdlog::warn("║  ImGui overlay: DISABLED                            ║");
-    spdlog::warn("║  Lua plugins & input hooks: ACTIVE                  ║");
-    spdlog::warn("╚══════════════════════════════════════════════════════╝");
-    spdlog::warn("");
+    logging::warn("");
+    logging::warn("╔══════════════════════════════════════════════════════╗");
+    logging::warn("║  DirectX renderer detected                          ║");
+    logging::warn("║  ImGui overlay: DISABLED                            ║");
+    logging::warn("║  Lua plugins & input hooks: ACTIVE                  ║");
+    logging::warn("╚══════════════════════════════════════════════════════╝");
+    logging::warn("");
 }
 
 void on_gl_confirmed()
@@ -106,12 +106,12 @@ void on_gl_confirmed()
 
     g_ctx.overlay_available.store(true, std::memory_order::release);
 
-    spdlog::info("");
-    spdlog::info("╔══════════════════════════════════════════════════════╗");
-    spdlog::info("║  OpenGL renderer confirmed                          ║");
-    spdlog::info("║  Full overlay + cheats + plugins: ACTIVE            ║");
-    spdlog::info("╚══════════════════════════════════════════════════════╝");
-    spdlog::info("");
+    logging::info("");
+    logging::info("╔══════════════════════════════════════════════════════╗");
+    logging::info("║  OpenGL renderer confirmed                          ║");
+    logging::info("║  Full overlay + cheats + plugins: ACTIVE            ║");
+    logging::info("╚══════════════════════════════════════════════════════╝");
+    logging::info("");
 }
 
 HMODULE WINAPI hk_load_library_a(LPCSTR name)
@@ -196,7 +196,7 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
 void install_hooks()
 {
-    spdlog::info("[sdk] detecting render API...");
+    logging::info("detecting render API...");
 
     // 1. Check for already-loaded DirectX DLLs (d3d8, d3d9, ddraw, etc.)
     static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {
@@ -258,34 +258,34 @@ void install_hooks()
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    spdlog::info("[sdk] hooks installed");
-    
+    logging::info("hooks installed");
+
     // Initialize Lua state with error handling
     try
     {
-        spdlog::info("[sdk] creating Lua state...");
+        logging::info("creating Lua state...");
         g_lua_state = std::make_unique<lua::LuaState>();
-        spdlog::info("[sdk] Lua state created");
-        
-        spdlog::info("[sdk] loading plugins...");
+        logging::info("Lua state created");
+
+        logging::info("loading plugins...");
         g_lua_state->load_plugins();
-        spdlog::info("[sdk] plugins loaded");
+        logging::info("plugins loaded");
     }
     catch (const std::exception& e)
     {
-        spdlog::error("[sdk] Lua initialization failed: {}", e.what());
+        logging::error("Lua initialization failed: {}", e.what());
         g_lua_state.reset();
     }
     catch (...)
     {
-        spdlog::error("[sdk] Lua initialization failed: unknown exception");
+        logging::error("Lua initialization failed: unknown exception");
         g_lua_state.reset();
     }
 }
 
 void uninstall_hooks()
 {
-    spdlog::info("[sdk] uninstalling...");
+    logging::info("uninstalling...");
     g_ctx.should_unload.store(true);
 
     // Clean up Lua state (RAII - destructor handles cleanup)
@@ -311,7 +311,7 @@ void uninstall_hooks()
     g_ll_a_hook.reset();
     g_ll_w_hook.reset();
     g_ctx.hooks.reset();
-    spdlog::info("[sdk] shutdown complete");
+    logging::info("shutdown complete");
 }
 
 } // namespace sdk
