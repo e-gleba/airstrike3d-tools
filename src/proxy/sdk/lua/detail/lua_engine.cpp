@@ -63,7 +63,7 @@ struct LuaState::impl
         register_ui_bindings();
         register_callback_hooks();
 
-        ::sdk::logging::info("Lua interpreter initialized");
+        SDK_INFO("Lua interpreter initialized");
     }
 
     // ── Callback adapters ────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ struct LuaState::impl
             auto result = fn();
             if (!result.valid()) {
                 sol::error err = result;
-                ::sdk::logging::error("Lua callback error: {}", err.what());
+                SDK_ERROR("Lua callback error: {}", err.what());
             }
         };
     }
@@ -85,7 +85,7 @@ struct LuaState::impl
             auto result = fn(key);
             if (!result.valid()) {
                 sol::error err = result;
-                ::sdk::logging::error("Lua callback error: {}", err.what());
+                SDK_ERROR("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -98,7 +98,7 @@ struct LuaState::impl
             auto result = fn(mode);
             if (!result.valid()) {
                 sol::error err = result;
-                ::sdk::logging::error("Lua callback error: {}", err.what());
+                SDK_ERROR("Lua callback error: {}", err.what());
             }
         };
     }
@@ -115,7 +115,7 @@ struct LuaState::impl
                              upX, upY, upZ);
             if (!result.valid()) {
                 sol::error err = result;
-                ::sdk::logging::error("Lua callback error: {}", err.what());
+                SDK_ERROR("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -193,21 +193,12 @@ struct LuaState::impl
     {
         using namespace bindings::constants;
 
-        // ── VK table ─────────────────────────────────────────────────────────
-        //
-        // IMPORTANT: Constants must be registered as VALUES, not functions.
-        // Lua scripts access them as VK.W, GL.DEPTH_TEST etc. (no parentheses).
-        // Using set_function() would make VK.W return a callable, breaking
-        // all integer comparisons like `if vk == VK.F2 then`.
-
         auto vk = lua.create_named_table("VK");
 
-        // Modifiers
         vk["SHIFT"]    = vk_shift();
         vk["CONTROL"]  = vk_control();
         vk["SPACE"]    = vk_space();
 
-        // Navigation
         vk["INSERT"]   = vk_insert();
         vk["ESCAPE"]   = vk_escape();
         vk["TAB"]      = vk_tab();
@@ -219,13 +210,11 @@ struct LuaState::impl
         vk["PRIOR"]    = vk_prior();
         vk["NEXT"]     = vk_next();
 
-        // Arrow keys
         vk["LEFT"]     = vk_left();
         vk["RIGHT"]    = vk_right();
         vk["UP"]       = vk_up();
         vk["DOWN"]     = vk_down();
 
-        // F-keys
         vk["F1"]       = vk_f1();
         vk["F2"]       = vk_f2();
         vk["F3"]       = vk_f3();
@@ -239,12 +228,10 @@ struct LuaState::impl
         vk["F11"]      = vk_f11();
         vk["F12"]      = vk_f12();
 
-        // Mouse buttons
         vk["LBUTTON"]  = vk_lbutton();
         vk["RBUTTON"]  = vk_rbutton();
         vk["MBUTTON"]  = vk_mbutton();
 
-        // Letter keys
         vk["W"]        = vk_w();
         vk["A"]        = vk_a();
         vk["S"]        = vk_s();
@@ -257,16 +244,12 @@ struct LuaState::impl
         vk["X"]        = vk_x();
         vk["V"]        = vk_v();
 
-        // ── GL table ─────────────────────────────────────────────────────────
-
         auto gl = lua.create_named_table("GL");
 
-        // Matrix mode
         gl["MODELVIEW"]               = gl_modelview();
         gl["PROJECTION"]              = gl_projection();
         gl["TEXTURE"]                 = gl_texture();
 
-        // State caps
         gl["DEPTH_TEST"]              = gl_depth_test();
         gl["BLEND"]                   = gl_blend();
         gl["ALPHA_TEST"]              = gl_alpha_test();
@@ -275,18 +258,15 @@ struct LuaState::impl
         gl["FOG"]                     = gl_fog();
         gl["TEXTURE_2D"]              = gl_texture_2d();
 
-        // Face selection
         gl["FRONT"]                   = gl_front();
         gl["BACK"]                    = gl_back();
         gl["FRONT_AND_BACK"]          = gl_front_and_back();
 
-        // Blend factors
         gl["SRC_ALPHA"]               = gl_src_alpha();
         gl["ONE_MINUS_SRC_ALPHA"]     = gl_one_minus_src_alpha();
         gl["ONE"]                     = gl_one();
         gl["ZERO"]                    = gl_zero();
 
-        // Primitive types (for glBegin)
         gl["LINES"]                   = gl_lines();
         gl["LINE_STRIP"]              = gl_line_strip();
         gl["LINE_LOOP"]               = gl_line_loop();
@@ -297,19 +277,15 @@ struct LuaState::impl
         gl["POINTS"]                  = gl_points();
         gl["POLYGON"]                 = gl_polygon();
 
-        // Polygon mode (for glPolygonMode)
         gl["LINE"]                    = gl_line();
         gl["FILL"]                    = gl_fill();
 
-        // State masks
         gl["ALL_ATTRIB_BITS"]         = gl_all_attrib_bits();
     }
 
     void register_sdk_bindings()
     {
         auto sdk = lua.create_named_table("sdk");
-
-        // ── GL state management ──
 
         sdk.set_function("gl_enable",       &bindings::sdk::gl_enable);
         sdk.set_function("gl_disable",      &bindings::sdk::gl_disable);
@@ -332,18 +308,14 @@ struct LuaState::impl
         sdk.set_function("gl_rotate",       &bindings::sdk::gl_rotate);
         sdk.set_function("gl_scale",        &bindings::sdk::gl_scale);
 
-        // ── Matrix operations ──
-
         sdk.set_function("gl_mult_matrix_d", [](sol::as_table_t<std::vector<double>> m) {
             auto& vec = m.value();
             if (vec.size() >= 16) {
                 glMultMatrixd(vec.data());
             } else {
-                ::sdk::logging::warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
+                SDK_WARN("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
             }
         });
-
-        // ── Camera override (trampoline-safe) ──
 
         sdk.set_function("gl_apply_lookat",
             [](double ex, double ey, double ez,
@@ -351,8 +323,6 @@ struct LuaState::impl
                double ux, double uy, double uz) {
                 call_orig_glu_lookat(ex, ey, ez, cx, cy, cz, ux, uy, uz);
             });
-
-        // ── Input ──
 
         sdk.set_function("is_key_down", &bindings::sdk::is_key_down);
         sdk.set_function("get_cursor_pos", []() {
@@ -362,14 +332,10 @@ struct LuaState::impl
         sdk.set_function("set_cursor_pos", &bindings::sdk::set_cursor_pos);
         sdk.set_function("show_cursor",    &bindings::sdk::show_cursor);
 
-        // ── Window ──
-
         sdk.set_function("get_window_rect", []() {
             auto r = bindings::sdk::get_window_rect();
             return std::make_tuple(r.left, r.top, r.right, r.bottom);
         });
-
-        // ── Keyboard simulation ──
 
         sdk.set_function("send_chars", [](const std::string& chars) {
             for (char c : chars)
@@ -385,8 +351,6 @@ struct LuaState::impl
             }
         });
 
-        // ── Logging ──
-
         sdk.set_function("log_info",    &bindings::sdk::log_info);
         sdk.set_function("log_warn",    &bindings::sdk::log_warn);
         sdk.set_function("log_error",   &bindings::sdk::log_error);
@@ -397,21 +361,17 @@ struct LuaState::impl
     {
         auto ui = lua.create_named_table("ui");
 
-        // Window management
         ui.set_function("begin_window", &bindings::ui::begin_window);
         ui.set_function("end_window",   &bindings::ui::end_window);
 
-        // Text rendering
         ui.set_function("text",          &bindings::ui::text);
         ui.set_function("text_wrapped",  &bindings::ui::text_wrapped);
         ui.set_function("text_disabled", &bindings::ui::text_disabled);
         ui.set_function("text_colored",  &bindings::ui::text_colored);
 
-        // Buttons
         ui.set_function("button",       &bindings::ui::button);
         ui.set_function("button_sized", &bindings::ui::button_sized);
 
-        // Input widgets (return value, changed)
         ui.set_function("checkbox", [](const std::string& label, bool v) {
             bool changed = bindings::ui::checkbox(label, v);
             return std::make_tuple(v, changed);
@@ -448,7 +408,6 @@ struct LuaState::impl
                 return std::make_tuple(r, g, b, changed);
             });
 
-        // Layout
         ui.set_function("separator",        &bindings::ui::separator);
         ui.set_function("same_line",        &bindings::ui::same_line);
         ui.set_function("spacing",          &bindings::ui::spacing);
@@ -460,29 +419,24 @@ struct LuaState::impl
         ui.set_function("tab_item_end",     &bindings::ui::tab_item_end);
         ui.set_function("collapsing_header",&bindings::ui::collapsing_header);
 
-        // Groups
         ui.set_function("begin_group",      &bindings::ui::begin_group);
         ui.set_function("end_group",        &bindings::ui::end_group);
 
-        // Positioning
         ui.set_function("set_next_window_pos",  &bindings::ui::set_next_window_pos);
         ui.set_function("set_next_window_size", &bindings::ui::set_next_window_size);
         ui.set_function("set_cursor_pos_x",     &bindings::ui::set_cursor_pos_x);
         ui.set_function("get_window_width",     &bindings::ui::get_window_width);
 
-        // Styling
         ui.set_function("push_style_color",    &bindings::ui::push_style_color);
         ui.set_function("pop_style_color",     &bindings::ui::pop_style_color);
         ui.set_function("push_style_var_float",&bindings::ui::push_style_var_float);
         ui.set_function("push_style_var_vec2", &bindings::ui::push_style_var_vec2);
         ui.set_function("pop_style_var",       &bindings::ui::pop_style_var);
 
-        // Columns
         ui.set_function("columns",          &bindings::ui::columns);
         ui.set_function("next_column",      &bindings::ui::next_column);
         ui.set_function("set_column_width", &bindings::ui::set_column_width);
 
-        // Utilities
         ui.set_function("get_delta_time",        &bindings::ui::get_delta_time);
         ui.set_function("get_framerate",         &bindings::ui::get_framerate);
         ui.set_function("want_capture_keyboard", &bindings::ui::want_capture_keyboard);
@@ -506,13 +460,9 @@ void LuaState::load_plugins()
     auto plugin_dir = fs::current_path() / "plugins";
 
     if (!fs::exists(plugin_dir)) {
-        ::sdk::logging::info("No plugins directory found");
+        SDK_INFO("No plugins directory found");
         return;
     }
-
-    // Collect and sort .lua files alphabetically.
-    // Underscore (_) sorts before letters, so _ui_framework.lua
-    // always loads before cheats.lua, freecam.lua, etc.
 
     std::vector<fs::path> plugin_files;
     for (const auto& entry : fs::directory_iterator(plugin_dir)) {
@@ -527,25 +477,25 @@ void LuaState::load_plugins()
         });
 
     if (plugin_files.empty()) {
-        ::sdk::logging::info("No plugins found");
+        SDK_INFO("No plugins found");
         return;
     }
 
-    ::sdk::logging::info("Loading {} plugins...", plugin_files.size());
+    SDK_INFO("Loading {} plugins...", plugin_files.size());
 
     for (const auto& path : plugin_files) {
-        ::sdk::logging::info("Loading plugin: {}", path.filename().string());
+        SDK_INFO("Loading plugin: {}", path.filename().string());
 
         auto result = pimpl->lua.safe_script_file(path.string());
         if (!result.valid()) {
             sol::error err = result;
-            ::sdk::logging::error("Failed to load {}: {}",
-                                  path.filename().string(), err.what());
+            SDK_ERROR("Failed to load {}: {}",
+                      path.filename().string(), err.what());
         }
     }
 
     g_ctx.cb.on_load.invoke();
-    ::sdk::logging::info("Plugins loaded");
+    SDK_INFO("Plugins loaded");
 }
 
 void LuaState::unload_plugins()
@@ -560,7 +510,7 @@ void LuaState::unload_plugins()
     g_ctx.cb.on_load.clear();
     g_ctx.cb.on_unload.clear();
 
-    ::sdk::logging::info("Plugins unloaded");
+    SDK_INFO("Plugins unloaded");
 }
 
 } // namespace sdk::lua
