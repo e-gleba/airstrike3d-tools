@@ -172,7 +172,10 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
         if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
         {
-            g_ctx.cb.on_frame.invoke();
+            if (g_ctx.lua_engine)
+            {
+                g_ctx.lua_engine->invoke_on_frame();
+            }
 
             if (g_ctx.show_ui.load(std::memory_order::relaxed))
             {
@@ -253,8 +256,11 @@ void install_hooks()
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    spdlog::info("[sdk] hooks installed, loading plugins...");
-    lua::load_plugins();
+    spdlog::info("[sdk] hooks installed, creating Lua engine...");
+    
+    // Create and initialize Lua engine
+    g_ctx.lua_engine = std::make_unique<lua::engine>();
+    g_ctx.lua_engine->load_plugins();
 }
 
 void uninstall_hooks()
@@ -262,7 +268,12 @@ void uninstall_hooks()
     spdlog::info("[sdk] uninstalling...");
     g_ctx.should_unload.store(true);
 
-    lua::unload_plugins();
+    // Unload Lua plugins
+    if (g_ctx.lua_engine)
+    {
+        g_ctx.lua_engine->unload_plugins();
+        g_ctx.lua_engine.reset();
+    }
 
     if (g_ctx.overlay_available.load(std::memory_order::acquire))
     {
