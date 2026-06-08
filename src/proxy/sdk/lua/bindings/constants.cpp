@@ -5,7 +5,7 @@
 #include <windows.h>
 #include <GL/gl.h>
 
-namespace sdk::lua::bindings
+namespace sdk::lua::bindings::constants
 {
 
 // Virtual key codes
@@ -58,4 +58,4 @@ int gl_quads() noexcept { return GL_QUADS; }
 int gl_points() noexcept { return GL_POINTS; }
 int gl_polygon() noexcept { return GL_POLYGON; }
 
-} // namespace sdk::lua::bindings
+} // namespace sdk::lua::bindings::constants

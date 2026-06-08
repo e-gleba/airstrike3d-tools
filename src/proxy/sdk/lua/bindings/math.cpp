@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace sdk::lua::bindings
+namespace sdk::lua::bindings::math
 {
 
 double radians(double degrees) noexcept
@@ -54,4 +54,4 @@ glm::dmat4 lookat_matrix(double ex, double ey, double ez,
                        glm::dvec3{ux, uy, uz});
 }
 
-} // namespace sdk::lua::bindings
+} // namespace sdk::lua::bindings::math

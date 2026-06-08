@@ -11,7 +11,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace sdk::lua::bindings
+namespace sdk::lua::bindings::sdk
 {
 
 // OpenGL wrappers
@@ -165,4 +165,4 @@ std::string get_log_dir() noexcept
     return "logs";
 }
 
-} // namespace sdk::lua::bindings
+} // namespace sdk::lua::bindings::sdk

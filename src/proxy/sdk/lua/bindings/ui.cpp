@@ -7,7 +7,7 @@
 
 #include <array>
 
-namespace sdk::lua::bindings
+namespace sdk::lua::bindings::ui
 {
 
 // Window management
@@ -237,4 +237,4 @@ void tooltip(const std::string& t) noexcept
     }
 }
 
-} // namespace sdk::lua::bindings
+} // namespace sdk::lua::bindings::ui
