@@ -1,6 +1,5 @@
-#include "bindings_sdk.hpp"
-
 #include "sdk/core/context.hpp"
+#include "sdk/sdk.hpp"
 #include "sdk/util/win32.hpp"
 
 #include <GL/gl.h>
@@ -16,103 +15,79 @@
 #include <string>
 #include <utility>
 
-namespace sdk::lua
-{
+namespace sdk::lua {
 
-namespace detail
-{
+namespace detail {
 
-// ─── sol2 → std::function wrappers ──────────────────────────────────────────
-//
-// Converts sol::protected_function into std::function with concrete signatures.
-// Error checking happens at the boundary — consumers never see sol2 types.
-
-inline auto wrap_void(sol::protected_function fn) -> std::function<void()>
-{
-    return [fn = std::move(fn)]()
-    {
+inline auto wrap_void(sol::protected_function fn) -> std::function<void()> {
+    return [fn = std::move(fn)]() {
         auto r = fn();
-        if (!r.valid())
-        {
+        if (!r.valid()) {
             sol::error err = r;
             spdlog::error("[sdk] lua callback error: {}", err.what());
         }
     };
 }
 
-inline auto wrap_bool_int(sol::protected_function fn) -> std::function<bool(int)>
-{
-    return [fn = std::move(fn)](int v) -> bool
-    {
+inline auto wrap_bool_int(sol::protected_function fn) -> std::function<bool(int)> {
+    return [fn = std::move(fn)](int v) -> bool {
         auto r = fn(v);
-        if (!r.valid())
-        {
+        if (!r.valid()) {
             sol::error err = r;
             spdlog::error("[sdk] lua callback error: {}", err.what());
             return false;
         }
-        return sol::optional<bool>{ r }.value_or(false);
+        return sol::optional<bool>{r}.value_or(false);
     };
 }
 
 inline auto wrap_bool_9d(sol::protected_function fn)
-    -> std::function<bool(double, double, double, double, double, double, double, double, double)>
-{
-    return [fn = std::move(fn)](double a, double b, double c,
-                                double d, double e, double f,
-                                double g, double h, double i) -> bool
-    {
+    -> std::function<bool(double, double, double, double, double, double, double, double, double)> {
+    return [fn = std::move(fn)](double a, double b, double c, double d, double e, double f,
+                                double g, double h, double i) -> bool {
         auto r = fn(a, b, c, d, e, f, g, h, i);
-        if (!r.valid())
-        {
+        if (!r.valid()) {
             sol::error err = r;
             spdlog::error("[sdk] lua callback error: {}", err.what());
             return false;
         }
-        return sol::optional<bool>{ r }.value_or(false);
+        return sol::optional<bool>{r}.value_or(false);
     };
 }
 
-// ─── Callback registration ──────────────────────────────────────────────────
-
-inline void register_callbacks(sol::table& s)
-{
+inline void register_callbacks(sol::table& s) {
     s.set_function("on_frame", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_frame(wrap_void(std::move(fn)));
+        sdk::on_frame(wrap_void(std::move(fn)));
     });
     s.set_function("on_overlay", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_overlay(wrap_void(std::move(fn)));
+        sdk::on_overlay(wrap_void(std::move(fn)));
     });
     s.set_function("on_gl_identity", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_gl_identity(wrap_void(std::move(fn)));
+        sdk::on_gl_identity(wrap_void(std::move(fn)));
     });
     s.set_function("on_glu_lookat", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_glu_lookat(wrap_bool_9d(std::move(fn)));
+        sdk::on_glu_lookat(wrap_bool_9d(std::move(fn)));
     });
     s.set_function("on_key_down", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_key_down(wrap_bool_int(std::move(fn)));
+        sdk::on_key_down(wrap_bool_int(std::move(fn)));
     });
     s.set_function("on_load", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_load(wrap_void(std::move(fn)));
+        sdk::on_load(wrap_void(std::move(fn)));
     });
     s.set_function("on_unload", [](sol::protected_function fn) {
-        g_ctx.callbacks.add_on_unload(wrap_void(std::move(fn)));
+        sdk::on_unload(wrap_void(std::move(fn)));
     });
 }
 
-// ─── GL wrapper utilities ────────────────────────────────────────────────────
-
 template <auto GlFn, typename... Args>
-constexpr auto gl_wrap = [](Args... args) noexcept
-{
+constexpr auto gl_wrap = [](Args... args) noexcept {
     GlFn(
         static_cast<std::conditional_t<std::is_integral_v<Args>, GLenum, Args>>(
             args)...);
 };
 
 template <typename T, std::size_t N, std::ranges::input_range R>
-[[nodiscard]] constexpr auto to_array_from_range(R&& rng) -> std::array<T, N>
-{
+[[nodiscard]] constexpr auto to_array_from_range(R&& rng) -> std::array<T, N> {
     std::array<T, N> result{};
     std::ranges::copy(std::forward<R>(rng), result.begin());
     return result;
@@ -120,13 +95,10 @@ template <typename T, std::size_t N, std::ranges::input_range R>
 
 } // namespace detail
 
-void register_sdk_bindings(sol::state& sol_state)
-{
-    auto s{ sol_state.create_named_table("sdk") };
+void register_sdk_bindings(sol::state& sol_state) {
+    auto s{sol_state.create_named_table("sdk")};
 
     detail::register_callbacks(s);
-
-    // ─── OpenGL wrappers ─────────────────────────────────────────────────────
 
     s.set_function("gl_enable", detail::gl_wrap<glEnable, int>);
     s.set_function("gl_disable", detail::gl_wrap<glDisable, int>);
@@ -153,12 +125,11 @@ void register_sdk_bindings(sol::state& sol_state)
     s.set_function("gl_translate",
                    [](double x, double y, double z) noexcept { glTranslated(x, y, z); });
     s.set_function("gl_rotate",
-                   [](double angle, double x, double y, double z) noexcept
-                   { glRotated(angle, x, y, z); });
+                   [](double angle, double x, double y, double z) noexcept {
+                       glRotated(angle, x, y, z);
+                   });
     s.set_function("gl_scale",
                    [](double x, double y, double z) noexcept { glScaled(x, y, z); });
-
-    // ─── Input ───────────────────────────────────────────────────────────────
 
     s.set_function("is_key_down",
                    [](int vk) noexcept -> bool { return win32::is_key_down(vk); });
@@ -168,34 +139,26 @@ void register_sdk_bindings(sol::state& sol_state)
     s.set_function("get_window_rect",
                    []() noexcept { return win32::window_rect(g_ctx.window); });
 
-    s.set_function(
-        "send_chars",
-        [](const std::string& text)
-        {
-            if (!g_ctx.window)
-            {
-                return;
-            }
-            for (char c : text)
-            {
-                PostMessageA(g_ctx.window, WM_CHAR, static_cast<WPARAM>(c), 0);
-            }
-        });
+    s.set_function("send_chars", [](const std::string& text) {
+        if (!g_ctx.window) {
+            return;
+        }
+        for (char c : text) {
+            PostMessageA(g_ctx.window, WM_CHAR, static_cast<WPARAM>(c), 0);
+        }
+    });
 
-    // ─── Matrix operations ───────────────────────────────────────────────────
-
-    auto load_matrix = []<typename GlFn>(sol::table t, GlFn gl_fn)
-    {
-        static constexpr int k_matrix_size{ 16 };
-        if (std::cmp_less(t.size(), k_matrix_size))
-        {
+    auto load_matrix = []<typename GlFn>(sol::table t, GlFn gl_fn) {
+        static constexpr int k_matrix_size{16};
+        if (std::cmp_less(t.size(), k_matrix_size)) {
             return;
         }
 
-        auto m{ detail::to_array_from_range<GLdouble, k_matrix_size>(
+        auto m{detail::to_array_from_range<GLdouble, k_matrix_size>(
             std::views::iota(1, k_matrix_size + 1) |
-            std::views::transform([&](int i) -> GLdouble
-                                  { return t[i].template get<double>(); })) };
+            std::views::transform([&](int i) -> GLdouble {
+                return t[i].template get<double>();
+            }))};
 
         gl_fn(m.data());
     };
@@ -206,23 +169,12 @@ void register_sdk_bindings(sol::state& sol_state)
                    [=](sol::table t) { load_matrix(std::move(t), glLoadMatrixd); });
 
     s.set_function("gl_apply_lookat",
-                   [](double ex,
-                      double ey,
-                      double ez,
-                      double cx,
-                      double cy,
-                      double cz,
-                      double ux,
-                      double uy,
-                      double uz) noexcept
-                   {
-                       auto view{ glm::lookAt(glm::dvec3{ ex, ey, ez },
-                                              glm::dvec3{ cx, cy, cz },
-                                              glm::dvec3{ ux, uy, uz }) };
+                   [](double ex, double ey, double ez, double cx, double cy, double cz,
+                      double ux, double uy, double uz) noexcept {
+                       auto view{glm::lookAt(glm::dvec3{ex, ey, ez}, glm::dvec3{cx, cy, cz},
+                                             glm::dvec3{ux, uy, uz})};
                        glMultMatrixd(glm::value_ptr(view));
                    });
-
-    // ─── Logging ─────────────────────────────────────────────────────────────
 
     s.set_function("log_info",
                    [](const std::string& m) { spdlog::info("[lua] {}", m); });
