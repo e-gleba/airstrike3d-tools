@@ -7,13 +7,13 @@
 #include "sdk/lua/lua_state.hpp"
 #include "sdk/lua/callback.hpp"
 #include "sdk/core/context.hpp"
+#include "sdk/core/logging.hpp"
 #include "sdk/lua/bindings/math.hpp"
 #include "sdk/lua/bindings/constants.hpp"
 #include "sdk/lua/bindings/sdk.hpp"
 #include "sdk/lua/bindings/ui.hpp"
 
 #include <sol/sol.hpp>
-#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -63,7 +63,7 @@ struct LuaState::impl
         register_ui_bindings();
         register_callback_hooks();
 
-        spdlog::info("[sdk] Lua interpreter initialized");
+        ::sdk::logging::info("Lua interpreter initialized");
     }
 
     // ── Callback adapters ────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ struct LuaState::impl
             auto result = fn();
             if (!result.valid()) {
                 sol::error err = result;
-                spdlog::error("Lua callback error: {}", err.what());
+                ::sdk::logging::error("Lua callback error: {}", err.what());
             }
         };
     }
@@ -85,7 +85,7 @@ struct LuaState::impl
             auto result = fn(key);
             if (!result.valid()) {
                 sol::error err = result;
-                spdlog::error("Lua callback error: {}", err.what());
+                ::sdk::logging::error("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -98,7 +98,7 @@ struct LuaState::impl
             auto result = fn(mode);
             if (!result.valid()) {
                 sol::error err = result;
-                spdlog::error("Lua callback error: {}", err.what());
+                ::sdk::logging::error("Lua callback error: {}", err.what());
             }
         };
     }
@@ -115,7 +115,7 @@ struct LuaState::impl
                              upX, upY, upZ);
             if (!result.valid()) {
                 sol::error err = result;
-                spdlog::error("Lua callback error: {}", err.what());
+                ::sdk::logging::error("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -339,7 +339,7 @@ struct LuaState::impl
             if (vec.size() >= 16) {
                 glMultMatrixd(vec.data());
             } else {
-                spdlog::warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
+                ::sdk::logging::warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
             }
         });
 
@@ -506,7 +506,7 @@ void LuaState::load_plugins()
     auto plugin_dir = fs::current_path() / "plugins";
 
     if (!fs::exists(plugin_dir)) {
-        spdlog::info("[sdk] No plugins directory found");
+        ::sdk::logging::info("No plugins directory found");
         return;
     }
 
@@ -527,25 +527,25 @@ void LuaState::load_plugins()
         });
 
     if (plugin_files.empty()) {
-        spdlog::info("[sdk] No plugins found");
+        ::sdk::logging::info("No plugins found");
         return;
     }
 
-    spdlog::info("[sdk] Loading {} plugins...", plugin_files.size());
+    ::sdk::logging::info("Loading {} plugins...", plugin_files.size());
 
     for (const auto& path : plugin_files) {
-        spdlog::info("[sdk] Loading plugin: {}", path.filename().string());
+        ::sdk::logging::info("Loading plugin: {}", path.filename().string());
 
         auto result = pimpl->lua.safe_script_file(path.string());
         if (!result.valid()) {
             sol::error err = result;
-            spdlog::error("[sdk] Failed to load {}: {}",
-                          path.filename().string(), err.what());
+            ::sdk::logging::error("Failed to load {}: {}",
+                                  path.filename().string(), err.what());
         }
     }
 
     g_ctx.cb.on_load.invoke();
-    spdlog::info("[sdk] Plugins loaded");
+    ::sdk::logging::info("Plugins loaded");
 }
 
 void LuaState::unload_plugins()
@@ -560,7 +560,7 @@ void LuaState::unload_plugins()
     g_ctx.cb.on_load.clear();
     g_ctx.cb.on_unload.clear();
 
-    spdlog::info("[sdk] Plugins unloaded");
+    ::sdk::logging::info("Plugins unloaded");
 }
 
 } // namespace sdk::lua
