@@ -1,48 +1,24 @@
--- Airstrike 2 — Cheat Codes Panel (minimal edition)
+--- Airstrike 3D Tools — Cheat Codes Panel
+--- Sends cheat codes as keyboard input to activate in-game cheats.
 
 ---@type { label: string, code: string, desc: string }[]
 local cheats = {
-    {
-        label = "10 Lives",
-        code = "igonnaliveforever",
-        desc = "+10 extra lives",
-    },
-    {
-        label = "All Weapons",
-        code = "showmetheweapons",
-        desc = "Unlock every weapon",
-    },
-    {
-        label = "All Missiles",
-        code = "moremoreweapons",
-        desc = "Max missile ammo",
-    },
-    {
-        label = "All Power-ups",
-        code = "glitteringprizes",
-        desc = "All power-ups active",
-    },
-    {
-        label = "God Mode",
-        code = "invulnerability",
-        desc = "No damage taken",
-    },
-    {
-        label = "Win Mission",
-        code = "deadlineisnear",
-        desc = "Skip to victory",
-    },
-    {
-        label = "Lose Mission",
-        code = "diediediemydarling",
-        desc = "Instant failure",
-    },
+    { label = "10 Lives",        code = "igonnaliveforever",       desc = "+10 extra lives" },
+    { label = "All Weapons",     code = "showmetheweapons",        desc = "Unlock every weapon" },
+    { label = "All Missiles",    code = "moremoreweapons",         desc = "Max missile ammo" },
+    { label = "All Power-ups",   code = "glitteringprizes",        desc = "All power-ups active" },
+    { label = "God Mode",        code = "invulnerability",         desc = "No damage taken" },
+    { label = "Win Mission",     code = "deadlineisnear",          desc = "Skip to victory" },
+    { label = "Lose Mission",    code = "diediediemydarling",      desc = "Instant failure" },
 }
+
+-- ── Panel draw ───────────────────────────────────────────────────────────────
 
 local function draw_panel()
     TOOLS_UI.header("Cheat Codes")
     ui.text_wrapped(
-        "Click any button to activate the cheat in Airstrike 2. Codes are sent as keystrokes."
+        "Click any button to activate the cheat in Airstrike 2. " ..
+        "Codes are sent as keystrokes."
     )
     ui.spacing()
     ui.spacing()
@@ -60,6 +36,8 @@ local function draw_panel()
     ui.separator()
     ui.text_disabled(string.format("%d cheats available", #cheats))
 end
+
+-- ── Registration ─────────────────────────────────────────────────────────────
 
 if _G.TOOLS_UI then
     TOOLS_UI.register_panel("cheats", "Cheats", draw_panel)
