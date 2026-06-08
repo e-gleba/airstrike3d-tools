@@ -15,8 +15,8 @@
 #include <sol/sol.hpp>
 #include <spdlog/spdlog.h>
 
-#include <filesystem>
 #include <algorithm>
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -24,11 +24,6 @@ namespace sdk::lua
 {
 
 // ── Trampoline helpers ───────────────────────────────────────────────────────
-//
-// Hooked functions have their entry points patched inline by safetyhook.
-// Calling GetProcAddress() returns the hooked address, causing infinite
-// recursion if a callback re-invokes the same function.  These helpers
-// call through the safetyhook trampoline — the original, un-hooked code.
 
 using glu_look_at_fn = void(APIENTRY*)(GLdouble, GLdouble, GLdouble,
                                         GLdouble, GLdouble, GLdouble,
@@ -196,107 +191,118 @@ struct LuaState::impl
 
     void register_constants()
     {
+        using namespace bindings::constants;
+
+        // ── VK table ─────────────────────────────────────────────────────────
+        //
+        // IMPORTANT: Constants must be registered as VALUES, not functions.
+        // Lua scripts access them as VK.W, GL.DEPTH_TEST etc. (no parentheses).
+        // Using set_function() would make VK.W return a callable, breaking
+        // all integer comparisons like `if vk == VK.F2 then`.
+
         auto vk = lua.create_named_table("VK");
 
-        // ── Modifiers ──
-        vk.set_function("SHIFT",    &bindings::constants::vk_shift);
-        vk.set_function("CONTROL",  &bindings::constants::vk_control);
-        vk.set_function("SPACE",    &bindings::constants::vk_space);
+        // Modifiers
+        vk["SHIFT"]    = vk_shift();
+        vk["CONTROL"]  = vk_control();
+        vk["SPACE"]    = vk_space();
 
-        // ── Navigation ──
-        vk.set_function("INSERT",   &bindings::constants::vk_insert);
-        vk.set_function("ESCAPE",   &bindings::constants::vk_escape);
-        vk.set_function("TAB",      &bindings::constants::vk_tab);
-        vk.set_function("RETURN",   &bindings::constants::vk_return);
-        vk.set_function("BACK",     &bindings::constants::vk_back);
-        vk.set_function("DELETE",   &bindings::constants::vk_delete);
-        vk.set_function("HOME",     &bindings::constants::vk_home);
-        vk.set_function("END",      &bindings::constants::vk_end);
-        vk.set_function("PRIOR",    &bindings::constants::vk_prior);
-        vk.set_function("NEXT",     &bindings::constants::vk_next);
+        // Navigation
+        vk["INSERT"]   = vk_insert();
+        vk["ESCAPE"]   = vk_escape();
+        vk["TAB"]      = vk_tab();
+        vk["RETURN"]   = vk_return();
+        vk["BACK"]     = vk_back();
+        vk["DELETE"]   = vk_delete();
+        vk["HOME"]     = vk_home();
+        vk["END"]      = vk_end();
+        vk["PRIOR"]    = vk_prior();
+        vk["NEXT"]     = vk_next();
 
-        // ── Arrow keys ──
-        vk.set_function("LEFT",     &bindings::constants::vk_left);
-        vk.set_function("RIGHT",    &bindings::constants::vk_right);
-        vk.set_function("UP",       &bindings::constants::vk_up);
-        vk.set_function("DOWN",     &bindings::constants::vk_down);
+        // Arrow keys
+        vk["LEFT"]     = vk_left();
+        vk["RIGHT"]    = vk_right();
+        vk["UP"]       = vk_up();
+        vk["DOWN"]     = vk_down();
 
-        // ── F-keys ──
-        vk.set_function("F1",       &bindings::constants::vk_f1);
-        vk.set_function("F2",       &bindings::constants::vk_f2);
-        vk.set_function("F3",       &bindings::constants::vk_f3);
-        vk.set_function("F4",       &bindings::constants::vk_f4);
-        vk.set_function("F5",       &bindings::constants::vk_f5);
-        vk.set_function("F6",       &bindings::constants::vk_f6);
-        vk.set_function("F7",       &bindings::constants::vk_f7);
-        vk.set_function("F8",       &bindings::constants::vk_f8);
-        vk.set_function("F9",       &bindings::constants::vk_f9);
-        vk.set_function("F10",      &bindings::constants::vk_f10);
-        vk.set_function("F11",      &bindings::constants::vk_f11);
-        vk.set_function("F12",      &bindings::constants::vk_f12);
+        // F-keys
+        vk["F1"]       = vk_f1();
+        vk["F2"]       = vk_f2();
+        vk["F3"]       = vk_f3();
+        vk["F4"]       = vk_f4();
+        vk["F5"]       = vk_f5();
+        vk["F6"]       = vk_f6();
+        vk["F7"]       = vk_f7();
+        vk["F8"]       = vk_f8();
+        vk["F9"]       = vk_f9();
+        vk["F10"]      = vk_f10();
+        vk["F11"]      = vk_f11();
+        vk["F12"]      = vk_f12();
 
-        // ── Mouse buttons ──
-        vk.set_function("LBUTTON",  &bindings::constants::vk_lbutton);
-        vk.set_function("RBUTTON",  &bindings::constants::vk_rbutton);
-        vk.set_function("MBUTTON",  &bindings::constants::vk_mbutton);
+        // Mouse buttons
+        vk["LBUTTON"]  = vk_lbutton();
+        vk["RBUTTON"]  = vk_rbutton();
+        vk["MBUTTON"]  = vk_mbutton();
 
-        // ── Letter keys ──
-        vk.set_function("W",        &bindings::constants::vk_w);
-        vk.set_function("A",        &bindings::constants::vk_a);
-        vk.set_function("S",        &bindings::constants::vk_s);
-        vk.set_function("D",        &bindings::constants::vk_d);
-        vk.set_function("Q",        &bindings::constants::vk_q);
-        vk.set_function("E",        &bindings::constants::vk_e);
-        vk.set_function("C",        &bindings::constants::vk_c);
-        vk.set_function("R",        &bindings::constants::vk_r);
-        vk.set_function("Z",        &bindings::constants::vk_z);
-        vk.set_function("X",        &bindings::constants::vk_x);
-        vk.set_function("V",        &bindings::constants::vk_v);
+        // Letter keys
+        vk["W"]        = vk_w();
+        vk["A"]        = vk_a();
+        vk["S"]        = vk_s();
+        vk["D"]        = vk_d();
+        vk["Q"]        = vk_q();
+        vk["E"]        = vk_e();
+        vk["C"]        = vk_c();
+        vk["R"]        = vk_r();
+        vk["Z"]        = vk_z();
+        vk["X"]        = vk_x();
+        vk["V"]        = vk_v();
+
+        // ── GL table ─────────────────────────────────────────────────────────
 
         auto gl = lua.create_named_table("GL");
 
-        // ── Matrix mode ──
-        gl.set_function("MODELVIEW",               &bindings::constants::gl_modelview);
-        gl.set_function("PROJECTION",              &bindings::constants::gl_projection);
-        gl.set_function("TEXTURE",                 &bindings::constants::gl_texture);
+        // Matrix mode
+        gl["MODELVIEW"]               = gl_modelview();
+        gl["PROJECTION"]              = gl_projection();
+        gl["TEXTURE"]                 = gl_texture();
 
-        // ── State caps ──
-        gl.set_function("DEPTH_TEST",              &bindings::constants::gl_depth_test);
-        gl.set_function("BLEND",                   &bindings::constants::gl_blend);
-        gl.set_function("ALPHA_TEST",              &bindings::constants::gl_alpha_test);
-        gl.set_function("CULL_FACE",               &bindings::constants::gl_cull_face);
-        gl.set_function("LIGHTING",                &bindings::constants::gl_lighting);
-        gl.set_function("FOG",                     &bindings::constants::gl_fog);
-        gl.set_function("TEXTURE_2D",              &bindings::constants::gl_texture_2d);
+        // State caps
+        gl["DEPTH_TEST"]              = gl_depth_test();
+        gl["BLEND"]                   = gl_blend();
+        gl["ALPHA_TEST"]              = gl_alpha_test();
+        gl["CULL_FACE"]               = gl_cull_face();
+        gl["LIGHTING"]                = gl_lighting();
+        gl["FOG"]                     = gl_fog();
+        gl["TEXTURE_2D"]              = gl_texture_2d();
 
-        // ── Face selection ──
-        gl.set_function("FRONT",                   &bindings::constants::gl_front);
-        gl.set_function("BACK",                    &bindings::constants::gl_back);
-        gl.set_function("FRONT_AND_BACK",          &bindings::constants::gl_front_and_back);
+        // Face selection
+        gl["FRONT"]                   = gl_front();
+        gl["BACK"]                    = gl_back();
+        gl["FRONT_AND_BACK"]          = gl_front_and_back();
 
-        // ── Blend factors ──
-        gl.set_function("SRC_ALPHA",               &bindings::constants::gl_src_alpha);
-        gl.set_function("ONE_MINUS_SRC_ALPHA",     &bindings::constants::gl_one_minus_src_alpha);
-        gl.set_function("ONE",                     &bindings::constants::gl_one);
-        gl.set_function("ZERO",                    &bindings::constants::gl_zero);
+        // Blend factors
+        gl["SRC_ALPHA"]               = gl_src_alpha();
+        gl["ONE_MINUS_SRC_ALPHA"]     = gl_one_minus_src_alpha();
+        gl["ONE"]                     = gl_one();
+        gl["ZERO"]                    = gl_zero();
 
-        // ── Primitive types (for glBegin) ──
-        gl.set_function("LINES",                   &bindings::constants::gl_lines);
-        gl.set_function("LINE_STRIP",              &bindings::constants::gl_line_strip);
-        gl.set_function("LINE_LOOP",               &bindings::constants::gl_line_loop);
-        gl.set_function("TRIANGLES",               &bindings::constants::gl_triangles);
-        gl.set_function("TRIANGLE_STRIP",          &bindings::constants::gl_triangle_strip);
-        gl.set_function("TRIANGLE_FAN",            &bindings::constants::gl_triangle_fan);
-        gl.set_function("QUADS",                   &bindings::constants::gl_quads);
-        gl.set_function("POINTS",                  &bindings::constants::gl_points);
-        gl.set_function("POLYGON",                 &bindings::constants::gl_polygon);
+        // Primitive types (for glBegin)
+        gl["LINES"]                   = gl_lines();
+        gl["LINE_STRIP"]              = gl_line_strip();
+        gl["LINE_LOOP"]               = gl_line_loop();
+        gl["TRIANGLES"]               = gl_triangles();
+        gl["TRIANGLE_STRIP"]          = gl_triangle_strip();
+        gl["TRIANGLE_FAN"]            = gl_triangle_fan();
+        gl["QUADS"]                   = gl_quads();
+        gl["POINTS"]                  = gl_points();
+        gl["POLYGON"]                 = gl_polygon();
 
-        // ── Polygon mode (for glPolygonMode) ──
-        gl.set_function("LINE",                    &bindings::constants::gl_line);
-        gl.set_function("FILL",                    &bindings::constants::gl_fill);
+        // Polygon mode (for glPolygonMode)
+        gl["LINE"]                    = gl_line();
+        gl["FILL"]                    = gl_fill();
 
-        // ── State masks ──
-        gl.set_function("ALL_ATTRIB_BITS",         &bindings::constants::gl_all_attrib_bits);
+        // State masks
+        gl["ALL_ATTRIB_BITS"]         = gl_all_attrib_bits();
     }
 
     void register_sdk_bindings()
@@ -327,9 +333,6 @@ struct LuaState::impl
         sdk.set_function("gl_scale",        &bindings::sdk::gl_scale);
 
         // ── Matrix operations ──
-        //
-        // gl_mult_matrix_d takes a table of 16 doubles (column-major order)
-        // and multiplies the current matrix by it.
 
         sdk.set_function("gl_mult_matrix_d", [](sol::as_table_t<std::vector<double>> m) {
             auto& vec = m.value();
@@ -340,11 +343,7 @@ struct LuaState::impl
             }
         });
 
-        // ── Camera override ──
-        //
-        // gl_apply_lookat calls through the hook trampoline to the
-        // ORIGINAL gluLookAt.  This avoids infinite recursion when
-        // called from within an on_glu_lookat callback.
+        // ── Camera override (trampoline-safe) ──
 
         sdk.set_function("gl_apply_lookat",
             [](double ex, double ey, double ez,
@@ -398,21 +397,21 @@ struct LuaState::impl
     {
         auto ui = lua.create_named_table("ui");
 
-        // ── Window management ──
+        // Window management
         ui.set_function("begin_window", &bindings::ui::begin_window);
         ui.set_function("end_window",   &bindings::ui::end_window);
 
-        // ── Text rendering ──
+        // Text rendering
         ui.set_function("text",          &bindings::ui::text);
         ui.set_function("text_wrapped",  &bindings::ui::text_wrapped);
         ui.set_function("text_disabled", &bindings::ui::text_disabled);
         ui.set_function("text_colored",  &bindings::ui::text_colored);
 
-        // ── Buttons ──
+        // Buttons
         ui.set_function("button",       &bindings::ui::button);
         ui.set_function("button_sized", &bindings::ui::button_sized);
 
-        // ── Input widgets (return value, changed) ──
+        // Input widgets (return value, changed)
         ui.set_function("checkbox", [](const std::string& label, bool v) {
             bool changed = bindings::ui::checkbox(label, v);
             return std::make_tuple(v, changed);
@@ -449,7 +448,7 @@ struct LuaState::impl
                 return std::make_tuple(r, g, b, changed);
             });
 
-        // ── Layout ──
+        // Layout
         ui.set_function("separator",        &bindings::ui::separator);
         ui.set_function("same_line",        &bindings::ui::same_line);
         ui.set_function("spacing",          &bindings::ui::spacing);
@@ -461,29 +460,29 @@ struct LuaState::impl
         ui.set_function("tab_item_end",     &bindings::ui::tab_item_end);
         ui.set_function("collapsing_header",&bindings::ui::collapsing_header);
 
-        // ── Groups ──
+        // Groups
         ui.set_function("begin_group",      &bindings::ui::begin_group);
         ui.set_function("end_group",        &bindings::ui::end_group);
 
-        // ── Positioning ──
+        // Positioning
         ui.set_function("set_next_window_pos",  &bindings::ui::set_next_window_pos);
         ui.set_function("set_next_window_size", &bindings::ui::set_next_window_size);
         ui.set_function("set_cursor_pos_x",     &bindings::ui::set_cursor_pos_x);
         ui.set_function("get_window_width",     &bindings::ui::get_window_width);
 
-        // ── Styling ──
+        // Styling
         ui.set_function("push_style_color",    &bindings::ui::push_style_color);
         ui.set_function("pop_style_color",     &bindings::ui::pop_style_color);
         ui.set_function("push_style_var_float",&bindings::ui::push_style_var_float);
         ui.set_function("push_style_var_vec2", &bindings::ui::push_style_var_vec2);
         ui.set_function("pop_style_var",       &bindings::ui::pop_style_var);
 
-        // ── Columns ──
+        // Columns
         ui.set_function("columns",          &bindings::ui::columns);
         ui.set_function("next_column",      &bindings::ui::next_column);
         ui.set_function("set_column_width", &bindings::ui::set_column_width);
 
-        // ── Utilities ──
+        // Utilities
         ui.set_function("get_delta_time",        &bindings::ui::get_delta_time);
         ui.set_function("get_framerate",         &bindings::ui::get_framerate);
         ui.set_function("want_capture_keyboard", &bindings::ui::want_capture_keyboard);
@@ -511,11 +510,9 @@ void LuaState::load_plugins()
         return;
     }
 
-    // ── Collect all .lua files ───────────────────────────────────────────────
-    //
-    // fs::directory_iterator doesn't guarantee alphabetical order.
-    // We must sort to ensure framework files (prefixed with _) load
-    // before plugin files that depend on them.
+    // Collect and sort .lua files alphabetically.
+    // Underscore (_) sorts before letters, so _ui_framework.lua
+    // always loads before cheats.lua, freecam.lua, etc.
 
     std::vector<fs::path> plugin_files;
     for (const auto& entry : fs::directory_iterator(plugin_dir)) {
@@ -524,9 +521,6 @@ void LuaState::load_plugins()
         }
     }
 
-    // Sort alphabetically by filename
-    // Underscore (_) = 0x5F sorts before letters (a-z = 0x61-0x7A, A-Z = 0x41-0x5A)
-    // So _ui_framework.lua loads before cheats.lua, freecam.lua, etc.
     std::sort(plugin_files.begin(), plugin_files.end(),
         [](const fs::path& a, const fs::path& b) {
             return a.filename() < b.filename();
@@ -538,8 +532,6 @@ void LuaState::load_plugins()
     }
 
     spdlog::info("[sdk] Loading {} plugins...", plugin_files.size());
-
-    // ── Load plugins in sorted order ─────────────────────────────────────────
 
     for (const auto& path : plugin_files) {
         spdlog::info("[sdk] Loading plugin: {}", path.filename().string());
