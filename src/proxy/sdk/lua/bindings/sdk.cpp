@@ -123,7 +123,8 @@ bool is_key_down(int vk) noexcept
 
 glm::dvec2 get_cursor_pos() noexcept
 {
-    return win32::cursor_pos();
+    auto const [x, y] = win32::cursor_pos();
+    return { static_cast<double>(x), static_cast<double>(y) };
 }
 
 void set_cursor_pos(int x, int y) noexcept
@@ -139,7 +140,8 @@ void show_cursor(bool v) noexcept
 // Window
 RECT get_window_rect() noexcept
 {
-    return win32::window_rect(g_ctx.window);
+    auto const [left, top, right, bottom] = win32::window_rect(g_ctx.window);
+    return RECT{ left, top, right, bottom };
 }
 
 // Logging

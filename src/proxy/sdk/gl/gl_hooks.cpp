@@ -43,7 +43,7 @@ void APIENTRY hk_gl_load_identity()
 
     if (g_ctx.current_matrix_mode == GL_MODELVIEW)
     {
-        g_ctx.cb.on_gl_identity.invoke();
+        g_ctx.cb.on_gl_identity.invoke(g_ctx.current_matrix_mode);
     }
 }
 
@@ -57,7 +57,7 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    auto consumed{ g_ctx.cb.on_glu_lookat.invoke_consuming(
+    auto consumed{ g_ctx.cb.on_glu_lookat.invoke(
         ex, ey, ez, cx, cy, cz, ux, uy, uz) };
 
     if (!consumed)

@@ -56,9 +56,9 @@ struct context final
         lua::callback_list<>               on_frame;
         lua::callback_list<>               on_overlay;
         lua::callback_list<GLenum>         on_gl_identity;
-        lua::callback_list<double, double, double,
-                             double, double, double,
-                             double, double, double>  on_glu_lookat;
+        lua::consuming_callback_list<double, double, double,
+                                       double, double, double,
+                                       double, double, double>  on_glu_lookat;
         lua::consuming_callback_list<int>  on_key_down;
         lua::callback_list<>               on_load;
         lua::callback_list<>               on_unload;
@@ -68,7 +68,7 @@ struct context final
         : cb{ .on_frame       = lua::callback_list<>{ lua_mutex },
               .on_overlay     = lua::callback_list<>{ lua_mutex },
               .on_gl_identity = lua::callback_list<GLenum>{ lua_mutex },
-              .on_glu_lookat  = lua::callback_list<double, double, double,
+              .on_glu_lookat  = lua::consuming_callback_list<double, double, double,
                                                    double, double, double,
                                                    double, double, double>{ lua_mutex },
               .on_key_down    = lua::consuming_callback_list<int>{ lua_mutex },
