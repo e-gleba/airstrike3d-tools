@@ -1,10 +1,10 @@
-#include "hooks.hpp"
+#include "sdk/core/hooks.hpp"
 
-#include "context.hpp"
-#include "sdk/sdk.hpp"
-#include "sdk/scripting_backend.hpp"
+#include "lua/engine.hpp"
+#include "sdk/core/context.hpp"
 #include "sdk/gl/gl_hooks.hpp"
 #include "sdk/overlay/overlay.hpp"
+#include "sdk/sdk.hpp"
 #include "sdk/util/win32.hpp"
 
 #include <array>
@@ -19,6 +19,8 @@ static safetyhook::InlineHook g_ll_a_hook;
 static safetyhook::InlineHook g_ll_w_hook;
 
 namespace {
+
+lua::engine g_lua_engine;
 
 bool str_contains_i(const char* haystack, const char* needle) {
     if ((haystack == nullptr) || (needle == nullptr)) {
@@ -200,18 +202,13 @@ void install_hooks() {
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    spdlog::info("[sdk] hooks installed, loading plugins...");
+    // Initialize Lua engine and load plugins
+    g_lua_engine.initialize();
+    g_lua_engine.register_bindings();
+    g_lua_engine.load_plugins(k_plugin_dir);
+    detail::invoke_on_load();
 
-    // Initialize scripting backend and load plugins
-    auto* backend = get_scripting_backend();
-    if (backend) {
-        backend->initialize();
-        backend->register_bindings();
-        backend->load_plugins(k_plugin_dir);
-        detail::invoke_on_load();
-    } else {
-        spdlog::warn("[sdk] No scripting backend configured");
-    }
+    spdlog::info("[sdk] hooks installed, plugins loaded");
 }
 
 void uninstall_hooks() {
@@ -221,10 +218,7 @@ void uninstall_hooks() {
     detail::invoke_on_unload();
     detail::clear_all();
 
-    auto* backend = get_scripting_backend();
-    if (backend) {
-        backend->shutdown();
-    }
+    g_lua_engine.shutdown();
 
     if (g_ctx.overlay_available.load(std::memory_order::acquire)) {
         overlay::shutdown();
