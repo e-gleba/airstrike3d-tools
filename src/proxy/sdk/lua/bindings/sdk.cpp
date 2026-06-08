@@ -146,17 +146,17 @@ RECT get_window_rect() noexcept
 // Logging
 void log_info(const std::string& m)
 {
-    ::sdk::logging::info("[lua] {}", m);
+    SDK_INFO("[lua] {}", m);
 }
 
 void log_warn(const std::string& m)
 {
-    ::sdk::logging::warn("[lua] {}", m);
+    SDK_WARN("[lua] {}", m);
 }
 
 void log_error(const std::string& m)
 {
-    ::sdk::logging::error("[lua] {}", m);
+    SDK_ERROR("[lua] {}", m);
 }
 
 std::string get_log_dir() noexcept
