@@ -51,7 +51,7 @@ struct context final
     std::atomic<bool>       overlay_available{ false };
 
     // Callbacks — type-erased, no sol2 leakage.
-    struct callbacks final
+    struct final
     {
         lua::callback_list<>               on_frame;
         lua::callback_list<>               on_overlay;
@@ -65,27 +65,33 @@ struct context final
     } cb;
 
     context()
-        : cb{ lua::callback_list<>{ lua_mutex },
-              lua::callback_list<>{ lua_mutex },
-              lua::callback_list<GLenum>{ lua_mutex },
-              lua::consuming_callback_list<double, double, double,
-                                           double, double, double,
-                                           double, double, double>{ lua_mutex },
-              lua::consuming_callback_list<int>{ lua_mutex },
-              lua::callback_list<>{ lua_mutex },
-              lua::callback_list<>{ lua_mutex } }
+        : cb{ .on_frame       = lua::callback_list<>{ lua_mutex },
+              .on_overlay     = lua::callback_list<>{ lua_mutex },
+              .on_gl_identity = lua::callback_list<GLenum>{ lua_mutex },
+              .on_glu_lookat  = lua::consuming_callback_list<double, double, double,
+                                                   double, double, double,
+                                                   double, double, double>{ lua_mutex },
+              .on_key_down    = lua::consuming_callback_list<int>{ lua_mutex },
+              .on_load        = lua::callback_list<>{ lua_mutex },
+              .on_unload      = lua::callback_list<>{ lua_mutex } }
     {
+    }
+
+    template <typename... CBs>
+    static void clear_all(CBs&... cbs)
+    {
+        (cbs.clear(), ...);
     }
 
     void clear_callbacks()
     {
-        cb.on_frame.clear();
-        cb.on_overlay.clear();
-        cb.on_gl_identity.clear();
-        cb.on_glu_lookat.clear();
-        cb.on_key_down.clear();
-        cb.on_load.clear();
-        cb.on_unload.clear();
+        clear_all(cb.on_frame,
+                  cb.on_overlay,
+                  cb.on_gl_identity,
+                  cb.on_glu_lookat,
+                  cb.on_key_down,
+                  cb.on_load,
+                  cb.on_unload);
     }
 };
 
