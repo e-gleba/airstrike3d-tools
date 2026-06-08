@@ -1,108 +1,116 @@
-# Lua Scripting Engine
+# Lua Scripting Engine — Clean Architecture
 
-Modern C++23 Lua integration with clean architecture and strong separation of concerns.
+Modern C++23 Lua integration with complete sol2 isolation via pimpl idiom.
 
-## Architecture
+## Directory Structure
 
 ```
 lua/
-├── public/              # Public API (no sol2 exposure)
-│   └── lua_engine.hpp   # Clean C++23 interface
-├── private/             # Private implementation (sol2 isolated here)
-│   ├── lua_state.*      # RAII wrapper for sol2 state
-│   └── callback_registry.* # Type-erased callback management
-├── bindings/            # Lua binding modules (organized by domain)
-│   ├── bindings.hpp     # Binding interface
-│   ├── constants.cpp    # VK_*, GL_* constants
-│   ├── math.cpp         # Vector/matrix operations
-│   ├── sdk.cpp          # SDK callbacks, GL, input, logging
-│   └── ui.cpp           # ImGui wrappers
-└── lua_engine.cpp       # Public API implementation
+├── lua_engine.hpp                  ← Public API (zero sol2 exposure)
+├── detail/
+│   ├── callback.hpp                ← Thread-safe callback_list + callback_registry
+│   ├── lua_engine_impl.hpp         ← engine::impl definition (owns sol::state)
+│   └── lua_engine_impl.cpp         ← Full engine implementation
+└── bindings/
+    ├── bindings_fwd.hpp            ← Forward declarations (sol::state only)
+    ├── sdk_bindings.cpp            ← SDK callbacks, GL wrappers, input, logging
+    ├── ui_bindings.cpp             ← Dear ImGui wrappers
+    ├── math_bindings.cpp           ← Vector/matrix/trig (glm)
+    └── constant_bindings.cpp       ← VK_* and GL_* constants
 ```
 
-## Design Principles
+## Key Design Decisions
 
-1. **Clean Public API**: No sol2 or Lua types exposed to clients
-2. **RAII**: Automatic lifetime management, no manual cleanup
-3. **Type Erasure**: `std::function` callbacks hide implementation details
-4. **Modular Bindings**: Each domain (math, UI, SDK) in separate module
-5. **Thread Safety**: All operations are thread-safe via internal mutexes
-6. **Error Handling**: Structured error reporting, no exceptions in public API
-7. **Modern C++23**: Uses ranges, concepts, const correctness, [[nodiscard]]
+### sol2 Isolation
 
-## Usage
+`lua_engine.hpp` includes only `<memory>`. Zero sol2 headers leak to consumers.
+All sol2 types (`sol::state`, `sol::protected_function`, `sol::table`) live
+exclusively in `detail/` and `bindings/`.
+
+### Pimpl Idiom
+
+```
+lua_engine.hpp          → class engine { unique_ptr<impl> pimpl_; }
+detail/lua_engine_impl.hpp → struct engine::impl { sol::state lua; callback_registry callbacks; }
+detail/lua_engine_impl.cpp → engine::engine(), load_plugins(), invoke_on_frame(), etc.
+```
+
+Swap sol2 → LuaBridge3 by rewriting only `detail/` and `bindings/`. Public API unchanged.
+
+### Callback Decoupling
+
+Old: bindings accessed `g_ctx.cb` (global context dependency).
+New: `register_sdk(sol::state&, callback_registry&)` — registry injected.
+
+### RAII Lifetime
 
 ```cpp
-#include "lua/public/lua_engine.hpp"
+// Creation (install_hooks)
+g_ctx.lua_engine = std::make_unique<lua::engine>();
+g_ctx.lua_engine->load_plugins();
 
-// Create engine with default configuration
-sdk::lua::engine eng;
-
-// Load all plugins from "plugins" directory
-auto results = eng.load_plugins();
-
-// Register C++ callbacks
-eng.register_callback("on_frame", []() {
-    // Called every frame from Lua scripts
-});
-
-// Invoke callbacks
-eng.invoke_callback("on_frame");
-
-// Automatic cleanup on destruction
+// Destruction (uninstall_hooks)
+g_ctx.lua_engine->unload_plugins();
+g_ctx.lua_engine.reset();
 ```
 
-## Configuration
+No manual `lua_close()`, no mutex management by caller.
+
+### Destruction Order
+
+`engine::impl` members declared in critical order:
+1. `sol::state lua` — destroyed last (reverse declaration order)
+2. `detail::callback_registry callbacks` — destroyed first
+
+Ensures `sol::protected_function` objects (which reference the Lua state)
+are destroyed before the state itself.
+
+## Public API
 
 ```cpp
-sdk::lua::engine_config cfg;
-cfg.plugin_directory = "scripts";
-cfg.auto_create_plugin_dir = true;
-cfg.enable_standard_libs = true;
+namespace sdk::lua {
 
-sdk::lua::engine eng{cfg};
+class engine {
+public:
+    engine();                          // Creates sol::state, registers all bindings
+    ~engine();                         // Default (sol::state auto-cleanup)
+    engine(engine&&) noexcept;         // Move-only
+
+    void load_plugins();               // Scan plugins/ dir, execute .lua scripts
+    void unload_plugins();             // Fire on_unload, clear all callbacks
+
+    void invoke_on_frame();            // Fire-and-forget callbacks
+    void invoke_on_overlay();
+    void invoke_on_gl_identity();
+    void invoke_on_glu_lookat();
+    [[nodiscard]] bool invoke_on_key_down(int key);  // Consuming callback
+    void invoke_on_load();
+    void invoke_on_unload();
+
+    [[nodiscard]] bool has_plugins() const;
+};
+
+} // namespace sdk::lua
 ```
-
-## Lua API
-
-Scripts have access to these namespaces:
-
-- `sdk.*` - Core SDK functions (callbacks, GL, input, logging)
-- `ui.*` - ImGui UI functions
-- `gmath.*` - Math operations (vectors, matrices)
-- `VK.*` - Virtual key constants
-- `GL.*` - OpenGL constants
-
-See `bindings/*.cpp` for complete API reference.
-
-## Backend Swap
-
-To swap sol2 for another backend (e.g., LuaBridge3):
-
-1. Implement `detail::lua_state` using new backend
-2. Update `detail::callback_registry` to use new callback types
-3. Update `bindings/*.cpp` to use new binding syntax
-4. **Public API remains unchanged**
-
-This isolation enables future-proof architecture.
 
 ## Thread Safety
 
-- **Safe**: Concurrent callback invocation from multiple threads
-- **Safe**: Concurrent read operations (has_callbacks, callback_count)
-- **Unsafe**: Concurrent load_plugins/unload_plugins (must be externally synchronized)
+- `callback_list` uses `std::recursive_mutex` (supports reentrant invocation)
+- All invoke methods are null-safe (check `pimpl_` before dereference)
+- Plugin loading is not thread-safe (call during init only)
 
-## Error Handling
+## Context Integration
 
-All script execution errors are captured in `script_result`:
+`context.hpp` no longer includes sol2:
 
 ```cpp
-auto result = eng.load_script("broken.lua");
-if (!result.success) {
-    spdlog::error("Failed to load {}: {}", 
-                  result.script_path, 
-                  result.error_message);
-}
+#include "sdk/lua/lua_engine.hpp"  // Only standard C++ types
+
+struct context {
+    // ...
+    std::unique_ptr<lua::engine> lua_engine;  // Replaces: unique_ptr<sol::state> + callback_lists
+    // ...
+};
 ```
 
-No exceptions escape the public API.
+Removed: `sol::state`, `lua_mutex`, all `callback_list` members, `clear_callbacks()`.
