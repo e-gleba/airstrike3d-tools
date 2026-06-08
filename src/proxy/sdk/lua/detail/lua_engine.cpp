@@ -16,6 +16,7 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -510,17 +511,44 @@ void LuaState::load_plugins()
         return;
     }
 
+    // ── Collect all .lua files ───────────────────────────────────────────────
+    //
+    // fs::directory_iterator doesn't guarantee alphabetical order.
+    // We must sort to ensure framework files (prefixed with _) load
+    // before plugin files that depend on them.
+
+    std::vector<fs::path> plugin_files;
     for (const auto& entry : fs::directory_iterator(plugin_dir)) {
         if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-            auto path = entry.path();
-            spdlog::info("[sdk] Loading plugin: {}", path.filename().string());
+            plugin_files.push_back(entry.path());
+        }
+    }
 
-            auto result = pimpl->lua.safe_script_file(path.string());
-            if (!result.valid()) {
-                sol::error err = result;
-                spdlog::error("[sdk] Failed to load {}: {}",
-                              path.filename().string(), err.what());
-            }
+    // Sort alphabetically by filename
+    // Underscore (_) = 0x5F sorts before letters (a-z = 0x61-0x7A, A-Z = 0x41-0x5A)
+    // So _ui_framework.lua loads before cheats.lua, freecam.lua, etc.
+    std::sort(plugin_files.begin(), plugin_files.end(),
+        [](const fs::path& a, const fs::path& b) {
+            return a.filename() < b.filename();
+        });
+
+    if (plugin_files.empty()) {
+        spdlog::info("[sdk] No plugins found");
+        return;
+    }
+
+    spdlog::info("[sdk] Loading {} plugins...", plugin_files.size());
+
+    // ── Load plugins in sorted order ─────────────────────────────────────────
+
+    for (const auto& path : plugin_files) {
+        spdlog::info("[sdk] Loading plugin: {}", path.filename().string());
+
+        auto result = pimpl->lua.safe_script_file(path.string());
+        if (!result.valid()) {
+            sol::error err = result;
+            spdlog::error("[sdk] Failed to load {}: {}",
+                          path.filename().string(), err.what());
         }
     }
 
