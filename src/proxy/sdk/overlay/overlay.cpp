@@ -1,5 +1,6 @@
 #include "overlay.hpp"
-#include "sdk/core/context.hpp"
+#include "core/context.hpp"
+#include "sdk/sdk.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
@@ -7,24 +8,17 @@
 #include <mutex>
 #include <spdlog/spdlog.h>
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
-                                                             UINT,
-                                                             WPARAM,
-                                                             LPARAM);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
-namespace sdk::overlay
-{
+namespace sdk::overlay {
 
 LRESULT CALLBACK hk_wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
-namespace
-{
+namespace {
 
-void init_imgui(HDC dc)
-{
+void init_imgui(HDC dc) {
     g_ctx.window = WindowFromDC(dc);
-    if (g_ctx.window == nullptr)
-    {
+    if (g_ctx.window == nullptr) {
         return;
     }
 
@@ -33,7 +27,7 @@ void init_imgui(HDC dc)
 
     ImGui::CreateContext();
 
-    auto& io{ ImGui::GetIO() };
+    auto& io{ImGui::GetIO()};
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
 
@@ -50,34 +44,29 @@ void init_imgui(HDC dc)
 
 } // namespace
 
-void init(HDC dc)
-{
+void init(HDC dc) {
     static std::once_flag flag;
 
-    if (wglGetCurrentContext() == nullptr)
-    {
+    if (wglGetCurrentContext() == nullptr) {
         return;
     }
 
     std::call_once(flag, init_imgui, dc);
 }
 
-void render()
-{
+void render() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    g_ctx.callbacks.invoke_on_overlay();
+    sdk::detail::invoke_on_overlay();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void shutdown()
-{
-    if (g_ctx.imgui_initialized)
-    {
+void shutdown() {
+    if (g_ctx.imgui_initialized) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();

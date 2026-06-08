@@ -1,41 +1,44 @@
-#include "sdk/core/logging.hpp"
 #include "sdk/sdk.hpp"
+#include "sdk/scripting_backend.hpp"
 
 #include <spdlog/spdlog.h>
-#include <thread>
 #include <windows.h>
 
-BOOL APIENTRY DllMain(HMODULE                 h_module,
-                      DWORD                   reason,
-                      [[maybe_unused]] LPVOID lp_reserved)
-{
-    switch (reason)
-    {
-        case DLL_PROCESS_ATTACH:
-        {
-            DisableThreadLibraryCalls(h_module);
-            sdk::logging::init("logs");
+// Forward declaration from sol2_backend.cpp
+namespace sdk {
+std::unique_ptr<scripting_backend> create_sol2_backend();
+}
 
-            spdlog::set_level(spdlog::level::info);
-            spdlog::info("[bass_proxy] attached");
+BOOL APIENTRY DllMain(HMODULE h_module, DWORD reason,
+                      [[maybe_unused]] LPVOID lp_reserved) {
+    switch (reason) {
+    case DLL_PROCESS_ATTACH: {
+        DisableThreadLibraryCalls(h_module);
 
-            std::jthread([]() static { sdk::install_hooks(); }).detach();
-            break;
-        }
+        // Initialize logging
+        sdk::logging::init("logs");
+        spdlog::set_level(spdlog::level::info);
+        spdlog::info("[bass_proxy] attached");
 
-        case DLL_PROCESS_DETACH:
-        {
-            sdk::uninstall_hooks();
-            spdlog::info("[bass_proxy] detached");
+        // Create and set scripting backend (sol2)
+        sdk::set_scripting_backend(sdk::create_sol2_backend());
 
-            sdk::logging::shutdown();
-            break;
-        }
+        // Install hooks in separate thread
+        std::jthread([]() static { sdk::install_hooks(); }).detach();
+        break;
+    }
 
-        default:
-        {
-            break;
-        }
+    case DLL_PROCESS_DETACH: {
+        sdk::uninstall_hooks();
+        spdlog::info("[bass_proxy] detached");
+
+        sdk::logging::shutdown();
+        break;
+    }
+
+    default: {
+        break;
+    }
     }
 
     return TRUE;
