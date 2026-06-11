@@ -8,6 +8,7 @@
 #include "sdk/lua/callback.hpp"
 #include "sdk/core/context.hpp"
 #include "sdk/core/logging.hpp"
+#include "sdk/render/render_hooks.hpp"
 #include "sdk/lua/bindings/math.hpp"
 #include "sdk/lua/bindings/constants.hpp"
 #include "sdk/lua/bindings/sdk.hpp"
@@ -24,30 +25,14 @@ namespace fs = std::filesystem;
 namespace sdk::lua
 {
 
-// ── Trampoline helpers ───────────────────────────────────────────────────────
-
-using glu_look_at_fn = void(APIENTRY*)(GLdouble, GLdouble, GLdouble,
-                                        GLdouble, GLdouble, GLdouble,
-                                        GLdouble, GLdouble, GLdouble);
-
-static void call_orig_glu_lookat(double ex, double ey, double ez,
-                                  double cx, double cy, double cz,
-                                  double ux, double uy, double uz)
-{
-    auto orig = call_orig<glu_look_at_fn>(g_ctx.hooks.glu_look_at);
-    if (orig)
-    {
-        orig(ex, ey, ez, cx, cy, cz, ux, uy, uz);
-    }
-}
-
 // ── impl ─────────────────────────────────────────────────────────────────────
 
 struct LuaState::impl
 {
     sol::state lua;
+    render::HookSystem& render;
 
-    impl()
+    explicit impl(render::HookSystem& r) : render(r)
     {
         lua.open_libraries(
             sol::lib::base,
@@ -69,7 +54,7 @@ struct LuaState::impl
 
     // ── Callback adapters ────────────────────────────────────────────────────
 
-    auto wrap_void(sol::protected_function fn) -> callback_list<>::slot_fn
+    auto wrap_void(sol::protected_function fn) -> std::function<void()>
     {
         return [fn = std::move(fn)]() {
             auto result = fn();
@@ -80,7 +65,7 @@ struct LuaState::impl
         };
     }
 
-    auto wrap_bool(sol::protected_function fn) -> consuming_callback_list<int>::slot_fn
+    auto wrap_bool(sol::protected_function fn) -> std::function<bool(int)>
     {
         return [fn = std::move(fn)](int key) -> bool {
             auto result = fn(key);
@@ -93,9 +78,9 @@ struct LuaState::impl
         };
     }
 
-    auto wrap_gl_identity(sol::protected_function fn) -> callback_list<GLenum>::slot_fn
+    auto wrap_gl_identity(sol::protected_function fn) -> std::function<void(uint32_t)>
     {
-        return [fn = std::move(fn)](GLenum mode) {
+        return [fn = std::move(fn)](uint32_t mode) {
             auto result = fn(mode);
             if (!result.valid()) {
                 sol::error err = result;
@@ -105,9 +90,9 @@ struct LuaState::impl
     }
 
     auto wrap_glu_lookat(sol::protected_function fn)
-        -> consuming_callback_list<double, double, double,
-                                    double, double, double,
-                                    double, double, double>::slot_fn
+        -> std::function<bool(double, double, double,
+                              double, double, double,
+                              double, double, double)>
     {
         return [fn = std::move(fn)](double eyeX, double eyeY, double eyeZ,
                                      double centerX, double centerY, double centerZ,
@@ -130,23 +115,23 @@ struct LuaState::impl
         auto sdk_table = lua["sdk"];
 
         sdk_table["on_frame"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_frame.add(wrap_void(std::move(fn)));
+            render.on_frame(wrap_void(std::move(fn)));
         };
 
         sdk_table["on_overlay"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_overlay.add(wrap_void(std::move(fn)));
+            render.on_overlay(wrap_void(std::move(fn)));
         };
 
         sdk_table["on_key_down"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_key_down.add(wrap_bool(std::move(fn)));
+            render.on_key_down(wrap_bool(std::move(fn)));
         };
 
         sdk_table["on_gl_identity"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_gl_identity.add(wrap_gl_identity(std::move(fn)));
+            render.on_gl_identity(wrap_gl_identity(std::move(fn)));
         };
 
         sdk_table["on_glu_lookat"] = [this](sol::protected_function fn) {
-            g_ctx.cb.on_glu_lookat.add(wrap_glu_lookat(std::move(fn)));
+            render.on_glu_lookat(wrap_glu_lookat(std::move(fn)));
         };
 
         sdk_table["on_load"] = [this](sol::protected_function fn) {
@@ -320,10 +305,10 @@ struct LuaState::impl
         });
 
         sdk.set_function("gl_apply_lookat",
-            [](double ex, double ey, double ez,
-               double cx, double cy, double cz,
-               double ux, double uy, double uz) {
-                call_orig_glu_lookat(ex, ey, ez, cx, cy, cz, ux, uy, uz);
+            [this](double ex, double ey, double ez,
+                   double cx, double cy, double cz,
+                   double ux, double uy, double uz) {
+                render.call_orig_glu_lookat(ex, ey, ez, cx, cy, cz, ux, uy, uz);
             });
 
         sdk.set_function("is_key_down", &bindings::sdk::is_key_down);
@@ -446,11 +431,69 @@ struct LuaState::impl
         ui.set_function("progress_bar",          &bindings::ui::progress_bar);
         ui.set_function("tooltip",               &bindings::ui::tooltip);
     }
+
+    // ── Plugin lifecycle ──────────────────────────────────────────────────
+
+    void do_load_plugins()
+    {
+        auto plugin_dir = fs::current_path() / "plugins";
+
+        if (!fs::exists(plugin_dir)) {
+            sdk::log_info("No plugins directory found");
+            return;
+        }
+
+        std::vector<fs::path> plugin_files;
+        for (const auto& entry : fs::directory_iterator(plugin_dir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+                plugin_files.push_back(entry.path());
+            }
+        }
+
+        std::sort(plugin_files.begin(), plugin_files.end(),
+            [](const fs::path& a, const fs::path& b) {
+                return a.filename() < b.filename();
+            });
+
+        if (plugin_files.empty()) {
+            sdk::log_info("No plugins found");
+            return;
+        }
+
+        sdk::log_info(std::format("Loading {} plugins...", plugin_files.size()));
+
+        for (const auto& path : plugin_files) {
+            sdk::log_info(std::format("Loading plugin: {}", path.filename().string()));
+
+            auto result = lua.safe_script_file(path.string());
+            if (!result.valid()) {
+                sol::error err = result;
+                sdk::log_error(std::format("Failed to load {}: {}",
+                              path.filename().string(), err.what()));
+            }
+        }
+
+        g_ctx.cb.on_load.invoke();
+        sdk::log_info("Plugins loaded");
+    }
+
+    void do_unload_plugins()
+    {
+        g_ctx.cb.on_unload.invoke();
+
+        render.clear_callbacks();
+
+        g_ctx.cb.on_load.clear();
+        g_ctx.cb.on_unload.clear();
+
+        sdk::log_info("Plugins unloaded");
+    }
 };
 
 // ── LuaState ─────────────────────────────────────────────────────────────────
 
-LuaState::LuaState() : pimpl(std::make_unique<impl>()) {}
+LuaState::LuaState(render::HookSystem& render)
+    : pimpl(std::make_unique<impl>(render)) {}
 
 LuaState::~LuaState() = default;
 
@@ -459,60 +502,12 @@ LuaState& LuaState::operator=(LuaState&&) noexcept = default;
 
 void LuaState::load_plugins()
 {
-    auto plugin_dir = fs::current_path() / "plugins";
-
-    if (!fs::exists(plugin_dir)) {
-        sdk::log_info("No plugins directory found");
-        return;
-    }
-
-    std::vector<fs::path> plugin_files;
-    for (const auto& entry : fs::directory_iterator(plugin_dir)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-            plugin_files.push_back(entry.path());
-        }
-    }
-
-    std::sort(plugin_files.begin(), plugin_files.end(),
-        [](const fs::path& a, const fs::path& b) {
-            return a.filename() < b.filename();
-        });
-
-    if (plugin_files.empty()) {
-        sdk::log_info("No plugins found");
-        return;
-    }
-
-    sdk::log_info(std::format("Loading {} plugins...", plugin_files.size()));
-
-    for (const auto& path : plugin_files) {
-        sdk::log_info(std::format("Loading plugin: {}", path.filename().string()));
-
-        auto result = pimpl->lua.safe_script_file(path.string());
-        if (!result.valid()) {
-            sol::error err = result;
-            sdk::log_error(std::format("Failed to load {}: {}",
-                          path.filename().string(), err.what()));
-        }
-    }
-
-    g_ctx.cb.on_load.invoke();
-    sdk::log_info("Plugins loaded");
+    pimpl->do_load_plugins();
 }
 
 void LuaState::unload_plugins()
 {
-    g_ctx.cb.on_unload.invoke();
-
-    g_ctx.cb.on_frame.clear();
-    g_ctx.cb.on_overlay.clear();
-    g_ctx.cb.on_key_down.clear();
-    g_ctx.cb.on_gl_identity.clear();
-    g_ctx.cb.on_glu_lookat.clear();
-    g_ctx.cb.on_load.clear();
-    g_ctx.cb.on_unload.clear();
-
-    sdk::log_info("Plugins unloaded");
+    pimpl->do_unload_plugins();
 }
 
 } // namespace sdk::lua

@@ -6,8 +6,9 @@
 
 #pragma once
 
-#include <filesystem>
 #include <memory>
+
+namespace sdk::render { class HookSystem; }
 
 namespace sdk::lua
 {
@@ -25,8 +26,10 @@ public:
     /// Initialize the Lua interpreter.
     /// Opens standard libraries, registers C++ bindings, and sets up
     /// callback hooks (hook_frame, hook_overlay, hook_key_down, etc.).
-    LuaState();
-    
+    ///
+    /// @param render Reference to the render hook subsystem for callback registration.
+    explicit LuaState(render::HookSystem& render);
+
     /// Shut down the Lua interpreter.
     /// Clears all callbacks and releases resources.
     ~LuaState();
