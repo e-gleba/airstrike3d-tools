@@ -28,32 +28,80 @@ namespace detail
                   std::source_location loc);
 }
 
-template <typename... Args>
-void log(level                         lvl,
-         std::source_location          loc,
-         std::format_string<Args...>   fmt,
-         Args&&...                     args)
-{
-    detail::log_impl(lvl, std::format(fmt, std::forward<Args>(args)...), loc);
-}
-
 } // namespace sdk::logging
 
-// ── Convenience macros ────────────────────────────────────────────────────────
-// std::source_location::current() MUST be evaluated at the call site.
-// Trailing default parameter after a variadic pack is not deducible,
-// so macros are the only correct approach (same reason spdlog uses SPDLOG_*).
-// NOLINTBEGIN(cppcoreguidelines-macro-usage)
+// ── Convenience logging functions ─────────────────────────────────────────────
+//
+// std::source_location::current() as a default parameter is evaluated at the
+// call site, giving us correct file/line/function info without macros.
+// This is the idiomatic C++20 replacement for the macro-based approach.
+//
+// Usage:
+//   sdk::log_info("server started on port {}", port);
+//   sdk::log_error("failed to open file: {}", path);
+//   sdk::log_warn("deprecated API called");
 
-#define SDK_LOG_(lvl_, ...)                                                    \
-    ::sdk::logging::log(lvl_, std::source_location::current()                  \
-                        __VA_OPT__(,) __VA_ARGS__)
+namespace sdk
+{
 
-#define SDK_TRACE(...)    SDK_LOG_(::sdk::logging::level::trace __VA_OPT__(,) __VA_ARGS__)
-#define SDK_DEBUG(...)    SDK_LOG_(::sdk::logging::level::debug __VA_OPT__(,) __VA_ARGS__)
-#define SDK_INFO(...)     SDK_LOG_(::sdk::logging::level::info  __VA_OPT__(,) __VA_ARGS__)
-#define SDK_WARN(...)     SDK_LOG_(::sdk::logging::level::warn  __VA_OPT__(,) __VA_ARGS__)
-#define SDK_ERROR(...)    SDK_LOG_(::sdk::logging::level::error __VA_OPT__(,) __VA_ARGS__)
-#define SDK_CRITICAL(...) SDK_LOG_(::sdk::logging::level::critical __VA_OPT__(,) __VA_ARGS__)
+template <typename... Args>
+void log_trace(std::format_string<Args...>   fmt,
+               Args&&...                     args,
+               std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::trace,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
 
-// NOLINTEND(cppcoreguidelines-macro-usage)
+template <typename... Args>
+void log_debug(std::format_string<Args...>   fmt,
+               Args&&...                     args,
+               std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::debug,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
+
+template <typename... Args>
+void log_info(std::format_string<Args...>   fmt,
+              Args&&...                     args,
+              std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::info,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
+
+template <typename... Args>
+void log_warn(std::format_string<Args...>   fmt,
+              Args&&...                     args,
+              std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::warn,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
+
+template <typename... Args>
+void log_error(std::format_string<Args...>   fmt,
+               Args&&...                     args,
+               std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::error,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
+
+template <typename... Args>
+void log_critical(std::format_string<Args...>   fmt,
+                  Args&&...                     args,
+                  std::source_location          loc = std::source_location::current())
+{
+    logging::detail::log_impl(logging::level::critical,
+                              std::format(fmt, std::forward<Args>(args)...),
+                              loc);
+}
+
+} // namespace sdk

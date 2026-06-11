@@ -45,7 +45,7 @@ void init_imgui(HDC dc)
     ImGui_ImplOpenGL3_Init(k_glsl_version);
 
     g_ctx.imgui_initialized = true;
-    SDK_INFO("imgui initialized (classic dark, 2x scale)");
+    sdk::log_info("imgui initialized (classic dark, 2x scale)");
 }
 
 } // namespace

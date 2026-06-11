@@ -63,7 +63,7 @@ struct LuaState::impl
         register_ui_bindings();
         register_callback_hooks();
 
-        SDK_INFO("Lua interpreter initialized");
+        sdk::log_info("Lua interpreter initialized");
     }
 
     // ── Callback adapters ────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ struct LuaState::impl
             auto result = fn();
             if (!result.valid()) {
                 sol::error err = result;
-                SDK_ERROR("Lua callback error: {}", err.what());
+                sdk::log_error("Lua callback error: {}", err.what());
             }
         };
     }
@@ -85,7 +85,7 @@ struct LuaState::impl
             auto result = fn(key);
             if (!result.valid()) {
                 sol::error err = result;
-                SDK_ERROR("Lua callback error: {}", err.what());
+                sdk::log_error("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -98,7 +98,7 @@ struct LuaState::impl
             auto result = fn(mode);
             if (!result.valid()) {
                 sol::error err = result;
-                SDK_ERROR("Lua callback error: {}", err.what());
+                sdk::log_error("Lua callback error: {}", err.what());
             }
         };
     }
@@ -115,7 +115,7 @@ struct LuaState::impl
                              upX, upY, upZ);
             if (!result.valid()) {
                 sol::error err = result;
-                SDK_ERROR("Lua callback error: {}", err.what());
+                sdk::log_error("Lua callback error: {}", err.what());
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -313,7 +313,7 @@ struct LuaState::impl
             if (vec.size() >= 16) {
                 glMultMatrixd(vec.data());
             } else {
-                SDK_WARN("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
+                sdk::log_warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
             }
         });
 
@@ -460,7 +460,7 @@ void LuaState::load_plugins()
     auto plugin_dir = fs::current_path() / "plugins";
 
     if (!fs::exists(plugin_dir)) {
-        SDK_INFO("No plugins directory found");
+        sdk::log_info("No plugins directory found");
         return;
     }
 
@@ -477,25 +477,25 @@ void LuaState::load_plugins()
         });
 
     if (plugin_files.empty()) {
-        SDK_INFO("No plugins found");
+        sdk::log_info("No plugins found");
         return;
     }
 
-    SDK_INFO("Loading {} plugins...", plugin_files.size());
+    sdk::log_info("Loading {} plugins...", plugin_files.size());
 
     for (const auto& path : plugin_files) {
-        SDK_INFO("Loading plugin: {}", path.filename().string());
+        sdk::log_info("Loading plugin: {}", path.filename().string());
 
         auto result = pimpl->lua.safe_script_file(path.string());
         if (!result.valid()) {
             sol::error err = result;
-            SDK_ERROR("Failed to load {}: {}",
-                      path.filename().string(), err.what());
+            sdk::log_error("Failed to load {}: {}",
+                          path.filename().string(), err.what());
         }
     }
 
     g_ctx.cb.on_load.invoke();
-    SDK_INFO("Plugins loaded");
+    sdk::log_info("Plugins loaded");
 }
 
 void LuaState::unload_plugins()
@@ -510,7 +510,7 @@ void LuaState::unload_plugins()
     g_ctx.cb.on_load.clear();
     g_ctx.cb.on_unload.clear();
 
-    SDK_INFO("Plugins unloaded");
+    sdk::log_info("Plugins unloaded");
 }
 
 } // namespace sdk::lua
