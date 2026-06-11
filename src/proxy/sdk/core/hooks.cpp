@@ -10,6 +10,7 @@
 #include <array>
 #include <cctype>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <safetyhook.hpp>
 
@@ -273,7 +274,7 @@ void install_hooks()
     }
     catch (const std::exception& e)
     {
-        sdk::log_error("Lua initialization failed: {}", e.what());
+        sdk::log_error(std::format("Lua initialization failed: {}", e.what()));
         g_lua_state.reset();
     }
     catch (...)

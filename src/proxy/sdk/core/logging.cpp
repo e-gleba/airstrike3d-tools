@@ -25,7 +25,7 @@ namespace
         case level::debug:    return spdlog::level::debug;
         case level::info:     return spdlog::level::info;
         case level::warn:     return spdlog::level::warn;
-        case level::error:    return spdlog::level::err;
+        case level::error:     return spdlog::level::err;
         case level::critical: return spdlog::level::critical;
     }
     return spdlog::level::info;
@@ -93,3 +93,40 @@ void log_impl(level lvl, std::string_view msg, std::source_location loc)
 } // namespace detail
 
 } // namespace sdk::logging
+
+// ── Wrapper function definitions ──────────────────────────────────────────────
+
+namespace sdk
+{
+
+void log_trace(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::trace, msg, loc);
+}
+
+void log_debug(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::debug, msg, loc);
+}
+
+void log_info(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::info, msg, loc);
+}
+
+void log_warn(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::warn, msg, loc);
+}
+
+void log_error(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::error, msg, loc);
+}
+
+void log_critical(std::string_view msg, std::source_location loc)
+{
+    logging::detail::log_impl(logging::level::critical, msg, loc);
+}
+
+} // namespace sdk

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 
 namespace fs = std::filesystem;
 
@@ -74,7 +75,7 @@ struct LuaState::impl
             auto result = fn();
             if (!result.valid()) {
                 sol::error err = result;
-                sdk::log_error("Lua callback error: {}", err.what());
+                sdk::log_error(std::format("Lua callback error: {}", err.what()));
             }
         };
     }
@@ -85,7 +86,7 @@ struct LuaState::impl
             auto result = fn(key);
             if (!result.valid()) {
                 sol::error err = result;
-                sdk::log_error("Lua callback error: {}", err.what());
+                sdk::log_error(std::format("Lua callback error: {}", err.what()));
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -98,7 +99,7 @@ struct LuaState::impl
             auto result = fn(mode);
             if (!result.valid()) {
                 sol::error err = result;
-                sdk::log_error("Lua callback error: {}", err.what());
+                sdk::log_error(std::format("Lua callback error: {}", err.what()));
             }
         };
     }
@@ -115,7 +116,7 @@ struct LuaState::impl
                              upX, upY, upZ);
             if (!result.valid()) {
                 sol::error err = result;
-                sdk::log_error("Lua callback error: {}", err.what());
+                sdk::log_error(std::format("Lua callback error: {}", err.what()));
                 return false;
             }
             return result.get_type() == sol::type::boolean && result.get<bool>();
@@ -313,7 +314,8 @@ struct LuaState::impl
             if (vec.size() >= 16) {
                 glMultMatrixd(vec.data());
             } else {
-                sdk::log_warn("gl_mult_matrix_d: expected 16 elements, got {}", vec.size());
+                sdk::log_warn(std::format(
+                    "gl_mult_matrix_d: expected 16 elements, got {}", vec.size()));
             }
         });
 
@@ -481,16 +483,16 @@ void LuaState::load_plugins()
         return;
     }
 
-    sdk::log_info("Loading {} plugins...", plugin_files.size());
+    sdk::log_info(std::format("Loading {} plugins...", plugin_files.size()));
 
     for (const auto& path : plugin_files) {
-        sdk::log_info("Loading plugin: {}", path.filename().string());
+        sdk::log_info(std::format("Loading plugin: {}", path.filename().string()));
 
         auto result = pimpl->lua.safe_script_file(path.string());
         if (!result.valid()) {
             sol::error err = result;
-            sdk::log_error("Failed to load {}: {}",
-                          path.filename().string(), err.what());
+            sdk::log_error(std::format("Failed to load {}: {}",
+                          path.filename().string(), err.what()));
         }
     }
 
