@@ -7,6 +7,7 @@
 #include "sdk/util/win32.hpp"
 
 #include <GL/gl.h>
+#include <format>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -144,19 +145,20 @@ RECT get_window_rect() noexcept
 }
 
 // Logging
+// NOTE: use ::sdk:: to disambiguate from these local binding functions.
 void log_info(const std::string& m)
 {
-    SDK_INFO("[lua] {}", m);
+    ::sdk::log_info(std::format("[lua] {}", m));
 }
 
 void log_warn(const std::string& m)
 {
-    SDK_WARN("[lua] {}", m);
+    ::sdk::log_warn(std::format("[lua] {}", m));
 }
 
 void log_error(const std::string& m)
 {
-    SDK_ERROR("[lua] {}", m);
+    ::sdk::log_error(std::format("[lua] {}", m));
 }
 
 std::string get_log_dir() noexcept

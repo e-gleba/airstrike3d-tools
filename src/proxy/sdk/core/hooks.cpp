@@ -10,6 +10,7 @@
 #include <array>
 #include <cctype>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <safetyhook.hpp>
 
@@ -86,13 +87,13 @@ void on_dx_detected()
 
     g_ctx.overlay_available.store(false, std::memory_order::release);
 
-    SDK_WARN("");
-    SDK_WARN("╔══════════════════════════════════════════════════════╗");
-    SDK_WARN("║  DirectX renderer detected                          ║");
-    SDK_WARN("║  ImGui overlay: DISABLED                            ║");
-    SDK_WARN("║  Lua plugins & input hooks: ACTIVE                  ║");
-    SDK_WARN("╚══════════════════════════════════════════════════════╝");
-    SDK_WARN("");
+    sdk::log_warn("");
+    sdk::log_warn("╔══════════════════════════════════════════════════════╗");
+    sdk::log_warn("║  DirectX renderer detected                          ║");
+    sdk::log_warn("║  ImGui overlay: DISABLED                            ║");
+    sdk::log_warn("║  Lua plugins & input hooks: ACTIVE                  ║");
+    sdk::log_warn("╚══════════════════════════════════════════════════════╝");
+    sdk::log_warn("");
 }
 
 void on_gl_confirmed()
@@ -106,12 +107,12 @@ void on_gl_confirmed()
 
     g_ctx.overlay_available.store(true, std::memory_order::release);
 
-    SDK_INFO("");
-    SDK_INFO("╔══════════════════════════════════════════════════════╗");
-    SDK_INFO("║  OpenGL renderer confirmed                          ║");
-    SDK_INFO("║  Full overlay + cheats + plugins: ACTIVE            ║");
-    SDK_INFO("╚══════════════════════════════════════════════════════╝");
-    SDK_INFO("");
+    sdk::log_info("");
+    sdk::log_info("╔══════════════════════════════════════════════════════╗");
+    sdk::log_info("║  OpenGL renderer confirmed                          ║");
+    sdk::log_info("║  Full overlay + cheats + plugins: ACTIVE            ║");
+    sdk::log_info("╚══════════════════════════════════════════════════════╝");
+    sdk::log_info("");
 }
 
 HMODULE WINAPI hk_load_library_a(LPCSTR name)
@@ -196,7 +197,7 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
 void install_hooks()
 {
-    SDK_INFO("detecting render API...");
+    sdk::log_info("detecting render API...");
 
     // 1. Check for already-loaded DirectX DLLs (d3d8, d3d9, ddraw, etc.)
     static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {
@@ -258,34 +259,34 @@ void install_hooks()
         target = safetyhook::create_inline(proc_addr(dll, proc), detour);
     }
 
-    SDK_INFO("hooks installed");
+    sdk::log_info("hooks installed");
 
     // Initialize Lua state with error handling
     try
     {
-        SDK_INFO("creating Lua state...");
+        sdk::log_info("creating Lua state...");
         g_lua_state = std::make_unique<lua::LuaState>();
-        SDK_INFO("Lua state created");
+        sdk::log_info("Lua state created");
 
-        SDK_INFO("loading plugins...");
+        sdk::log_info("loading plugins...");
         g_lua_state->load_plugins();
-        SDK_INFO("plugins loaded");
+        sdk::log_info("plugins loaded");
     }
     catch (const std::exception& e)
     {
-        SDK_ERROR("Lua initialization failed: {}", e.what());
+        sdk::log_error(std::format("Lua initialization failed: {}", e.what()));
         g_lua_state.reset();
     }
     catch (...)
     {
-        SDK_ERROR("Lua initialization failed: unknown exception");
+        sdk::log_error("Lua initialization failed: unknown exception");
         g_lua_state.reset();
     }
 }
 
 void uninstall_hooks()
 {
-    SDK_INFO("uninstalling...");
+    sdk::log_info("uninstalling...");
     g_ctx.should_unload.store(true);
 
     // Clean up Lua state (RAII - destructor handles cleanup)
@@ -311,7 +312,7 @@ void uninstall_hooks()
     g_ll_a_hook.reset();
     g_ll_w_hook.reset();
     g_ctx.hooks.reset();
-    SDK_INFO("shutdown complete");
+    sdk::log_info("shutdown complete");
 }
 
 } // namespace sdk
