@@ -15,12 +15,12 @@ namespace sdk::lua::bindings::sdk
 {
 
 // OpenGL wrappers
-void gl_enable(int cap) noexcept
+void gl_enable(std::int32_t cap) noexcept
 {
     glEnable(static_cast<GLenum>(cap));
 }
 
-void gl_disable(int cap) noexcept
+void gl_disable(std::int32_t cap) noexcept
 {
     glDisable(static_cast<GLenum>(cap));
 }
@@ -30,7 +30,7 @@ void gl_depth_mask(bool flag) noexcept
     glDepthMask(flag ? GL_TRUE : GL_FALSE);
 }
 
-void gl_blend_func(int sfactor, int dfactor) noexcept
+void gl_blend_func(std::int32_t sfactor, std::int32_t dfactor) noexcept
 {
     glBlendFunc(static_cast<GLenum>(sfactor), static_cast<GLenum>(dfactor));
 }
@@ -55,12 +55,12 @@ void gl_color3f(float r, float g, float b) noexcept
     glColor3f(r, g, b);
 }
 
-void gl_polygon_mode(int face, int mode) noexcept
+void gl_polygon_mode(std::int32_t face, std::int32_t mode) noexcept
 {
     glPolygonMode(static_cast<GLenum>(face), static_cast<GLenum>(mode));
 }
 
-void gl_push_attrib(int mask) noexcept
+void gl_push_attrib(std::int32_t mask) noexcept
 {
     glPushAttrib(static_cast<GLbitfield>(mask));
 }
@@ -80,7 +80,7 @@ void gl_pop_matrix() noexcept
     glPopMatrix();
 }
 
-void gl_begin(int mode) noexcept
+void gl_begin(std::int32_t mode) noexcept
 {
     glBegin(static_cast<GLenum>(mode));
 }
@@ -116,7 +116,7 @@ void gl_scale(double x, double y, double z) noexcept
 }
 
 // Input
-bool is_key_down(int vk) noexcept
+bool is_key_down(std::int32_t vk) noexcept
 {
     return win32::is_key_down(vk);
 }
@@ -127,7 +127,7 @@ glm::dvec2 get_cursor_pos() noexcept
     return { static_cast<double>(x), static_cast<double>(y) };
 }
 
-void set_cursor_pos(int x, int y) noexcept
+void set_cursor_pos(std::int32_t x, std::int32_t y) noexcept
 {
     SetCursorPos(x, y);
 }

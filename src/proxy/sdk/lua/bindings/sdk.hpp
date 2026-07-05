@@ -5,26 +5,27 @@
 
 #include <glm/glm.hpp>
 #include <windows.h>
+#include <cstdint>
 #include <string>
 
 namespace sdk::lua::bindings::sdk
 {
 
 // OpenGL wrappers
-void gl_enable(int cap) noexcept;
-void gl_disable(int cap) noexcept;
+void gl_enable(std::int32_t cap) noexcept;
+void gl_disable(std::int32_t cap) noexcept;
 void gl_depth_mask(bool flag) noexcept;
-void gl_blend_func(int sfactor, int dfactor) noexcept;
+void gl_blend_func(std::int32_t sfactor, std::int32_t dfactor) noexcept;
 void gl_line_width(float w) noexcept;
 void gl_point_size(float sz) noexcept;
 void gl_color4f(float r, float g, float b, float a) noexcept;
 void gl_color3f(float r, float g, float b) noexcept;
-void gl_polygon_mode(int face, int mode) noexcept;
-void gl_push_attrib(int mask) noexcept;
+void gl_polygon_mode(std::int32_t face, std::int32_t mode) noexcept;
+void gl_push_attrib(std::int32_t mask) noexcept;
 void gl_pop_attrib() noexcept;
 void gl_push_matrix() noexcept;
 void gl_pop_matrix() noexcept;
-void gl_begin(int mode) noexcept;
+void gl_begin(std::int32_t mode) noexcept;
 void gl_end() noexcept;
 void gl_vertex3f(float x, float y, float z) noexcept;
 void gl_vertex2f(float x, float y) noexcept;
@@ -33,9 +34,9 @@ void gl_rotate(double angle, double x, double y, double z) noexcept;
 void gl_scale(double x, double y, double z) noexcept;
 
 // Input
-[[nodiscard]] bool is_key_down(int vk) noexcept;
+[[nodiscard]] bool is_key_down(std::int32_t vk) noexcept;
 [[nodiscard]] glm::dvec2 get_cursor_pos() noexcept;
-void set_cursor_pos(int x, int y) noexcept;
+void set_cursor_pos(std::int32_t x, std::int32_t y) noexcept;
 void show_cursor(bool v) noexcept;
 
 // Window
