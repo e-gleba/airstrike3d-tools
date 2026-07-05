@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <sol/sol.hpp>
 
 namespace sdk::scripting::bindings::math
 {
@@ -111,6 +112,36 @@ mat4 lookat_matrix(double ex, double ey, double ez,
         -(upx * ex + upy * ey + upz * ez),
         fnx * ex + fny * ey + fnz * ez,
         1
+    };
+}
+
+// ── Registration function for Lua bindings ──────────────────────────────────
+
+void register_math(sol::state& lua)
+{
+    auto math = lua["math"].get_or_create<sol::table>();
+    
+    math["radians"] = &radians;
+    math["cos"] = &cos;
+    math["sin"] = &sin;
+    math["mod"] = &mod;
+    math["clamp"] = &clamp;
+    
+    math["normalize"] = [](double x, double y, double z) {
+        auto v = normalize(x, y, z);
+        return std::make_tuple(v.x, v.y, v.z);
+    };
+    
+    math["cross"] = [](double ax, double ay, double az,
+                       double bx, double by, double bz) {
+        auto v = cross(ax, ay, az, bx, by, bz);
+        return std::make_tuple(v.x, v.y, v.z);
+    };
+    
+    math["lookat_matrix"] = [](double ex, double ey, double ez,
+                               double cx, double cy, double cz,
+                               double ux, double uy, double uz) {
+        return lookat_matrix(ex, ey, ez, cx, cy, cz, ux, uy, uz);
     };
 }
 
