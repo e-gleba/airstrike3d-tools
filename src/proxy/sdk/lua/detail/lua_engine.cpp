@@ -16,8 +16,11 @@
 #include <sol/sol.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <format>
+#include <ranges>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -32,7 +35,7 @@ using glu_look_at_fn = void(APIENTRY*)(GLdouble, GLdouble, GLdouble,
 
 static void call_orig_glu_lookat(double ex, double ey, double ez,
                                   double cx, double cy, double cz,
-                                  double ux, double uy, double uz)
+                                  double ux, double uy, double uz) noexcept
 {
     auto orig = call_orig<glu_look_at_fn>(g_ctx.hooks.glu_look_at);
     if (orig)
@@ -43,7 +46,7 @@ static void call_orig_glu_lookat(double ex, double ey, double ez,
 
 // ── impl ─────────────────────────────────────────────────────────────────────
 
-struct LuaState::impl
+struct LuaState::impl final
 {
     sol::state lua;
 
@@ -69,7 +72,7 @@ struct LuaState::impl
 
     // ── Callback adapters ────────────────────────────────────────────────────
 
-    auto wrap_void(sol::protected_function fn) -> callback_list<>::slot_fn
+    [[nodiscard]] auto wrap_void(sol::protected_function fn) -> callback_list<>::slot_fn
     {
         return [fn = std::move(fn)]() {
             auto result = fn();
@@ -80,9 +83,9 @@ struct LuaState::impl
         };
     }
 
-    auto wrap_bool(sol::protected_function fn) -> consuming_callback_list<int>::slot_fn
+    [[nodiscard]] auto wrap_bool(sol::protected_function fn) -> consuming_callback_list<std::int32_t>::slot_fn
     {
-        return [fn = std::move(fn)](int key) -> bool {
+        return [fn = std::move(fn)](std::int32_t key) -> bool {
             auto result = fn(key);
             if (!result.valid()) {
                 sol::error err = result;
@@ -93,7 +96,7 @@ struct LuaState::impl
         };
     }
 
-    auto wrap_gl_identity(sol::protected_function fn) -> callback_list<GLenum>::slot_fn
+    [[nodiscard]] auto wrap_gl_identity(sol::protected_function fn) -> callback_list<GLenum>::slot_fn
     {
         return [fn = std::move(fn)](GLenum mode) {
             auto result = fn(mode);
@@ -104,7 +107,7 @@ struct LuaState::impl
         };
     }
 
-    auto wrap_glu_lookat(sol::protected_function fn)
+    [[nodiscard]] auto wrap_glu_lookat(sol::protected_function fn)
         -> consuming_callback_list<double, double, double,
                                     double, double, double,
                                     double, double, double>::slot_fn
@@ -286,30 +289,30 @@ struct LuaState::impl
 
     void register_sdk_bindings()
     {
-        auto sdk = lua.create_named_table("sdk");
+        auto sdk_table = lua.create_named_table("sdk");
 
-        sdk.set_function("gl_enable",       &bindings::sdk::gl_enable);
-        sdk.set_function("gl_disable",      &bindings::sdk::gl_disable);
-        sdk.set_function("gl_depth_mask",   &bindings::sdk::gl_depth_mask);
-        sdk.set_function("gl_blend_func",   &bindings::sdk::gl_blend_func);
-        sdk.set_function("gl_line_width",   &bindings::sdk::gl_line_width);
-        sdk.set_function("gl_point_size",   &bindings::sdk::gl_point_size);
-        sdk.set_function("gl_color4f",      &bindings::sdk::gl_color4f);
-        sdk.set_function("gl_color3f",      &bindings::sdk::gl_color3f);
-        sdk.set_function("gl_polygon_mode", &bindings::sdk::gl_polygon_mode);
-        sdk.set_function("gl_push_attrib",  &bindings::sdk::gl_push_attrib);
-        sdk.set_function("gl_pop_attrib",   &bindings::sdk::gl_pop_attrib);
-        sdk.set_function("gl_push_matrix",  &bindings::sdk::gl_push_matrix);
-        sdk.set_function("gl_pop_matrix",   &bindings::sdk::gl_pop_matrix);
-        sdk.set_function("gl_begin",        &bindings::sdk::gl_begin);
-        sdk.set_function("gl_end",          &bindings::sdk::gl_end);
-        sdk.set_function("gl_vertex3f",     &bindings::sdk::gl_vertex3f);
-        sdk.set_function("gl_vertex2f",     &bindings::sdk::gl_vertex2f);
-        sdk.set_function("gl_translate",    &bindings::sdk::gl_translate);
-        sdk.set_function("gl_rotate",       &bindings::sdk::gl_rotate);
-        sdk.set_function("gl_scale",        &bindings::sdk::gl_scale);
+        sdk_table.set_function("gl_enable",       &bindings::sdk::gl_enable);
+        sdk_table.set_function("gl_disable",      &bindings::sdk::gl_disable);
+        sdk_table.set_function("gl_depth_mask",   &bindings::sdk::gl_depth_mask);
+        sdk_table.set_function("gl_blend_func",   &bindings::sdk::gl_blend_func);
+        sdk_table.set_function("gl_line_width",   &bindings::sdk::gl_line_width);
+        sdk_table.set_function("gl_point_size",   &bindings::sdk::gl_point_size);
+        sdk_table.set_function("gl_color4f",      &bindings::sdk::gl_color4f);
+        sdk_table.set_function("gl_color3f",      &bindings::sdk::gl_color3f);
+        sdk_table.set_function("gl_polygon_mode", &bindings::sdk::gl_polygon_mode);
+        sdk_table.set_function("gl_push_attrib",  &bindings::sdk::gl_push_attrib);
+        sdk_table.set_function("gl_pop_attrib",   &bindings::sdk::gl_pop_attrib);
+        sdk_table.set_function("gl_push_matrix",  &bindings::sdk::gl_push_matrix);
+        sdk_table.set_function("gl_pop_matrix",   &bindings::sdk::gl_pop_matrix);
+        sdk_table.set_function("gl_begin",        &bindings::sdk::gl_begin);
+        sdk_table.set_function("gl_end",          &bindings::sdk::gl_end);
+        sdk_table.set_function("gl_vertex3f",     &bindings::sdk::gl_vertex3f);
+        sdk_table.set_function("gl_vertex2f",     &bindings::sdk::gl_vertex2f);
+        sdk_table.set_function("gl_translate",    &bindings::sdk::gl_translate);
+        sdk_table.set_function("gl_rotate",       &bindings::sdk::gl_rotate);
+        sdk_table.set_function("gl_scale",        &bindings::sdk::gl_scale);
 
-        sdk.set_function("gl_mult_matrix_d", [](sol::as_table_t<std::vector<double>> m) {
+        sdk_table.set_function("gl_mult_matrix_d", [](sol::as_table_t<std::vector<double>> m) {
             auto& vec = m.value();
             if (vec.size() >= 16) {
                 glMultMatrixd(vec.data());
@@ -319,29 +322,28 @@ struct LuaState::impl
             }
         });
 
-        sdk.set_function("gl_apply_lookat",
+        sdk_table.set_function("gl_apply_lookat",
             [](double ex, double ey, double ez,
                double cx, double cy, double cz,
                double ux, double uy, double uz) {
                 call_orig_glu_lookat(ex, ey, ez, cx, cy, cz, ux, uy, uz);
             });
 
-        sdk.set_function("is_key_down", &bindings::sdk::is_key_down);
-        sdk.set_function("get_cursor_pos", []() {
+        sdk_table.set_function("is_key_down", &bindings::sdk::is_key_down);
+        sdk_table.set_function("get_cursor_pos", []() {
             auto pos = bindings::sdk::get_cursor_pos();
             return std::make_tuple(pos.x, pos.y);
         });
-        sdk.set_function("set_cursor_pos", &bindings::sdk::set_cursor_pos);
-        sdk.set_function("show_cursor",    &bindings::sdk::show_cursor);
+        sdk_table.set_function("set_cursor_pos", &bindings::sdk::set_cursor_pos);
+        sdk_table.set_function("show_cursor",    &bindings::sdk::show_cursor);
 
-        sdk.set_function("get_window_rect", []() {
+        sdk_table.set_function("get_window_rect", []() {
             auto r = bindings::sdk::get_window_rect();
             return std::make_tuple(r.left, r.top, r.right, r.bottom);
         });
 
-        sdk.set_function("send_chars", [](const std::string& chars) {
-            for (char c : chars)
-            {
+        sdk_table.set_function("send_chars", [](const std::string& chars) {
+            std::ranges::for_each(chars, [](char c) {
                 INPUT input{};
                 input.type          = INPUT_KEYBOARD;
                 input.ki.wVk        = 0;
@@ -350,13 +352,13 @@ struct LuaState::impl
                 SendInput(1, &input, sizeof(INPUT));
                 input.ki.dwFlags   |= KEYEVENTF_KEYUP;
                 SendInput(1, &input, sizeof(INPUT));
-            }
+            });
         });
 
-        sdk.set_function("log_info",    &bindings::sdk::log_info);
-        sdk.set_function("log_warn",    &bindings::sdk::log_warn);
-        sdk.set_function("log_error",   &bindings::sdk::log_error);
-        sdk.set_function("get_log_dir", &bindings::sdk::get_log_dir);
+        sdk_table.set_function("log_info",    &bindings::sdk::log_info);
+        sdk_table.set_function("log_warn",    &bindings::sdk::log_warn);
+        sdk_table.set_function("log_error",   &bindings::sdk::log_error);
+        sdk_table.set_function("get_log_dir", &bindings::sdk::get_log_dir);
     }
 
     void register_ui_bindings()
@@ -393,7 +395,7 @@ struct LuaState::impl
             });
 
         ui.set_function("slider_int",
-            [](const std::string& label, int v, int mn, int mx) {
+            [](const std::string& label, std::int32_t v, std::int32_t mn, std::int32_t mx) {
                 bool changed = bindings::ui::slider_int(label, v, mn, mx);
                 return std::make_tuple(v, changed);
             });
@@ -466,17 +468,20 @@ void LuaState::load_plugins()
         return;
     }
 
-    std::vector<fs::path> plugin_files;
-    for (const auto& entry : fs::directory_iterator(plugin_dir)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-            plugin_files.push_back(entry.path());
-        }
-    }
+    // Use std::ranges to collect and filter .lua files
+    auto plugin_files = fs::directory_iterator(plugin_dir)
+        | std::views::filter([](const fs::directory_entry& entry) {
+            return entry.is_regular_file() && entry.path().extension() == ".lua";
+        })
+        | std::views::transform([](const fs::directory_entry& entry) {
+            return entry.path();
+        })
+        | std::ranges::to<std::vector<fs::path>>();
 
-    std::sort(plugin_files.begin(), plugin_files.end(),
-        [](const fs::path& a, const fs::path& b) {
-            return a.filename() < b.filename();
-        });
+    // Sort by filename using std::ranges::sort
+    std::ranges::sort(plugin_files, {}, [](const fs::path& p) {
+        return p.filename();
+    });
 
     if (plugin_files.empty()) {
         sdk::log_info("No plugins found");
@@ -485,7 +490,7 @@ void LuaState::load_plugins()
 
     sdk::log_info(std::format("Loading {} plugins...", plugin_files.size()));
 
-    for (const auto& path : plugin_files) {
+    std::ranges::for_each(plugin_files, [this](const fs::path& path) {
         sdk::log_info(std::format("Loading plugin: {}", path.filename().string()));
 
         auto result = pimpl->lua.safe_script_file(path.string());
@@ -494,7 +499,7 @@ void LuaState::load_plugins()
             sdk::log_error(std::format("Failed to load {}: {}",
                           path.filename().string(), err.what()));
         }
-    }
+    });
 
     g_ctx.cb.on_load.invoke();
     sdk::log_info("Plugins loaded");
