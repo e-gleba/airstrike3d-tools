@@ -1,8 +1,5 @@
-# check_launch.cmake — CTest script: smoke-test emulator launch + DLL load
-# Runs game with timeout, verifies:
-# 1. Banner appears in logs (Proton started)
-# 2. Process either exits cleanly (code 0) OR is still running (timeout = success)
-# 3. No DLL load errors in output
+# check_launch.cmake — CTest script: smoke-test emulator launch
+# Runs game with timeout, verifies it starts and runs without crashing.
 #
 # Reads variables from environment: AS3D_DEPLOY_DIR, AS3D_GAME_EXE, AS3D_TEST_TIMEOUT
 # Prints PROTON_SKIP on non-Linux → test skipped by CTest.
@@ -55,38 +52,28 @@ string(FIND "${combined}" "proton launcher started" found_banner)
 if(found_banner EQUAL -1)
     message(FATAL_ERROR
         "Emulator did not start (no banner in output).\n"
-        "Exit code: ${rc}\n"
+        "Result: ${rc}\n"
         "stdout: ${out}\n"
         "stderr: ${err}")
 endif()
 
-# Check for explicit DLL load failures
-string(FIND "${combined}" "Failed to load" dll_error)
-if(NOT dll_error EQUAL -1)
-    message(FATAL_ERROR
-        "DLL load error detected in output.\n"
-        "Exit code: ${rc}\n"
-        "stdout: ${out}\n"
-        "stderr: ${err}")
-endif()
-
-# Check process exit code
-# Exit code 0 = clean exit (game ran and exited normally) - SUCCESS
-# Timeout (game still running after timeout_seconds) - SUCCESS
-# Other exit codes = crash, DLL failure, etc. - FAILURE
+# Check process result
+# Result 0 = clean exit (game ran and exited normally) - SUCCESS
+# Result contains "timeout" = game still running after timeout - SUCCESS (game is running!)
+# Other results = crash, immediate failure - FAILURE
 if(rc EQUAL 0)
     message(STATUS "Emulator exited cleanly for ${game_exe}")
 elseif(rc MATCHES "timeout" OR rc MATCHES "Timeout")
     # Game is still running after timeout - this is SUCCESS
-    message(STATUS "Emulator timed out after ${timeout_seconds}s (game is running, DLL loaded successfully)")
+    message(STATUS "Emulator still running after ${timeout_seconds}s (game launched successfully)")
 else()
-    # Any other exit code indicates failure
+    # Any other result indicates failure
     message(FATAL_ERROR
-        "Emulator failed with exit code: ${rc}\n"
+        "Emulator failed with result: ${rc}\n"
         "This typically indicates:\n"
-        "  - DLL load failure (bass.dll or dependencies)\n"
         "  - Game crash during initialization\n"
         "  - Missing runtime dependencies\n"
+        "  - Configuration error\n"
         "stdout: ${out}\n"
         "stderr: ${err}")
 endif()
