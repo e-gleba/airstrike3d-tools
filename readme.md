@@ -542,24 +542,26 @@ The original games shipped without `config.ini` and required users to configure 
 
 ### Testing with CTest
 
-The project includes comprehensive CTest integration for validating the Proton launcher emulator across all three game versions (2_06, 2_51, 2_71). Tests are organized in three tiers with increasing scope and execution time.
+The project includes CTest integration for validating game deployment and Proton launcher functionality across all three game versions (2_06, 2_51, 2_71).
 
-#### Test Tiers
+#### Test Structure
 
-| Tier | Purpose | Platform | Typical Duration |
+| Test | Purpose | Platform | Typical Duration |
 |------|---------|----------|------------------|
-| **deploy** | Verify deployment artifacts (exe, dll, data, config.ini) staged correctly | Any | <1s |
-| **proton** | Detect Proton + Steam Linux Runtime availability | Linux only | <2s |
-| **launch** | Smoke-test emulator boot + DLL load validation (exit code checking) | Linux + Proton | 10–30s |
+| **deploy_fixture** | Build target and stage deployment artifacts | Any | <30s |
+| **deploy_files_exist** | Verify exe, DLLs, data, config.ini present | Any | <1s |
+| **proton_available** | Detect Proton + Steam Linux Runtime | Linux only | <2s |
+| **emulator_launch** | Launch game via Proton, verify it starts | Linux + Proton | 5–30s |
 
-All tests use **CTest fixtures** to ensure deployment completes before validation runs. Non-Linux hosts automatically skip integration tiers via `SKIP_REGULAR_EXPRESSION` matching the `PROTON_SKIP` sentinel.
+**Total:** 12 tests (4 per version × 3 versions)
+
+All tests use **CTest fixtures** to ensure deployment completes before validation. Non-Linux hosts automatically skip Proton tests via `SKIP_REGULAR_EXPRESSION`.
 
 #### Running Tests
 
 **Quick validation (deployment only, cross-platform):**
 
 ```bash
-# After configure + build
 ctest --test-dir build/llvm-mingw-i686 --label-regex deploy --output-on-failure
 ```
 
@@ -568,9 +570,6 @@ ctest --test-dir build/llvm-mingw-i686 --label-regex deploy --output-on-failure
 ```bash
 # Run all tests for a specific version
 ctest --test-dir build/llvm-mingw-i686 -R "2_71" --output-on-failure
-
-# Run only launch tests (boot + DLL validation)
-ctest --test-dir build/llvm-mingw-i686 --label-regex launch --output-on-failure
 
 # Run all tests across all versions
 ctest --test-dir build/llvm-mingw-i686 --output-on-failure --parallel
@@ -584,12 +583,9 @@ cmake --workflow --preset llvm-mingw-i686-release-with-tests
 
 # Fast iteration: Debug build + tests, no packaging
 cmake --workflow --preset llvm-mingw-i686-debug-with-tests
-
-# Or run test preset directly after configure + build
-ctest --preset llvm-mingw-i686-test-release
 ```
 
-> **Note:** Standard CI workflow presets (`llvm-mingw-i686-release`, `clang_windows_x86-release`, `msvc-release`) do NOT include tests to avoid requiring Steam/Proton on CI runners. Use the `-with-tests` variants for local development or dedicated test environments. The `-debug-with-tests` variants skip packaging for faster iteration during development.
+> **Note:** Standard CI workflow presets (`llvm-mingw-i686-release`, `clang_windows_x86-release`, `msvc-release`) do NOT include tests to avoid requiring Steam/Proton on CI runners. Use the `-with-tests` variants for local development. The `-debug-with-tests` variants skip packaging for faster iteration.
 
 #### Configuration
 
@@ -598,7 +594,7 @@ ctest --preset llvm-mingw-i686-test-release
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AS3D_ENABLE_TESTS` | `ON` | Build and register CTest emulator tests |
-| `AS3D_EMULATOR_TEST_TIMEOUT` | `5` | Timeout (seconds) for smoke-launch tests |
+| `AS3D_EMULATOR_TEST_TIMEOUT` | `5` | Timeout (seconds) for emulator launch tests |
 
 Adjust timeout for slow CI runners or fast local iteration:
 
@@ -659,15 +655,6 @@ objdump -p build/llvm-mingw-i686/2_71/bass.dll | grep -A5 "DLL Name"
 ./build/llvm-mingw-i686/2_71/run_game.sh --debug
 ```
 
-**Adding new test cases:**
-
-Tests are registered per-version in `cmake/proton_testing.cmake::add_proton_emulator_tests()`. To add a new test tier:
-
-1. Create `cmake/check_<new_tier>.cmake` (follow `check_launch.cmake` pattern)
-2. Add `add_test()` call in `add_proton_emulator_tests()`
-3. Set `LABELS`, `FIXTURES_REQUIRED`, `TIMEOUT`, `SKIP_REGULAR_EXPRESSION` as needed
-4. Update this README table with new tier
-
 #### Test Output
 
 CTest prints short progress by default. For detailed diagnostics:
@@ -686,8 +673,7 @@ ctest --test-dir build/llvm-mingw-i686 --output-junit test-results.xml
 |---------|-------|-----|
 | `PROTON_SKIP` on Linux | Steam not found or Proton not installed | Install Steam + Proton, verify `~/.steam/steam/steamapps/common/Proton*` exists |
 | `deploy_fixture_*` fails | Build incomplete or missing game binaries | Run `cmake --build build --target deploy_game_<version>` first |
-| `emulator_launch_*` fails with non-zero exit code | DLL load failure, crash, or missing dependencies | Check exit code in test output, inspect `logs/*.log` in deploy dir, verify `original.dll` present |
-| `emulator_launch_*` timeout | Proton slow to initialize or game hangs | Increase `AS3D_EMULATOR_TEST_TIMEOUT` or check `logs/*.log` in deploy dir |
+| `emulator_launch_*` fails | Game crashed or failed to start | Check test output for exit code, inspect `logs/*.log` in deploy dir |
 | All tests pass but game doesn't run | Proton prefix corrupted | Delete `~/.proton_prefixes/<exe>/` and retry |
 
 ---
