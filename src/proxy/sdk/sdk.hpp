@@ -1,7 +1,10 @@
+/// @file sdk.hpp
+/// @brief Umbrella header for the proxy SDK public interface.
+
 #pragma once
 
-namespace sdk
-{
-void install_hooks();
-void uninstall_hooks();
-} // namespace sdk
+#include "sdk/core/contract.hpp"
+#include "sdk/core/hooks.hpp"
+#include "sdk/core/logging.hpp"
+#include "sdk/core/types.hpp"
+#include "sdk/scripting/scripting.hpp"
