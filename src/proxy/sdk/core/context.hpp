@@ -1,80 +1,56 @@
 /// @file context.hpp
-/// @brief Global application context — no sol2 / Lua types exposed.
+/// @brief Global application context — standard-library types only.
 
 #pragma once
 
-#include <GL/gl.h>
+#include "sdk/core/types.hpp"
+#include "sdk/scripting/callback.hpp"
+
 #include <atomic>
 #include <cstdint>
-#include <memory>
 #include <mutex>
+#include <string_view>
 #include <utility>
-#include <windows.h>
-
-#include <safetyhook.hpp>
-
-#include "sdk/lua/callback.hpp"
 
 namespace sdk
 {
 
-enum class render_api : std::uint8_t
-{
-    unknown,
-    opengl,
-    directx
-};
-
-struct hook_registry final
-{
-    safetyhook::InlineHook wgl_swap, gl_matrix_mode, gl_load_identity,
-        glu_look_at;
-    
-    void reset() noexcept { *this = {}; }
-};
-
 struct context final
 {
-    HWND    window{};
-    WNDPROC original_wnd_proc{};
-
-    std::atomic<bool> imgui_initialized{ false }, should_unload{ false },
-        show_ui{ true };
-
-    GLenum        current_matrix_mode{ GL_MODELVIEW };
-    hook_registry hooks;
-
-    // Lua subsystem — owned by the lua module, not exposed here.
-    // The lua engine manages its own state lifetime internally.
-    std::recursive_mutex lua_mutex;
+    std::atomic<bool> imgui_initialized{ false };
+    std::atomic<bool> should_unload{ false };
+    std::atomic<bool> show_ui{ true };
 
     std::atomic<render_api> detected_api{ render_api::unknown };
     std::atomic<bool>       overlay_available{ false };
+    std::atomic<matrix_mode> current_matrix_mode{ 0x1700 }; // GL_MODELVIEW
 
-    // Callbacks — type-erased, no sol2 leakage.
-    struct final
+    std::recursive_mutex scripting_mutex;
+
+    struct callbacks final
     {
-        lua::callback_list<>               on_frame;
-        lua::callback_list<>               on_overlay;
-        lua::callback_list<GLenum>         on_gl_identity;
-        lua::consuming_callback_list<double, double, double,
-                                       double, double, double,
-                                       double, double, double>  on_glu_lookat;
-        lua::consuming_callback_list<int>  on_key_down;
-        lua::callback_list<>               on_load;
-        lua::callback_list<>               on_unload;
+        scripting::callback_list<> on_frame;
+        scripting::callback_list<> on_overlay;
+        scripting::callback_list<matrix_mode> on_gl_identity;
+        scripting::consuming_callback_list<double, double, double,
+                                           double, double, double,
+                                           double, double, double> on_glu_lookat;
+        scripting::consuming_callback_list<std::int32_t> on_key_down;
+        scripting::callback_list<> on_load;
+        scripting::callback_list<> on_unload;
     } cb;
 
     context()
-        : cb{ .on_frame       = lua::callback_list<>{ lua_mutex },
-              .on_overlay     = lua::callback_list<>{ lua_mutex },
-              .on_gl_identity = lua::callback_list<GLenum>{ lua_mutex },
-              .on_glu_lookat  = lua::consuming_callback_list<double, double, double,
-                                                   double, double, double,
-                                                   double, double, double>{ lua_mutex },
-              .on_key_down    = lua::consuming_callback_list<int>{ lua_mutex },
-              .on_load        = lua::callback_list<>{ lua_mutex },
-              .on_unload      = lua::callback_list<>{ lua_mutex } }
+        : cb{ .on_frame       = scripting::callback_list<>{ scripting_mutex },
+              .on_overlay     = scripting::callback_list<>{ scripting_mutex },
+              .on_gl_identity = scripting::callback_list<matrix_mode>{ scripting_mutex },
+              .on_glu_lookat  = scripting::consuming_callback_list<
+                  double, double, double, double, double, double,
+                  double, double, double>{ scripting_mutex },
+              .on_key_down    = scripting::consuming_callback_list<std::int32_t>{
+                  scripting_mutex },
+              .on_load        = scripting::callback_list<>{ scripting_mutex },
+              .on_unload      = scripting::callback_list<>{ scripting_mutex } }
     {
     }
 
@@ -98,14 +74,8 @@ struct context final
 
 inline context g_ctx;
 
-constexpr auto k_ui_toggle_key = VK_INSERT;
-constexpr auto k_glsl_version  = "#version 110";
-constexpr auto k_plugin_dir    = "plugins";
-
-template <typename fn_ptr>
-[[nodiscard]] auto call_orig(safetyhook::InlineHook& hook) noexcept -> fn_ptr
-{
-    return reinterpret_cast<fn_ptr>(hook.trampoline().address());
-}
+constexpr std::int32_t k_ui_toggle_key = 0x2D; // VK_INSERT
+constexpr std::string_view k_glsl_version{ "#version 110" };
+constexpr std::string_view k_plugin_dir{ "plugins" };
 
 } // namespace sdk

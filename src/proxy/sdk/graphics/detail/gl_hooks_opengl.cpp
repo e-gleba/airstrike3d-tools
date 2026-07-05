@@ -1,11 +1,12 @@
-#include "gl_hooks.hpp"
 #include "sdk/core/context.hpp"
+#include "sdk/core/detail/context_state.hpp"
 
+#include <GL/gl.h>
 #include <concepts>
 #include <type_traits>
 #include <utility>
 
-namespace sdk::gl
+namespace sdk::detail
 {
 
 using gl_matrix_mode_fn   = void(APIENTRY*)(GLenum);
@@ -31,19 +32,26 @@ inline void call_if_hooked(Hook& hook, Args&&... args)
     }
 }
 
+} // namespace sdk::detail
+
+namespace sdk::gl
+{
+
 void APIENTRY hk_gl_matrix_mode(GLenum mode)
 {
-    g_ctx.current_matrix_mode = mode;
-    call_if_hooked<gl_matrix_mode_fn>(g_ctx.hooks.gl_matrix_mode, mode);
+    g_ctx.current_matrix_mode.store(static_cast<matrix_mode>(mode));
+    detail::call_if_hooked<detail::gl_matrix_mode_fn>(
+        detail::g_state.hooks.gl_matrix_mode, mode);
 }
 
 void APIENTRY hk_gl_load_identity()
 {
-    call_if_hooked<gl_load_identity_fn>(g_ctx.hooks.gl_load_identity);
+    detail::call_if_hooked<detail::gl_load_identity_fn>(
+        detail::g_state.hooks.gl_load_identity);
 
-    if (g_ctx.current_matrix_mode == GL_MODELVIEW)
+    if (g_ctx.current_matrix_mode.load() == static_cast<matrix_mode>(GL_MODELVIEW))
     {
-        g_ctx.cb.on_gl_identity.invoke(g_ctx.current_matrix_mode);
+        g_ctx.cb.on_gl_identity.invoke(g_ctx.current_matrix_mode.load());
     }
 }
 
@@ -57,13 +65,14 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    auto consumed{ g_ctx.cb.on_glu_lookat.invoke(
-        ex, ey, ez, cx, cy, cz, ux, uy, uz) };
+    const auto consumed = g_ctx.cb.on_glu_lookat.invoke(
+        ex, ey, ez, cx, cy, cz, ux, uy, uz);
 
     if (!consumed)
     {
-        call_if_hooked<glu_look_at_fn>(
-            g_ctx.hooks.glu_look_at, ex, ey, ez, cx, cy, cz, ux, uy, uz);
+        detail::call_if_hooked<detail::glu_look_at_fn>(
+            detail::g_state.hooks.glu_look_at,
+            ex, ey, ez, cx, cy, cz, ux, uy, uz);
     }
 }
 

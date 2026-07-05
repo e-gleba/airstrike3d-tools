@@ -1,4 +1,4 @@
-#include "logging.hpp"
+#include "sdk/core/logging.hpp"
 
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
@@ -6,10 +6,9 @@
 
 #include <array>
 #include <filesystem>
+#include <format>
 #include <memory>
-#include <ranges>
 #include <string>
-#include <vector>
 
 namespace sdk::logging
 {
@@ -17,7 +16,7 @@ namespace sdk::logging
 namespace
 {
 
-[[nodiscard]] auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
+[[nodiscard]] auto to_spdlog_level(level lvl) -> spdlog::level::level_enum
 {
     switch (lvl)
     {
@@ -25,7 +24,7 @@ namespace
         case level::debug:    return spdlog::level::debug;
         case level::info:     return spdlog::level::info;
         case level::warn:     return spdlog::level::warn;
-        case level::error:     return spdlog::level::err;
+        case level::error:    return spdlog::level::err;
         case level::critical: return spdlog::level::critical;
     }
     return spdlog::level::info;
@@ -46,7 +45,6 @@ void init(std::string_view log_dir)
         "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v"
     };
 
-    // daily_file_sink_mt: produces sdk_YYYY-MM-DD.log, rotates at midnight
     auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(
         std::format("{}/sdk.log", log_dir), 0, 0);
     file_sink->set_level(spdlog::level::trace);
@@ -93,8 +91,6 @@ void log_impl(level lvl, std::string_view msg, std::source_location loc)
 } // namespace detail
 
 } // namespace sdk::logging
-
-// ── Wrapper function definitions ──────────────────────────────────────────────
 
 namespace sdk
 {
