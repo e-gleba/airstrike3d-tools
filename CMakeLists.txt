@@ -58,6 +58,15 @@ if(PROJECT_IS_TOP_LEVEL)
     find_package(clang_doc CONFIG REQUIRED)
 endif()
 
+# ─── CTest (must be enabled BEFORE add_subdirectory for version dirs) ─────────
+# include(CTest) calls enable_testing() in the current scope. Test
+# registration happens inside subdirectories (2_06, 2_51, 2_71) via
+# deploy_game.cmake, CTest must already be active or add_test() silently
+# does nothing and CTest reports "No tests were found!!!".
+if(PROJECT_IS_TOP_LEVEL AND AS3D_ENABLE_TESTS)
+    include(CTest)
+endif()
+
 add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
@@ -80,9 +89,5 @@ add_subdirectory(2_71)
 # it controls testing and packaging — we should not interfere.
 # Ref: Professional CMake §8.3, §39 "FetchContent"
 if(PROJECT_IS_TOP_LEVEL)
-    if(AS3D_ENABLE_TESTS)
-        include(CTest)
-        # proton_testing.cmake is included per-version inside deploy_game.cmake
-    endif()
     include(CPack)
 endif()
