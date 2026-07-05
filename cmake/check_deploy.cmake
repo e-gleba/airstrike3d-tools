@@ -1,10 +1,14 @@
 # check_deploy.cmake — CTest script: verify deployment artifacts exist
-# Invoked via: cmake -P check_deploy.cmake -Ddeploy_dir=... -Dgame_exe=...
+# Reads variables from environment: AS3D_DEPLOY_DIR, AS3D_GAME_EXE
 
 cmake_minimum_required(VERSION 3.31)
 
+# Read from environment
+set(deploy_dir "$ENV{AS3D_DEPLOY_DIR}")
+set(game_exe "$ENV{AS3D_GAME_EXE}")
+
 foreach(required IN ITEMS deploy_dir game_exe)
-    if(NOT DEFINED ${required})
+    if(NOT ${required})
         message(FATAL_ERROR "Missing required variable: ${required}")
     endif()
 endforeach()
