@@ -2,9 +2,8 @@
 // Hook installation and lifecycle management.
 // Implementation uses SafetyHook internally.
 
-#include "hooks.hpp"
+#include "sdk/sdk.hpp"
 
-#include "sdk/core/context.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/gl/gl_hooks.hpp"
 #include "sdk/scripting/engine.hpp"
