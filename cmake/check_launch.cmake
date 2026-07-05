@@ -1,11 +1,17 @@
 # check_launch.cmake — CTest script: smoke-test emulator launch
 # Runs run_game.sh with short timeout, verifies banner output appears.
+# Reads variables from environment: AS3D_DEPLOY_DIR, AS3D_GAME_EXE, AS3D_TEST_TIMEOUT
 # Prints PROTON_SKIP on non-Linux → test skipped by CTest.
 
 cmake_minimum_required(VERSION 3.31)
 
+# Read from environment
+set(deploy_dir "$ENV{AS3D_DEPLOY_DIR}")
+set(game_exe "$ENV{AS3D_GAME_EXE}")
+set(timeout_seconds "$ENV{AS3D_TEST_TIMEOUT}")
+
 foreach(required IN ITEMS deploy_dir game_exe timeout_seconds)
-    if(NOT DEFINED ${required})
+    if(NOT ${required})
         message(FATAL_ERROR "Missing required variable: ${required}")
     endif()
 endforeach()
