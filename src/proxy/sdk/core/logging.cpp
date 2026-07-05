@@ -1,6 +1,3 @@
-// src/proxy/sdk/core/logging_spdlog.cpp
-// Logging implementation using spdlog backend.
-
 #include "logging.hpp"
 
 #include <spdlog/sinks/daily_file_sink.h>
@@ -17,7 +14,10 @@
 namespace sdk::logging
 {
 
-[[nodiscard]] static auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
+namespace
+{
+
+[[nodiscard]] auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
 {
     switch (lvl)
     {
@@ -30,6 +30,8 @@ namespace sdk::logging
     }
     return spdlog::level::info;
 }
+
+} // namespace
 
 void init(std::string_view log_dir)
 {

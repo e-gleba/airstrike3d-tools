@@ -1,12 +1,9 @@
-// src/proxy/sdk/core/hooks_safetyhook.cpp
-// Hook installation and lifecycle management.
-// Implementation uses SafetyHook internally.
+#include "hooks.hpp"
 
-#include "sdk/sdk.hpp"
-
+#include "sdk/core/context.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/gl/gl_hooks.hpp"
-#include "sdk/scripting/engine.hpp"
+#include "sdk/lua/lua_state.hpp"
 #include "sdk/overlay/overlay.hpp"
 #include "sdk/util/win32.hpp"
 
@@ -20,14 +17,14 @@
 namespace sdk
 {
 
-// ─── LoadLibrary hooks (catch late DirectX DLL loads) ───────────────────────
+// ─── LoadLibrary hooks (catch late DirectX DLL loads) ────────────────────────
 
 static safetyhook::InlineHook g_ll_a_hook;
 static safetyhook::InlineHook g_ll_w_hook;
 
-// ─── Scripting engine (RAII managed) ───────────────────────────────────────
+// ─── Lua state (RAII managed) ───────────────────────────────────────────────
 
-static std::unique_ptr<scripting::Engine> g_scripting_engine;
+static std::unique_ptr<lua::LuaState> g_lua_state;
 
 namespace
 {
@@ -94,7 +91,7 @@ void on_dx_detected()
     sdk::log_warn("╔══════════════════════════════════════════════════════╗");
     sdk::log_warn("║  DirectX renderer detected                          ║");
     sdk::log_warn("║  ImGui overlay: DISABLED                            ║");
-    sdk::log_warn("║  Scripting plugins & input hooks: ACTIVE            ║");
+    sdk::log_warn("║  Lua plugins & input hooks: ACTIVE                  ║");
     sdk::log_warn("╚══════════════════════════════════════════════════════╝");
     sdk::log_warn("");
 }
@@ -196,7 +193,7 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
 } // namespace
 
-// ─── Public API ─────────────────────────────────────────────────────────────
+// ─── Public API ──────────────────────────────────────────────────────────────
 
 void install_hooks()
 {
@@ -264,26 +261,26 @@ void install_hooks()
 
     sdk::log_info("hooks installed");
 
-    // Initialize scripting engine with error handling
+    // Initialize Lua state with error handling
     try
     {
-        sdk::log_info("creating scripting engine...");
-        g_scripting_engine = std::make_unique<scripting::Engine>();
-        sdk::log_info("Scripting engine created");
+        sdk::log_info("creating Lua state...");
+        g_lua_state = std::make_unique<lua::LuaState>();
+        sdk::log_info("Lua state created");
 
         sdk::log_info("loading plugins...");
-        g_scripting_engine->load_plugins();
+        g_lua_state->load_plugins();
         sdk::log_info("plugins loaded");
     }
     catch (const std::exception& e)
     {
-        sdk::log_error(std::format("Scripting initialization failed: {}", e.what()));
-        g_scripting_engine.reset();
+        sdk::log_error(std::format("Lua initialization failed: {}", e.what()));
+        g_lua_state.reset();
     }
     catch (...)
     {
-        sdk::log_error("Scripting initialization failed: unknown exception");
-        g_scripting_engine.reset();
+        sdk::log_error("Lua initialization failed: unknown exception");
+        g_lua_state.reset();
     }
 }
 
@@ -292,11 +289,11 @@ void uninstall_hooks()
     sdk::log_info("uninstalling...");
     g_ctx.should_unload.store(true);
 
-    // Clean up scripting engine (RAII - destructor handles cleanup)
-    if (g_scripting_engine)
+    // Clean up Lua state (RAII - destructor handles cleanup)
+    if (g_lua_state)
     {
-        g_scripting_engine->unload_plugins();
-        g_scripting_engine.reset();
+        g_lua_state->unload_plugins();
+        g_lua_state.reset();
     }
 
     if (g_ctx.overlay_available.load(std::memory_order::acquire))

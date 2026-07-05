@@ -1,5 +1,5 @@
 /// @file context.hpp
-/// @brief Global application context — no backend types exposed.
+/// @brief Global application context — no sol2 / Lua types exposed.
 
 #pragma once
 
@@ -13,11 +13,17 @@
 
 #include <safetyhook.hpp>
 
-#include "sdk/core/callback.hpp"
-#include "sdk/core/types.hpp"
+#include "sdk/lua/callback.hpp"
 
 namespace sdk
 {
+
+enum class render_api : uint8_t
+{
+    unknown,
+    opengl,
+    directx
+};
 
 struct hook_registry final
 {
@@ -37,37 +43,37 @@ struct context final
     GLenum        current_matrix_mode{ GL_MODELVIEW };
     hook_registry hooks;
 
-    // Scripting subsystem — owned by the scripting module, not exposed here.
-    // The scripting engine manages its own state lifetime internally.
-    std::recursive_mutex scripting_mutex;
+    // Lua subsystem — owned by the lua module, not exposed here.
+    // The lua engine manages its own state lifetime internally.
+    std::recursive_mutex lua_mutex;
 
     std::atomic<render_api> detected_api{ render_api::unknown };
     std::atomic<bool>       overlay_available{ false };
 
-    // Callbacks — type-erased, no backend leakage.
+    // Callbacks — type-erased, no sol2 leakage.
     struct final
     {
-        callback::callback_list<>               on_frame;
-        callback::callback_list<>               on_overlay;
-        callback::callback_list<GLenum>         on_gl_identity;
-        callback::consuming_callback_list<double, double, double,
+        lua::callback_list<>               on_frame;
+        lua::callback_list<>               on_overlay;
+        lua::callback_list<GLenum>         on_gl_identity;
+        lua::consuming_callback_list<double, double, double,
                                        double, double, double,
                                        double, double, double>  on_glu_lookat;
-        callback::consuming_callback_list<int>  on_key_down;
-        callback::callback_list<>               on_load;
-        callback::callback_list<>               on_unload;
+        lua::consuming_callback_list<int>  on_key_down;
+        lua::callback_list<>               on_load;
+        lua::callback_list<>               on_unload;
     } cb;
 
     context()
-        : cb{ .on_frame       = callback::callback_list<>{ scripting_mutex },
-              .on_overlay     = callback::callback_list<>{ scripting_mutex },
-              .on_gl_identity = callback::callback_list<GLenum>{ scripting_mutex },
-              .on_glu_lookat  = callback::consuming_callback_list<double, double, double,
+        : cb{ .on_frame       = lua::callback_list<>{ lua_mutex },
+              .on_overlay     = lua::callback_list<>{ lua_mutex },
+              .on_gl_identity = lua::callback_list<GLenum>{ lua_mutex },
+              .on_glu_lookat  = lua::consuming_callback_list<double, double, double,
                                                    double, double, double,
-                                                   double, double, double>{ scripting_mutex },
-              .on_key_down    = callback::consuming_callback_list<int>{ scripting_mutex },
-              .on_load        = callback::callback_list<>{ scripting_mutex },
-              .on_unload      = callback::callback_list<>{ scripting_mutex } }
+                                                   double, double, double>{ lua_mutex },
+              .on_key_down    = lua::consuming_callback_list<int>{ lua_mutex },
+              .on_load        = lua::callback_list<>{ lua_mutex },
+              .on_unload      = lua::callback_list<>{ lua_mutex } }
     {
     }
 
