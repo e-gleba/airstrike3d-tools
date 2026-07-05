@@ -19,7 +19,7 @@ namespace sdk::lua
 ///
 /// Thread-safety: callback lists in g_ctx.cb use their own mutex.
 /// The Lua state itself should only be accessed from one thread at a time.
-class LuaState
+class LuaState final
 {
 public:
     /// Initialize the Lua interpreter.
