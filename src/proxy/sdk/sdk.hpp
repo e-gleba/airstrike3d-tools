@@ -10,9 +10,9 @@
 
 #pragma once
 
-#include "core/context.hpp"
-#include "core/types.hpp"
-#include "scripting/engine.hpp"
+#include "sdk/core/context.hpp"
+#include "sdk/core/types.hpp"
+#include "sdk/scripting/engine.hpp"
 
 namespace sdk
 {
