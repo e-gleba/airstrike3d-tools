@@ -121,15 +121,13 @@ struct engine::impl final
         -> consuming_callback_list<std::int32_t>::slot_fn
     {
         return [fn = std::move(fn)](std::int32_t key) -> bool {
-            auto result = fn(key);
+            auto result = fn.template call<bool>(key);
             if (!result)
             {
                 sdk::log_error(std::format("script callback error: {}", result.message()));
                 return false;
             }
-
-            auto value = result.template cast<bool>();
-            return value.value_or(false);
+            return *result;
         };
     }
 
@@ -159,16 +157,15 @@ struct engine::impl final
         return [fn = std::move(fn)](double eyeX, double eyeY, double eyeZ,
                                      double centerX, double centerY, double centerZ,
                                      double upX, double upY, double upZ) -> bool {
-            auto result = fn(eyeX, eyeY, eyeZ, centerX, centerY, centerZ,
-                             upX, upY, upZ);
+            auto result = fn.template call<bool>(eyeX, eyeY, eyeZ,
+                                                  centerX, centerY, centerZ,
+                                                  upX, upY, upZ);
             if (!result)
             {
                 sdk::log_error(std::format("script callback error: {}", result.message()));
                 return false;
             }
-
-            auto value = result.template cast<bool>();
-            return value.value_or(false);
+            return *result;
         };
     }
 
