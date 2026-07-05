@@ -105,7 +105,7 @@ function(add_proton_emulator_tests)
     set_tests_properties(
         "emulator_launch_${ver}"
         PROPERTIES
-            LABELS "launch;dll_load;integration;${ver}"
+            LABELS "launch;integration;${ver}"
             FIXTURES_REQUIRED "deploy_${ver};proton_available_${ver}"
             SKIP_REGULAR_EXPRESSION "PROTON_SKIP"
             TIMEOUT 30
