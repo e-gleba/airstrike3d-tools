@@ -42,31 +42,3 @@ if(lua_ADDED)
         target_compile_definitions(lua PRIVATE LUA_USE_JUMPTABLE)
     endif()
 endif()
-
-option(SOL2_PATCHED "whether sol2 patch has been applied" OFF)
-
-if(NOT SOL2_PATCHED)
-    set(SOL2_PATCHED ON CACHE BOOL "whether sol2 patch has been applied" FORCE)
-
-    cpmaddpackage(
-        NAME
-        sol2
-        GIT_REPOSITORY
-        https://github.com/ThePhD/sol2.git
-        VERSION
-        3.3.0
-        EXCLUDE_FROM_ALL
-        YES
-        PATCHES
-        "${CMAKE_SOURCE_DIR}/cmake/patches/sol2_emplace_fix.patch")
-else()
-    cpmaddpackage(
-        NAME
-        sol2
-        GIT_REPOSITORY
-        https://github.com/ThePhD/sol2.git
-        VERSION
-        3.3.0
-        EXCLUDE_FROM_ALL
-        YES)
-endif()

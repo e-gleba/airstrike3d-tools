@@ -6,31 +6,13 @@
 # SHARED target by linking against this library via add_bass_proxy().
 #
 # Dependencies (via CPM): warnings, imgui_opengl3, dwmapi, glm, glu32,
-# opengl32, safetyhook, spdlog, sol2, lua, LuaBridge3 (optional).
-#
-# Lua backend selection:
-#   SDK_EXPERIMENTAL_LUABRIDGE3=OFF (default) → engine_lua.cpp (sol2)
-#   SDK_EXPERIMENTAL_LUABRIDGE3=ON           → engine_luabridge3.cpp (LuaBridge3)
-# Only one backend is compiled; the other is excluded from sources.
+# opengl32, safetyhook, spdlog, lua, LuaBridge3.
 
 file(
     GLOB_RECURSE
     sdk_sources
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp")
-
-# ─── Lua backend selection ────────────────────────────────────────────────────
-# GLOB_RECURSE picks up both engine_lua.cpp and engine_luabridge3.cpp.
-# Exclude the unused backend to prevent duplicate symbol errors.
-if(SDK_EXPERIMENTAL_LUABRIDGE3)
-    list(REMOVE_ITEM sdk_sources
-         "${CMAKE_CURRENT_LIST_DIR}/sdk/scripting/detail/engine_lua.cpp")
-    message(STATUS "bass_proxy_sdk: using experimental LuaBridge3 backend")
-else()
-    list(REMOVE_ITEM sdk_sources
-         "${CMAKE_CURRENT_LIST_DIR}/sdk/scripting/detail/engine_luabridge3.cpp")
-    message(STATUS "bass_proxy_sdk: using sol2 backend (default)")
-endif()
 
 add_library(bass_proxy_sdk STATIC ${sdk_sources})
 
@@ -69,9 +51,5 @@ target_link_libraries(
             opengl32
             safetyhook
             spdlog::spdlog
-            # ─── Lua binding library (backend-dependent) ─────────────────────
-            # sol2 always linked (header-only, no cost when not used).
-            # LuaBridge linked only when experimental backend selected.
-            sol2::sol2
             lua
-            $<$<BOOL:${SDK_EXPERIMENTAL_LUABRIDGE3}>:LuaBridge>)
+            LuaBridge)

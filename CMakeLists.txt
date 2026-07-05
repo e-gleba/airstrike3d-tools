@@ -12,10 +12,6 @@ include(CMakePrintHelpers)
 set(CMAKE_UNITY_BUILD ON)
 
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
-option(
-    SDK_EXPERIMENTAL_LUABRIDGE3
-    "Use LuaBridge3 as alternative Lua binding backend (experimental, sol2 is default)"
-    OFF)
 option(AS3D_ENABLE_TESTS "Build and register CTest emulator tests" ON)
 set(AS3D_EMULATOR_TEST_TIMEOUT
     "5"

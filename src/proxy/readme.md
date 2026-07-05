@@ -17,7 +17,7 @@ bass_real.dll (original BASS library)
     ↓ meanwhile injects
 OpenGL hooks + ImGui overlay
     ↓ and runs
-Lua plugin scripts (sol2 or LuaBridge3 backend)
+Lua plugin scripts (LuaBridge3)
 ```
 
 ## Features
@@ -35,39 +35,24 @@ Lua plugin scripts (sol2 or LuaBridge3 backend)
 - **Framebuffer Objects**: Renders game to texture for post-processing
 - **GLSL Shaders**: Hardware-accelerated visual effects
 - **ImGui Integration**: Immediate-mode GUI overlay system
-- **Lua Scripting Engine**: Pluggable backend (sol2 default, LuaBridge3 experimental)
+- **Lua Scripting Engine**: LuaBridge3 backend (2.6× faster than sol2)
 
-## Lua Backend Selection
+## Lua Scripting
 
-The proxy includes a Lua scripting engine for plugin development. Two backends are available:
+The proxy uses [LuaBridge3](https://github.com/kunitoki/LuaBridge3) for C++/Lua bindings:
 
-### Default: sol2
+- Header-only, MIT-licensed
+- 2.6× faster Lua→C++ calls compared to sol2
+- Leaner compile times
+- Raw `lua_State*` with `luabridge::LuaRef` for type-safe callbacks
 
-- Rich API with extensive type safety
-- Heavy compile times due to template metaprogramming
-- Battle-tested in production
-
-### Experimental: LuaBridge3
-
-Enable with `-DSDK_EXPERIMENTAL_LUABRIDGE3=ON`:
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DSDK_EXPERIMENTAL_LUABRIDGE3=ON
-cmake --build build
-```
-
-- 2.6× faster Lua→C++ calls (benchmark: 85ms vs 225ms for Increment)
-- Leaner compile times, linear scaling
-- Header-only, MIT-licensed ([kunitoki/LuaBridge3](https://github.com/kunitoki/LuaBridge3))
-- Same Lua API surface — no plugin changes needed
-
-See `sdk/scripting/detail/readme.md` for full backend comparison and migration guide.
+See `sdk/scripting/detail/readme.md` for Lua API documentation.
 
 ## Directory Structure
 
 ```
 src/proxy/
-├── CMakeLists.txt              # Build configuration with backend selection
+├── CMakeLists.txt              # Build configuration
 ├── dll_main.cpp                # DLL entry point and BASS forwarding
 ├── readme.md                   # This file
 └── sdk/                        # Version-agnostic SDK library
@@ -79,31 +64,16 @@ src/proxy/
     ├── scripting/              # Lua scripting engine
     │   ├── callback.hpp        # Thread-safe callback lists
     │   ├── engine.hpp          # Public engine interface (pimpl)
-    │   └── detail/             # Backend implementations (sol2/LuaBridge3)
+    │   └── detail/             # LuaBridge3 implementation
     ├── ui/                     # ImGui wrapper functions
     └── sdk.hpp                 # Umbrella header
 ```
 
 ## Build Instructions
 
-### Standard Build (sol2 backend)
-
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-```
-
-### Experimental LuaBridge3 Backend
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DSDK_EXPERIMENTAL_LUABRIDGE3=ON
-cmake --build build
-```
-
-### Run Tests
-
-```bash
-ctest --test-dir build --output-on-failure
 ```
 
 ## Security Warnings
