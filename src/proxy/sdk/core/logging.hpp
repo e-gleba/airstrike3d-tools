@@ -16,15 +16,15 @@ enum class level
     critical
 };
 
-void init(std::string_view log_dir = "logs") noexcept;
-void shutdown() noexcept;
-void set_level(level lvl) noexcept;
+void init(std::string_view log_dir = "logs");
+void shutdown();
+void set_level(level lvl);
 
 namespace detail
 {
     void log_impl(level                lvl,
                   std::string_view     msg,
-                  std::source_location loc) noexcept;
+                  std::source_location loc);
 }
 
 } // namespace sdk::logging
@@ -44,21 +44,21 @@ namespace sdk
 {
 
 void log_trace(std::string_view     msg,
-               std::source_location loc = std::source_location::current()) noexcept;
+               std::source_location loc = std::source_location::current());
 
 void log_debug(std::string_view     msg,
-               std::source_location loc = std::source_location::current()) noexcept;
+               std::source_location loc = std::source_location::current());
 
 void log_info(std::string_view     msg,
-              std::source_location loc = std::source_location::current()) noexcept;
+              std::source_location loc = std::source_location::current());
 
 void log_warn(std::string_view     msg,
-              std::source_location loc = std::source_location::current()) noexcept;
+              std::source_location loc = std::source_location::current());
 
 void log_error(std::string_view     msg,
-               std::source_location loc = std::source_location::current()) noexcept;
+               std::source_location loc = std::source_location::current());
 
 void log_critical(std::string_view     msg,
-                  std::source_location loc = std::source_location::current()) noexcept;
+                  std::source_location loc = std::source_location::current());
 
 } // namespace sdk

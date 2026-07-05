@@ -3,7 +3,7 @@
 
 namespace sdk::overlay
 {
-void init(HDC dc) noexcept;
-void render() noexcept;
-void shutdown() noexcept;
+void init(HDC dc);
+void render();
+void shutdown();
 } // namespace sdk::overlay
