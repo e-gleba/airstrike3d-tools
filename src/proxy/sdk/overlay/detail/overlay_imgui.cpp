@@ -103,7 +103,7 @@ void render()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void shutdown()
+void shutdown() noexcept
 {
     if (g_ctx.imgui_initialized.load())
     {

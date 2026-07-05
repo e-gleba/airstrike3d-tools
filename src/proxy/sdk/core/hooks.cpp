@@ -1,6 +1,7 @@
 #include "sdk/core/hooks.hpp"
 
 #include "sdk/core/context.hpp"
+#include "sdk/core/contract.hpp"
 #include "sdk/core/detail/context_state.hpp"
 #include "sdk/core/detail/win32_util.hpp"
 #include "sdk/core/logging.hpp"
@@ -169,6 +170,28 @@ BOOL WINAPI hk_wgl_swap(HDC dc)
     return detail::call_orig<wgl_swap_fn>(detail::g_state.hooks.wgl_swap)(dc);
 }
 
+[[nodiscard]] bool try_install_inline_hook(safetyhook::InlineHook& target,
+                                           const wchar_t*          dll,
+                                           const char*             proc,
+                                           void*                   detour)
+{
+    const auto addr = detail::proc_addr(dll, proc);
+    if (addr == nullptr)
+    {
+        sdk::log_warn(std::format("install_hooks: export '{}' not found (skipped)", proc));
+        return false;
+    }
+
+    target = safetyhook::create_inline(addr, detour);
+    if (!static_cast<bool>(target))
+    {
+        sdk::log_warn(std::format("install_hooks: failed to hook '{}' (skipped)", proc));
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace
 
 void install_hooks()
@@ -190,10 +213,14 @@ void install_hooks()
     g_ll_a_hook =
         safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryA),
                                   reinterpret_cast<void*>(hk_load_library_a));
+    ensure(static_cast<bool>(g_ll_a_hook),
+           "install_hooks: failed to hook LoadLibraryA");
 
     g_ll_w_hook =
         safetyhook::create_inline(reinterpret_cast<void*>(LoadLibraryW),
                                   reinterpret_cast<void*>(hk_load_library_w));
+    ensure(static_cast<bool>(g_ll_w_hook),
+           "install_hooks: failed to hook LoadLibraryW");
 
     struct hook_def final
     {
@@ -222,9 +249,9 @@ void install_hooks()
                   .detour = reinterpret_cast<void*>(gl::hk_glu_look_at) },
     };
 
-    for (auto& [target, dll, proc, detour] : hooks)
+    for (const auto& [target, dll, proc, detour] : hooks)
     {
-        target = safetyhook::create_inline(detail::proc_addr(dll, proc), detour);
+        static_cast<void>(try_install_inline_hook(target, dll, proc, detour));
     }
 
     sdk::log_info("hooks installed");

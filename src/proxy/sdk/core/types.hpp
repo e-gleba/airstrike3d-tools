@@ -35,6 +35,9 @@ struct rect final
     int top{};
     int right{};
     int bottom{};
+
+    [[nodiscard]] constexpr int width() const noexcept { return right - left; }
+    [[nodiscard]] constexpr int height() const noexcept { return bottom - top; }
 };
 
 using matrix_mode = std::int32_t;

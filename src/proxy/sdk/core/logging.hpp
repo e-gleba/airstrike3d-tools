@@ -16,9 +16,11 @@ enum class level
     critical
 };
 
+/// @throws std::runtime_error if the log directory cannot be created or sinks fail.
 void init(std::string_view log_dir = "logs");
+
 void shutdown();
-void set_level(level lvl);
+void set_level(level lvl) noexcept;
 
 namespace detail
 {
@@ -28,17 +30,6 @@ namespace detail
 }
 
 } // namespace sdk::logging
-
-// ── Convenience logging functions ─────────────────────────────────────────────
-//
-// Non-template wrappers: take a pre-formatted message string.
-// Callers use std::format() explicitly when interpolation is needed:
-//
-//   sdk::log_info("server started");
-//   sdk::log_error(std::format("failed to open: {}", path));
-//
-// std::source_location::current() as a trailing default parameter is valid
-// because there is no parameter pack — it correctly captures the call site.
 
 namespace sdk
 {

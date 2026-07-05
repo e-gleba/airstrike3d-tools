@@ -4,6 +4,7 @@
 #include "sdk/scripting/engine.hpp"
 
 #include "sdk/core/context.hpp"
+#include "sdk/core/contract.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/graphics/graphics.hpp"
 #include "sdk/math/math.hpp"
@@ -19,6 +20,8 @@
 #include <ranges>
 #include <stdexcept>
 #include <vector>
+#include <array>
+#include <span>
 
 namespace fs = std::filesystem;
 
@@ -285,16 +288,11 @@ struct engine::impl final
         sdk_table.set_function("gl_mult_matrix_d",
                                [](sol::as_table_t<std::vector<double>> m) {
                                    const auto& vec = m.value();
-                                   if (vec.size() >= 16)
-                                   {
-                                       mult_matrix(vec.data());
-                                   }
-                                   else
-                                   {
-                                       sdk::log_warn(std::format(
-                                           "gl_mult_matrix_d: expected 16 elements, got {}",
-                                           vec.size()));
-                                   }
+                                   require(vec.size() >= 16,
+                                           "gl_mult_matrix_d: expected at least 16 elements");
+                                   std::array<double, 16> matrix{};
+                                   std::copy_n(vec.begin(), 16, matrix.begin());
+                                   mult_matrix(std::span<const double, 16>{ matrix });
                                });
 
         sdk_table.set_function("gl_apply_lookat", &apply_lookat);
@@ -316,7 +314,9 @@ struct engine::impl final
                                [](const std::string& m) { sdk::platform::log_warn(m); });
         sdk_table.set_function("log_error",
                                [](const std::string& m) { sdk::platform::log_error(m); });
-        sdk_table.set_function("get_log_dir", &get_log_dir);
+        sdk_table.set_function("get_log_dir", []() -> std::string {
+            return std::string{ sdk::platform::get_log_dir() };
+        });
     }
 
     void register_ui_bindings()
@@ -404,15 +404,33 @@ struct engine::impl final
     }
 };
 
-engine::engine() : pimpl_(std::make_unique<impl>()) {}
+engine::engine()
+{
+    try
+    {
+        pimpl_ = std::make_unique<impl>();
+    }
+    catch (const std::exception& e)
+    {
+        throw std::runtime_error(
+            std::format("scripting::engine: initialization failed: {}", e.what()));
+    }
+}
 
 engine::~engine() = default;
 
 engine::engine(engine&&) noexcept            = default;
 engine& engine::operator=(engine&&) noexcept = default;
 
+void engine::require_active() const
+{
+    require(pimpl_ != nullptr, "scripting::engine: operation on moved-from engine");
+}
+
 void engine::load_plugins()
 {
+    require_active();
+
     const auto plugin_dir = fs::current_path() / std::string{ k_plugin_dir };
 
     if (!fs::exists(plugin_dir))
@@ -421,15 +439,24 @@ void engine::load_plugins()
         return;
     }
 
-    auto plugin_files =
-        fs::directory_iterator(plugin_dir)
-        | std::views::filter([](const fs::directory_entry& entry) {
-              return entry.is_regular_file() && entry.path().extension() == ".lua";
-          })
-        | std::views::transform([](const fs::directory_entry& entry) {
-              return entry.path();
-          })
-        | std::ranges::to<std::vector<fs::path>>();
+    std::vector<fs::path> plugin_files;
+    try
+    {
+        plugin_files =
+            fs::directory_iterator(plugin_dir)
+            | std::views::filter([](const fs::directory_entry& entry) {
+                  return entry.is_regular_file() && entry.path().extension() == ".lua";
+              })
+            | std::views::transform([](const fs::directory_entry& entry) {
+                  return entry.path();
+              })
+            | std::ranges::to<std::vector<fs::path>>();
+    }
+    catch (const fs::filesystem_error& e)
+    {
+        throw std::runtime_error(
+            std::format("scripting::engine::load_plugins: {}", e.what()));
+    }
 
     std::ranges::sort(plugin_files, {}, &fs::path::filename);
 
@@ -460,6 +487,7 @@ void engine::load_plugins()
 
 void engine::unload_plugins()
 {
+    require_active();
     g_ctx.cb.on_unload.invoke();
 
     g_ctx.cb.on_frame.clear();

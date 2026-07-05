@@ -55,12 +55,12 @@ struct context final
     }
 
     template <typename... CBs>
-    static void clear_all(CBs&... cbs) noexcept
+    static void clear_all(CBs&... cbs)
     {
         (cbs.clear(), ...);
     }
 
-    void clear_callbacks() noexcept
+    void clear_callbacks()
     {
         clear_all(cb.on_frame,
                   cb.on_overlay,

@@ -39,28 +39,28 @@ namespace detail
 
 } // namespace detail
 
-bool is_key_down(std::int32_t vk)
+bool is_key_down(std::int32_t vk) noexcept
 {
     return detail::is_key_down_impl(vk);
 }
 
-vec2 get_cursor_pos()
+vec2 get_cursor_pos() noexcept
 {
     const auto [x, y] = detail::cursor_pos_impl();
     return { static_cast<double>(x), static_cast<double>(y) };
 }
 
-void set_cursor_pos(std::int32_t x, std::int32_t y)
+void set_cursor_pos(std::int32_t x, std::int32_t y) noexcept
 {
     SetCursorPos(x, y);
 }
 
-void show_cursor(bool visible)
+void show_cursor(bool visible) noexcept
 {
     ShowCursor(visible ? TRUE : FALSE);
 }
 
-rect get_window_rect()
+rect get_window_rect() noexcept
 {
     const auto [left, top, right, bottom] =
         detail::window_rect_impl(sdk::detail::g_state.window);
@@ -82,12 +82,7 @@ void log_error(std::string_view message)
     sdk::log_error(std::format("[scripting] {}", message));
 }
 
-std::string get_log_dir()
-{
-    return "logs";
-}
-
-void send_chars(std::string_view chars)
+void send_chars(std::string_view chars) noexcept
 {
     std::ranges::for_each(chars, [](char c) {
         INPUT input{};

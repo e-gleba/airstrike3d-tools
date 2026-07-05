@@ -15,6 +15,7 @@ namespace sdk::scripting
 class engine final
 {
 public:
+    /// @throws std::runtime_error if the script backend fails to initialize.
     engine();
     ~engine();
 
@@ -24,15 +25,20 @@ public:
     engine& operator=(engine&&) noexcept;
 
     /// Load all scripts from the configured plugins directory.
-    /// Invokes the `on_load` callback after successful loads.
+    /// Per-plugin syntax errors are logged; loading continues.
+    /// @throws std::logic_error if the engine was moved from.
+    /// @throws std::runtime_error on fatal filesystem errors.
     void load_plugins();
 
     /// Unload all plugins, invoke `on_unload`, and clear registered callbacks.
+    /// @throws std::logic_error if the engine was moved from.
     void unload_plugins();
 
 private:
     struct impl;
     std::unique_ptr<impl> pimpl_;
+
+    void require_active() const;
 };
 
 } // namespace sdk::scripting

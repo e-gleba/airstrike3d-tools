@@ -10,6 +10,6 @@ namespace sdk::overlay
 
 void init(std::uintptr_t native_device_context);
 void render();
-void shutdown();
+void shutdown() noexcept;
 
 } // namespace sdk::overlay

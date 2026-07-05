@@ -1,5 +1,7 @@
 #include "sdk/core/logging.hpp"
 
+#include "sdk/core/contract.hpp"
+
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/spdlog.h>
@@ -16,7 +18,7 @@ namespace sdk::logging
 namespace
 {
 
-[[nodiscard]] auto to_spdlog_level(level lvl) -> spdlog::level::level_enum
+[[nodiscard]] auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
 {
     switch (lvl)
     {
@@ -36,41 +38,63 @@ void init(std::string_view log_dir)
 {
     namespace fs = std::filesystem;
 
-    if (fs::path dir{ log_dir }; !fs::exists(dir))
+    try
     {
-        fs::create_directories(dir);
+        const fs::path dir{ log_dir };
+        if (!fs::exists(dir))
+        {
+            fs::create_directories(dir);
+        }
+        ensure(fs::is_directory(dir),
+               std::format("logging::init: '{}' is not a directory", log_dir));
+    }
+    catch (const fs::filesystem_error& e)
+    {
+        ensure_fail(std::format("logging::init: failed to create log directory: {}",
+                                  e.what()));
     }
 
     constexpr std::string_view k_pattern{
         "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v"
     };
 
-    auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(
-        std::format("{}/sdk.log", log_dir), 0, 0);
-    file_sink->set_level(spdlog::level::trace);
-    file_sink->set_pattern(std::string{ k_pattern });
+    try
+    {
+        auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(
+            std::format("{}/sdk.log", log_dir), 0, 0);
+        file_sink->set_level(spdlog::level::trace);
+        file_sink->set_pattern(std::string{ k_pattern });
 
-    auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-    msvc_sink->set_level(spdlog::level::debug);
-    msvc_sink->set_pattern("[sdk] [%^%l%$] %v");
+        auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        msvc_sink->set_level(spdlog::level::debug);
+        msvc_sink->set_pattern("[sdk] [%^%l%$] %v");
 
-    auto sinks = std::array<spdlog::sink_ptr, 2>{ file_sink, msvc_sink };
+        auto sinks = std::array<spdlog::sink_ptr, 2>{ file_sink, msvc_sink };
 
-    auto logger = std::make_shared<spdlog::logger>(
-        "sdk", sinks.begin(), sinks.end());
-    logger->set_level(spdlog::level::trace);
-    logger->flush_on(spdlog::level::warn);
+        auto logger = std::make_shared<spdlog::logger>(
+            "sdk", sinks.begin(), sinks.end());
+        logger->set_level(spdlog::level::trace);
+        logger->flush_on(spdlog::level::warn);
 
-    spdlog::set_default_logger(std::move(logger));
+        spdlog::set_default_logger(std::move(logger));
+    }
+    catch (const std::exception& e)
+    {
+        ensure_fail(std::format("logging::init: failed to initialize logger: {}",
+                                e.what()));
+    }
 }
 
 void shutdown()
 {
-    spdlog::default_logger()->flush();
+    if (spdlog::default_logger())
+    {
+        spdlog::default_logger()->flush();
+    }
     spdlog::shutdown();
 }
 
-void set_level(level lvl)
+void set_level(level lvl) noexcept
 {
     spdlog::set_level(to_spdlog_level(lvl));
 }

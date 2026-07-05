@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "sdk/core/contract.hpp"
 #include "sdk/core/hooks.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/core/types.hpp"
