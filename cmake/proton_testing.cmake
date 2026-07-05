@@ -14,6 +14,7 @@
 #   deploy   — verify all runtime files staged correctly
 #   proton   — verify Proton + Steam Linux Runtime discovery
 #   launch   — short-lived emulator smoke test (5s timeout)
+#   dll_load — verify proxy DLL loads without errors (10s timeout)
 #
 # Requires: CMake 3.31+, deploy_game.cmake already configured.
 
@@ -103,6 +104,23 @@ function(add_proton_emulator_tests)
             SKIP_REGULAR_EXPRESSION "PROTON_SKIP"
             TIMEOUT 30
             ENVIRONMENT "AS3D_DEPLOY_DIR=${dir};AS3D_GAME_EXE=${exe};AS3D_TEST_TIMEOUT=${AS3D_EMULATOR_TEST_TIMEOUT}")
+
+    # ── Tier 4: DLL load validation ─────────────────────────────────────────
+    # Runs game for 10 seconds, verifies bass.dll proxy loads without errors.
+    # Catches runtime DLL issues (missing dependencies, initialization failures).
+
+    add_test(
+        NAME "dll_load_${ver}"
+        COMMAND
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_dll_load.cmake")
+    set_tests_properties(
+        "dll_load_${ver}"
+        PROPERTIES
+            LABELS "dll_load;integration;${ver}"
+            FIXTURES_REQUIRED "deploy_${ver};proton_available_${ver}"
+            SKIP_REGULAR_EXPRESSION "PROTON_SKIP"
+            TIMEOUT 30
+            ENVIRONMENT "AS3D_DEPLOY_DIR=${dir};AS3D_GAME_EXE=${exe}")
 
     message(STATUS "Registered Proton emulator tests for ${ver}")
 endfunction()
