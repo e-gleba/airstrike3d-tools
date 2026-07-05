@@ -154,7 +154,70 @@
       "inherits": "build-debug"
     }
   ],
-  "testPresets": [],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true,
+        "shortProgress": true,
+        "verbosity": "default"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "timeout": 60
+      }
+    },
+    {
+      "name": "llvm-mingw-i686-test-release",
+      "displayName": "LLVM-MinGW Win32 Test (Release)",
+      "description": "Run CTest emulator tests after cross-compiled Release build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "test-base",
+      "configuration": "Release"
+    },
+    {
+      "name": "llvm-mingw-i686-test-debug",
+      "displayName": "LLVM-MinGW Win32 Test (Debug)",
+      "description": "Run CTest emulator tests after cross-compiled Debug build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "test-base",
+      "configuration": "Debug"
+    },
+    {
+      "name": "clang_windows_x86-test-release",
+      "displayName": "Clang Windows x86 Test (Release)",
+      "description": "Run CTest emulator tests after Clang Release build",
+      "configurePreset": "clang_windows_x86",
+      "inherits": "test-base",
+      "configuration": "Release"
+    },
+    {
+      "name": "clang_windows_x86-test-debug",
+      "displayName": "Clang Windows x86 Test (Debug)",
+      "description": "Run CTest emulator tests after Clang Debug build",
+      "configurePreset": "clang_windows_x86",
+      "inherits": "test-base",
+      "configuration": "Debug"
+    },
+    {
+      "name": "msvc-test-release",
+      "displayName": "MSVC Test (Release)",
+      "description": "Run CTest emulator tests after MSVC Release build",
+      "configurePreset": "msvc",
+      "inherits": "test-base",
+      "configuration": "Release"
+    },
+    {
+      "name": "msvc-test-debug",
+      "displayName": "MSVC Test (Debug)",
+      "description": "Run CTest emulator tests after MSVC Debug build",
+      "configurePreset": "msvc",
+      "inherits": "test-base",
+      "configuration": "Debug"
+    }
+  ],
   "packagePresets": [
     {
       "name": "msvc-package",
@@ -211,6 +274,29 @@
       ]
     },
     {
+      "name": "msvc-release-with-tests",
+      "displayName": "MSVC Release (with CTest)",
+      "description": "Configure, build, test, and package MSVC x86 Release (requires Steam + Proton)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc"
+        },
+        {
+          "type": "build",
+          "name": "msvc-build-release"
+        },
+        {
+          "type": "test",
+          "name": "msvc-test-release"
+        },
+        {
+          "type": "package",
+          "name": "msvc-package"
+        }
+      ]
+    },
+    {
       "name": "msvc-debug",
       "displayName": "MSVC Debug",
       "description": "Configure and build MSVC x86 Debug",
@@ -222,6 +308,25 @@
         {
           "type": "build",
           "name": "msvc-build-debug"
+        }
+      ]
+    },
+    {
+      "name": "msvc-debug-with-tests",
+      "displayName": "MSVC Debug (with CTest, no package)",
+      "description": "Configure, build, and test MSVC x86 Debug for fast iteration (no packaging)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc"
+        },
+        {
+          "type": "build",
+          "name": "msvc-build-debug"
+        },
+        {
+          "type": "test",
+          "name": "msvc-test-debug"
         }
       ]
     },
@@ -245,6 +350,29 @@
       ]
     },
     {
+      "name": "clang_windows_x86-release-with-tests",
+      "displayName": "Clang Windows x86 Release (with CTest)",
+      "description": "Configure, build, test, and package Clang Windows x86 Release (requires Steam + Proton)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "clang_windows_x86"
+        },
+        {
+          "type": "build",
+          "name": "clang_windows_x86-build-release"
+        },
+        {
+          "type": "test",
+          "name": "clang_windows_x86-test-release"
+        },
+        {
+          "type": "package",
+          "name": "clang_windows_x86-package"
+        }
+      ]
+    },
+    {
       "name": "clang_windows_x86-debug",
       "displayName": "Clang Windows x86 Debug",
       "description": "Configure and build Clang Windows x86 Debug",
@@ -256,6 +384,25 @@
         {
           "type": "build",
           "name": "clang_windows_x86-build-debug"
+        }
+      ]
+    },
+    {
+      "name": "clang_windows_x86-debug-with-tests",
+      "displayName": "Clang Windows x86 Debug (with CTest, no package)",
+      "description": "Configure, build, and test Clang Windows x86 Debug for fast iteration (no packaging)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "clang_windows_x86"
+        },
+        {
+          "type": "build",
+          "name": "clang_windows_x86-build-debug"
+        },
+        {
+          "type": "test",
+          "name": "clang_windows_x86-test-debug"
         }
       ]
     },
@@ -279,6 +426,29 @@
       ]
     },
     {
+      "name": "llvm-mingw-i686-release-with-tests",
+      "displayName": "LLVM-MinGW Win32 Release (with CTest)",
+      "description": "Configure, build, test, and package for Windows 32-bit (requires Steam + Proton, jobs=1 due to LLD deadlock)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-release"
+        },
+        {
+          "type": "test",
+          "name": "llvm-mingw-i686-test-release"
+        },
+        {
+          "type": "package",
+          "name": "llvm-mingw-i686-package"
+        }
+      ]
+    },
+    {
       "name": "llvm-mingw-i686-debug",
       "displayName": "LLVM-MinGW Win32 Debug",
       "description": "Configure and build for Windows 32-bit (jobs=1 due to LLD deadlock)",
@@ -290,6 +460,25 @@
         {
           "type": "build",
           "name": "llvm-mingw-i686-build-debug"
+        }
+      ]
+    },
+    {
+      "name": "llvm-mingw-i686-debug-with-tests",
+      "displayName": "LLVM-MinGW Win32 Debug (with CTest, no package)",
+      "description": "Configure, build, and test for Windows 32-bit Debug for fast iteration (no packaging, jobs=1)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-debug"
+        },
+        {
+          "type": "test",
+          "name": "llvm-mingw-i686-test-debug"
         }
       ]
     }

@@ -77,6 +77,8 @@
   - [Prerequisites](#prerequisites)
   - [Quick Start](#quick-start)
   - [Building C++ Components](#building-c-components)
+  - [Game Configuration](#game-configuration)
+  - [Testing with CTest](#testing-with-ctest)
 - [Ghidra Project](#ghidra-project)
 - [Contributing](#contributing)
 - [Legal Notice](#legal-notice)
@@ -497,6 +499,182 @@ cmake --workflow --preset msvc-release
 ```
 
 Available for local development when Visual Studio 2022 is preferred. Not used in CI.
+
+### Game Configuration
+
+The build system automatically generates `config.ini` for each game version during deployment. This ensures the game starts directly with sensible defaults instead of showing the launcher configuration window.
+
+#### Default Settings
+
+Generated from [`cmake/config.ini.in`](cmake/config.ini.in) template:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `VideoMode` | 5 (1600×1200) | Modern resolution for better image quality |
+| `Fullscreen` | 1 | Immersive gameplay |
+| `WaitVSync` | 0 | Reduces input lag |
+| `ShowFPS` | 1 | Debug overlay for performance monitoring |
+| `SfxVolume` | 0.5 | Balanced sound effects (50%) |
+| `MusicVolume` | 0.5 | Balanced music (50%) |
+| `FirstRun` | 0 | Skips initial setup dialogs |
+
+#### Customizing Configuration
+
+To modify defaults for all versions, edit `cmake/config.ini.in`:
+
+```ini
+[Display]
+VideoMode=6          # Change to 1920×1080 or higher
+Fullscreen=0         # Windowed mode for debugging
+WaitVSync=1          # Enable VSync to reduce tearing
+```
+
+To customize per-version, create version-specific overrides in `2_XX/config.ini.in` (not yet implemented — all versions currently share the same template).
+
+#### Why Auto-Generate?
+
+The original games shipped without `config.ini` and required users to configure settings via a launcher dialog on first run. This automated approach:
+
+- **Eliminates manual setup** — games start immediately with tested defaults
+- **Ensures consistency** — same configuration across all three versions
+- **Supports automation** — CTest can launch games without human intervention
+- **Preserves defaults** — template tracks optimal settings for modern systems
+
+### Testing with CTest
+
+The project includes CTest integration for validating game deployment and Proton launcher functionality across all three game versions (2_06, 2_51, 2_71).
+
+#### Test Structure
+
+| Test | Purpose | Platform | Typical Duration |
+|------|---------|----------|------------------|
+| **deploy_fixture** | Build target and stage deployment artifacts | Any | <30s |
+| **deploy_files_exist** | Verify exe, DLLs, data, config.ini present | Any | <1s |
+| **proton_available** | Detect Proton + Steam Linux Runtime | Linux only | <2s |
+| **emulator_launch** | Launch game via Proton, verify it starts | Linux + Proton | 5–30s |
+
+**Total:** 12 tests (4 per version × 3 versions)
+
+All tests use **CTest fixtures** to ensure deployment completes before validation. Non-Linux hosts automatically skip Proton tests via `SKIP_REGULAR_EXPRESSION`.
+
+#### Running Tests
+
+**Quick validation (deployment only, cross-platform):**
+
+```bash
+ctest --test-dir build/llvm-mingw-i686 --label-regex deploy --output-on-failure
+```
+
+**Full emulator validation (Linux with Proton installed):**
+
+```bash
+# Run all tests for a specific version
+ctest --test-dir build/llvm-mingw-i686 -R "2_71" --output-on-failure
+
+# Run all tests across all versions
+ctest --test-dir build/llvm-mingw-i686 --output-on-failure --parallel
+```
+
+**Using presets (recommended for local testing):**
+
+```bash
+# Workflow preset WITH tests (requires Steam + Proton installed)
+cmake --workflow --preset llvm-mingw-i686-release-with-tests
+
+# Fast iteration: Debug build + tests, no packaging
+cmake --workflow --preset llvm-mingw-i686-debug-with-tests
+```
+
+> **Note:** Standard CI workflow presets (`llvm-mingw-i686-release`, `clang_windows_x86-release`, `msvc-release`) do NOT include tests to avoid requiring Steam/Proton on CI runners. Use the `-with-tests` variants for local development. The `-debug-with-tests` variants skip packaging for faster iteration.
+
+#### Configuration
+
+**Cache variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AS3D_ENABLE_TESTS` | `ON` | Build and register CTest emulator tests |
+| `AS3D_EMULATOR_TEST_TIMEOUT` | `5` | Timeout (seconds) for emulator launch tests |
+
+Adjust timeout for slow CI runners or fast local iteration:
+
+```bash
+# Increase timeout for CI
+cmake --preset llvm-mingw-i686 -DAS3D_EMULATOR_TEST_TIMEOUT=15
+
+# Disable tests entirely (faster configure)
+cmake --preset llvm-mingw-i686 -DAS3D_ENABLE_TESTS=OFF
+```
+
+#### Development Workflow
+
+**Iterating on deployment logic:**
+
+```bash
+# 1. Modify deploy_game.cmake or version CMakeLists.txt
+# 2. Reconfigure (CTest picks up changes automatically)
+cmake --preset llvm-mingw-i686
+
+# 3. Run only deploy-tier tests (fast feedback)
+ctest --test-dir build/llvm-mingw-i686 --label-regex "deploy;fixture" --output-on-failure
+
+# 4. When deploy passes, run full suite
+ctest --test-dir build/llvm-mingw-i686 --output-on-failure
+```
+
+**Fast iteration with debug presets:**
+
+```bash
+# Use debug-with-tests preset for rapid development cycles
+# Skips packaging, includes debug symbols, runs all tests
+cmake --workflow --preset llvm-mingw-i686-debug-with-tests
+
+# Make changes, rebuild, and test again (much faster than release)
+# Edit code...
+cmake --build build/llvm-mingw-i686 --config Debug
+ctest --test-dir build/llvm-mingw-i686 --output-on-failure
+
+# When satisfied, switch to release for final validation
+cmake --workflow --preset llvm-mingw-i686-release-with-tests
+```
+
+**Debugging a failing test:**
+
+```bash
+# Verbose output + stop on first failure
+ctest --test-dir build/llvm-mingw-i686 -R "emulator_launch_2_71" --verbose --stop-on-failure
+
+# Inspect deployment directory manually
+ls -la build/llvm-mingw-i686/2_71/
+
+# Check DLL specifically
+file build/llvm-mingw-i686/2_71/bass.dll
+objdump -p build/llvm-mingw-i686/2_71/bass.dll | grep -A5 "DLL Name"
+
+# Run emulator directly (bypass CTest)
+./build/llvm-mingw-i686/2_71/run_game.sh --debug
+```
+
+#### Test Output
+
+CTest prints short progress by default. For detailed diagnostics:
+
+```bash
+# Full output (stdout + stderr from each test)
+ctest --test-dir build/llvm-mingw-i686 --output-on-failure --verbose
+
+# JSON output (for CI parsing)
+ctest --test-dir build/llvm-mingw-i686 --output-junit test-results.xml
+```
+
+#### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `PROTON_SKIP` on Linux | Steam not found or Proton not installed | Install Steam + Proton, verify `~/.steam/steam/steamapps/common/Proton*` exists |
+| `deploy_fixture_*` fails | Build incomplete or missing game binaries | Run `cmake --build build --target deploy_game_<version>` first |
+| `emulator_launch_*` fails | Game crashed or failed to start | Check test output for exit code, inspect `logs/*.log` in deploy dir |
+| All tests pass but game doesn't run | Proton prefix corrupted | Delete `~/.proton_prefixes/<exe>/` and retry |
 
 ---
 

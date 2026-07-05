@@ -16,6 +16,10 @@ option(
     SDK_EXPERIMENTAL_LUABRIDGE3
     "Use LuaBridge3 as alternative Lua binding backend (experimental, sol2 is default)"
     OFF)
+option(AS3D_ENABLE_TESTS "Build and register CTest emulator tests" ON)
+set(AS3D_EMULATOR_TEST_TIMEOUT
+    "5"
+    CACHE STRING "Timeout (seconds) for emulator smoke-launch tests")
 
 # CMAKE_CURRENT_LIST_DIR is used instead of CMAKE_SOURCE_DIR so that this
 # file works correctly if the project is ever consumed as a subdirectory of a
@@ -54,13 +58,22 @@ if(PROJECT_IS_TOP_LEVEL)
     find_package(clang_doc CONFIG REQUIRED)
 endif()
 
+# ─── CTest (must be enabled BEFORE add_subdirectory for version dirs) ─────────
+# include(CTest) calls enable_testing() in the current scope. Test
+# registration happens inside subdirectories (2_06, 2_51, 2_71) via
+# deploy_game.cmake, CTest must already be active or add_test() silently
+# does nothing and CTest reports "No tests were found!!!".
+if(PROJECT_IS_TOP_LEVEL AND AS3D_ENABLE_TESTS)
+    include(CTest)
+endif()
+
 add_subdirectory(external SYSTEM)
 find_package(cpm CONFIG REQUIRED)
 
 # ─── SDK (version-agnostic, compiled once) ────────────────────────────────────
 add_subdirectory(src)
 
-# ─── Game version deployment ──────────────────────────────────────────────────
+# ─── Game version deploy ──────────────────────────────────────────────────────
 # Each 2_XX subdirectory deploys one game version and creates its own
 # bass_proxy_<version> target (linking bass_proxy_sdk) via add_bass_proxy().
 # Outputs land in build/<version>/ — no collisions.
