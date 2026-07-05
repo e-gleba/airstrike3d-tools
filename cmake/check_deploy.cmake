@@ -16,7 +16,8 @@ endforeach()
 set(expected_files
     "${deploy_dir}/${game_exe}"
     "${deploy_dir}/bass.dll"
-    "${deploy_dir}/run_game.sh")
+    "${deploy_dir}/run_game.sh"
+    "${deploy_dir}/config.ini")
 
 if(USE_BASS_PROXY_LIB)
     list(APPEND expected_files
