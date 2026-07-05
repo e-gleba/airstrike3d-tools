@@ -29,7 +29,23 @@ extern "C"
 #include <lualib.h>
 }
 
+// LuaBridge3 uses std::is_trivial_v<T> in Expected.h which is deprecated in C++26.
+// Suppress these upstream library warnings to keep our build clean.
+#if defined(__clang__)
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include <LuaBridge/LuaBridge.h>
+
+#if defined(__clang__)
+#  pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 
 #include <array>
 #include <cstdint>
@@ -333,6 +349,16 @@ struct engine::impl final
         using namespace sdk::graphics;
         using namespace sdk::platform;
 
+        // Suppress C++26 deprecation warnings from LuaBridge3 template instantiation
+        // with std::vector<double> in gl_mult_matrix_d binding.
+#if defined(__clang__)
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
         luabridge::getGlobalNamespace(lua)
             .beginNamespace("sdk")
                 // OpenGL state functions
@@ -393,6 +419,12 @@ struct engine::impl final
                     return std::string{ sdk::platform::get_log_dir() };
                 })
             .endNamespace();
+
+#if defined(__clang__)
+#  pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
     }
 
     /// @brief Register ImGui UI functions (ui.begin_window, ui.checkbox, etc.).
