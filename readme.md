@@ -542,7 +542,7 @@ The original games shipped without `config.ini` and required users to configure 
 
 ### Testing with CTest
 
-The project includes comprehensive CTest integration for validating the Proton launcher emulator across all three game versions (2_06, 2_51, 2_71). Tests are organized in four tiers with increasing scope and execution time.
+The project includes comprehensive CTest integration for validating the Proton launcher emulator across all three game versions (2_06, 2_51, 2_71). Tests are organized in three tiers with increasing scope and execution time.
 
 #### Test Tiers
 
@@ -550,8 +550,7 @@ The project includes comprehensive CTest integration for validating the Proton l
 |------|---------|----------|------------------|
 | **deploy** | Verify deployment artifacts (exe, dll, data, config.ini) staged correctly | Any | <1s |
 | **proton** | Detect Proton + Steam Linux Runtime availability | Linux only | <2s |
-| **launch** | Smoke-test emulator boot (banner detection) | Linux + Proton | 5–30s |
-| **dll_load** | Validate bass.dll proxy loads without runtime errors (10s runtime) | Linux + Proton | 10–30s |
+| **launch** | Smoke-test emulator boot + DLL load validation (exit code checking) | Linux + Proton | 10–30s |
 
 All tests use **CTest fixtures** to ensure deployment completes before validation runs. Non-Linux hosts automatically skip integration tiers via `SKIP_REGULAR_EXPRESSION` matching the `PROTON_SKIP` sentinel.
 
@@ -570,11 +569,8 @@ ctest --test-dir build/llvm-mingw-i686 --label-regex deploy --output-on-failure
 # Run all tests for a specific version
 ctest --test-dir build/llvm-mingw-i686 -R "2_71" --output-on-failure
 
-# Run only launch tests (smoke test)
+# Run only launch tests (boot + DLL validation)
 ctest --test-dir build/llvm-mingw-i686 --label-regex launch --output-on-failure
-
-# Run DLL load tests (validates proxy initialization)
-ctest --test-dir build/llvm-mingw-i686 --label-regex dll_load --output-on-failure
 
 # Run all tests across all versions
 ctest --test-dir build/llvm-mingw-i686 --output-on-failure --parallel
@@ -650,7 +646,7 @@ cmake --workflow --preset llvm-mingw-i686-release-with-tests
 
 ```bash
 # Verbose output + stop on first failure
-ctest --test-dir build/llvm-mingw-i686 -R "dll_load_2_71" --verbose --stop-on-failure
+ctest --test-dir build/llvm-mingw-i686 -R "emulator_launch_2_71" --verbose --stop-on-failure
 
 # Inspect deployment directory manually
 ls -la build/llvm-mingw-i686/2_71/
@@ -690,8 +686,8 @@ ctest --test-dir build/llvm-mingw-i686 --output-junit test-results.xml
 |---------|-------|-----|
 | `PROTON_SKIP` on Linux | Steam not found or Proton not installed | Install Steam + Proton, verify `~/.steam/steam/steamapps/common/Proton*` exists |
 | `deploy_fixture_*` fails | Build incomplete or missing game binaries | Run `cmake --build build --target deploy_game_<version>` first |
+| `emulator_launch_*` fails with non-zero exit code | DLL load failure, crash, or missing dependencies | Check exit code in test output, inspect `logs/*.log` in deploy dir, verify `original.dll` present |
 | `emulator_launch_*` timeout | Proton slow to initialize or game hangs | Increase `AS3D_EMULATOR_TEST_TIMEOUT` or check `logs/*.log` in deploy dir |
-| `dll_load_*` fails | bass.dll proxy missing dependencies or initialization error | Check DLL dependencies with `objdump -p`, verify `original.dll` present |
 | All tests pass but game doesn't run | Proton prefix corrupted | Delete `~/.proton_prefixes/<exe>/` and retry |
 
 ---
