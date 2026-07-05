@@ -2,6 +2,6 @@
 
 namespace sdk
 {
-void install_hooks() noexcept;
-void uninstall_hooks() noexcept;
+void install_hooks();
+void uninstall_hooks();
 } // namespace sdk
