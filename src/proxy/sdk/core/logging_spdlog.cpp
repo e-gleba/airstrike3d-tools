@@ -17,10 +17,7 @@
 namespace sdk::logging
 {
 
-namespace
-{
-
-[[nodiscard]] auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
+[[nodiscard]] static auto to_spdlog_level(level lvl) noexcept -> spdlog::level::level_enum
 {
     switch (lvl)
     {
@@ -33,8 +30,6 @@ namespace
     }
     return spdlog::level::info;
 }
-
-} // namespace
 
 void init(std::string_view log_dir)
 {
