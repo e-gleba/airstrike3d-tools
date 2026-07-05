@@ -18,7 +18,7 @@
 namespace sdk
 {
 
-enum class render_api : uint8_t
+enum class render_api : std::uint8_t
 {
     unknown,
     opengl,
@@ -29,7 +29,8 @@ struct hook_registry final
 {
     safetyhook::InlineHook wgl_swap, gl_matrix_mode, gl_load_identity,
         glu_look_at;
-    void reset() { *this = {}; }
+    
+    void reset() noexcept { *this = {}; }
 };
 
 struct context final
@@ -78,12 +79,12 @@ struct context final
     }
 
     template <typename... CBs>
-    static void clear_all(CBs&... cbs)
+    static void clear_all(CBs&... cbs) noexcept
     {
         (cbs.clear(), ...);
     }
 
-    void clear_callbacks()
+    void clear_callbacks() noexcept
     {
         clear_all(cb.on_frame,
                   cb.on_overlay,
@@ -102,7 +103,7 @@ constexpr auto k_glsl_version  = "#version 110";
 constexpr auto k_plugin_dir    = "plugins";
 
 template <typename fn_ptr>
-[[nodiscard]] auto call_orig(safetyhook::InlineHook& hook) -> fn_ptr
+[[nodiscard]] auto call_orig(safetyhook::InlineHook& hook) noexcept -> fn_ptr
 {
     return reinterpret_cast<fn_ptr>(hook.trampoline().address());
 }

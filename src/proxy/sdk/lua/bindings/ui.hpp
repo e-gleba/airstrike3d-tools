@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace sdk::lua::bindings::ui
@@ -34,8 +35,8 @@ void text_colored(float r, float g, float b, float a,
                               float spd, float mn, float mx) noexcept;
 [[nodiscard]] bool slider_float(const std::string& label, float& v,
                                 float mn, float mx) noexcept;
-[[nodiscard]] bool slider_int(const std::string& label, int& v,
-                              int mn, int mx) noexcept;
+[[nodiscard]] bool slider_int(const std::string& label, std::int32_t& v,
+                              std::int32_t mn, std::int32_t mx) noexcept;
 [[nodiscard]] bool input_text(const std::string& label,
                               std::string& text) noexcept;
 [[nodiscard]] bool color_edit3(const std::string& label,
@@ -69,18 +70,18 @@ void set_cursor_pos_x(float x) noexcept;
 
 // ── Styling ──────────────────────────────────────────────────────────────────
 
-void push_style_color(int idx, float r, float g, float b,
+void push_style_color(std::int32_t idx, float r, float g, float b,
                       float a) noexcept;
 void pop_style_color() noexcept;
-void push_style_var_float(int idx, float v) noexcept;
-void push_style_var_vec2(int idx, float x, float y) noexcept;
+void push_style_var_float(std::int32_t idx, float v) noexcept;
+void push_style_var_vec2(std::int32_t idx, float x, float y) noexcept;
 void pop_style_var() noexcept;
 
 // ── Columns ──────────────────────────────────────────────────────────────────
 
-void columns(int count, const std::string& id, bool border) noexcept;
+void columns(std::int32_t count, const std::string& id, bool border) noexcept;
 void next_column() noexcept;
-void set_column_width(int idx, float w) noexcept;
+void set_column_width(std::int32_t idx, float w) noexcept;
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 

@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <mutex>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -21,7 +23,7 @@ namespace sdk::lua
 
 /// Thread-safe list of `void(Args...)` callbacks.
 template <typename... Args>
-class callback_list
+class callback_list final
 {
 public:
     using slot_fn = std::function<void(Args...)>;
@@ -37,19 +39,25 @@ public:
     void invoke(Args... args)
     {
         std::lock_guard lk{mtx_};
-        for (auto& fn : fns_) { fn(args...); }
+        std::ranges::for_each(fns_, [&](auto& fn) { fn(args...); });
     }
 
-    void clear()
+    void clear() noexcept
     {
         std::lock_guard lk{mtx_};
         fns_.clear();
     }
 
-    [[nodiscard]] bool empty() const
+    [[nodiscard]] bool empty() const noexcept
     {
         std::lock_guard lk{mtx_};
         return fns_.empty();
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.size();
     }
 
 private:
@@ -60,7 +68,7 @@ private:
 /// Thread-safe list of `bool(Args...)` callbacks with consuming semantics.
 /// `invoke()` returns `true` as soon as any slot returns `true`.
 template <typename... Args>
-class consuming_callback_list
+class consuming_callback_list final
 {
 public:
     using slot_fn = std::function<bool(Args...)>;
@@ -76,22 +84,25 @@ public:
     [[nodiscard]] bool invoke(Args... args)
     {
         std::lock_guard lk{mtx_};
-        for (auto& fn : fns_) {
-            if (fn(args...)) return true;
-        }
-        return false;
+        return std::ranges::any_of(fns_, [&](auto& fn) { return fn(args...); });
     }
 
-    void clear()
+    void clear() noexcept
     {
         std::lock_guard lk{mtx_};
         fns_.clear();
     }
 
-    [[nodiscard]] bool empty() const
+    [[nodiscard]] bool empty() const noexcept
     {
         std::lock_guard lk{mtx_};
         return fns_.empty();
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.size();
     }
 
 private:
