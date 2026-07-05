@@ -41,15 +41,17 @@ function(add_proton_emulator_tests)
     set(dir ${arg_DEPLOY_DIR})
     set(tgt ${arg_DEPLOY_TARGET})
 
+    # CMAKE_CURRENT_FUNCTION_LIST_DIR = directory where this function was
+    # defined (cmake/), regardless of where it's called from (2_06/, etc.)
+    set(test_scripts_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}")
+
     # ── Tier 1: Deployment validation ────────────────────────────────────────
     # Fast, no-Proton-required. Runs on any platform.
 
     add_test(
         NAME "deploy_files_exist_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -E
-            # cmake -E doesn't have "assert_exists", so we use a tiny script
-            "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_LIST_DIR}/check_deploy.cmake"
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_deploy.cmake"
             "-Ddeploy_dir=${dir}"
             "-Dgame_exe=${exe}")
     set_tests_properties(
@@ -76,7 +78,7 @@ function(add_proton_emulator_tests)
     add_test(
         NAME "proton_available_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_LIST_DIR}/check_proton.cmake"
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_proton.cmake"
             "-Ddeploy_dir=${dir}")
     set_tests_properties(
         "proton_available_${ver}"
@@ -93,7 +95,7 @@ function(add_proton_emulator_tests)
     add_test(
         NAME "emulator_launch_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_LIST_DIR}/check_launch.cmake"
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_launch.cmake"
             "-Ddeploy_dir=${dir}"
             "-Dgame_exe=${exe}"
             "-Dtimeout_seconds=${AS3D_EMULATOR_TEST_TIMEOUT}")
