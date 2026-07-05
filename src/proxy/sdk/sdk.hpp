@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "core/context.hpp"
 #include "core/types.hpp"
 #include "scripting/engine.hpp"
 
