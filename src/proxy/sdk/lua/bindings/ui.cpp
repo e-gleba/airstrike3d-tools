@@ -76,7 +76,7 @@ bool slider_float(const std::string& label, float& v,
     return ImGui::SliderFloat(label.c_str(), &v, mn, mx);
 }
 
-bool slider_int(const std::string& label, int& v, int mn, int mx) noexcept
+bool slider_int(const std::string& label, std::int32_t& v, std::int32_t mn, std::int32_t mx) noexcept
 {
     return ImGui::SliderInt(label.c_str(), &v, mn, mx);
 }
@@ -159,19 +159,19 @@ float get_window_width() noexcept
 
 // ── Styling ──────────────────────────────────────────────────────────────────
 
-void push_style_color(int idx, float r, float g, float b, float a) noexcept
+void push_style_color(std::int32_t idx, float r, float g, float b, float a) noexcept
 {
     ImGui::PushStyleColor(idx, ImVec4(r, g, b, a));
 }
 
 void pop_style_color() noexcept { ImGui::PopStyleColor(); }
 
-void push_style_var_float(int idx, float v) noexcept
+void push_style_var_float(std::int32_t idx, float v) noexcept
 {
     ImGui::PushStyleVar(idx, v);
 }
 
-void push_style_var_vec2(int idx, float x, float y) noexcept
+void push_style_var_vec2(std::int32_t idx, float x, float y) noexcept
 {
     ImGui::PushStyleVar(idx, ImVec2(x, y));
 }
@@ -180,14 +180,14 @@ void pop_style_var() noexcept { ImGui::PopStyleVar(); }
 
 // ── Columns ──────────────────────────────────────────────────────────────────
 
-void columns(int count, const std::string& id, bool border) noexcept
+void columns(std::int32_t count, const std::string& id, bool border) noexcept
 {
     ImGui::Columns(count, id.c_str(), border);
 }
 
 void next_column() noexcept { ImGui::NextColumn(); }
 
-void set_column_width(int idx, float w) noexcept
+void set_column_width(std::int32_t idx, float w) noexcept
 {
     ImGui::SetColumnWidth(idx, w);
 }
