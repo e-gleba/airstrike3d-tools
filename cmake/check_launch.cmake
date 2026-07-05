@@ -69,7 +69,7 @@ if(rc EQUAL 0)
 elseif(rc EQUAL 124)
     # timeout(1) returns 124 when process is killed due to timeout
     message(STATUS "Emulator timed out after ${timeout_seconds}s (expected for long-running game)")
-else
+else()
     # Any other exit code indicates failure (crash, DLL load error, etc.)
     message(FATAL_ERROR
         "Emulator failed with exit code ${rc}.\n"
