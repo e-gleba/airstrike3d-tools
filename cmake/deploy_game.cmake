@@ -14,6 +14,9 @@
 #   run_game_${VERSION}      — launches via Proton wrapper
 #   install() rules          — installs to ${CMAKE_INSTALL_BINDIR}/${VERSION}
 #
+# When AS3D_ENABLE_TESTS is ON and PROJECT_IS_TOP_LEVEL, registers CTest
+# emulator tests (deploy / proton / launch tiers) for this version.
+#
 # Requires: cmake_minimum_required(VERSION 3.31...3.31) in root project.
 
 include_guard(GLOBAL)
@@ -189,5 +192,19 @@ execute_process(
     if(EXISTS "${deploy_dir}/scripts")
         install(DIRECTORY "${deploy_dir}/scripts/"
                 DESTINATION "${install_dest}/scripts")
+    endif()
+
+    # ─── CTest emulator tests ────────────────────────────────────────────────
+    # Registered here (not in root CMakeLists.txt) because deploy_dir is
+    # scope-local to this function call.  Guarded by PROJECT_IS_TOP_LEVEL
+    # so subdirectory consumers don't inherit our tests.
+
+    if(AS3D_ENABLE_TESTS AND PROJECT_IS_TOP_LEVEL)
+        include("${CMAKE_SOURCE_DIR}/cmake/proton_testing.cmake")
+        add_proton_emulator_tests(
+            VERSION "${version}"
+            GAME_EXE_NAME "${game_exe}"
+            DEPLOY_DIR "${deploy_dir}"
+            DEPLOY_TARGET "deploy_game_${version}")
     endif()
 endfunction()
