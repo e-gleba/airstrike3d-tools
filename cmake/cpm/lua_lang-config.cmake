@@ -4,7 +4,7 @@ cpmaddpackage(
     GIT_REPOSITORY
     https://github.com/lua/lua.git
     VERSION
-    5.4.8
+    5.5.0
     DOWNLOAD_ONLY
     YES)
 
