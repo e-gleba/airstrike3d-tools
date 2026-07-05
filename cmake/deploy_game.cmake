@@ -6,7 +6,7 @@
 #       SOURCE_DIR    <path>
 #   )
 #
-# Deploys: data/, plugins/, scripts/ (from project root), bass.dll, exe
+# Deploys: data/, plugins/, scripts/ (from project root), bass.dll, exe, config.ini
 #
 # Creates targets:
 #   bass_proxy_${VERSION}    — proxy DLL (if USE_BASS_PROXY_LIB)
@@ -61,6 +61,12 @@ function(add_game_deployment)
         ".bass_stamp"
         OUTPUT_VARIABLE
         bass_stamp)
+    cmake_path(
+        APPEND
+        deploy_dir
+        ".config_stamp"
+        OUTPUT_VARIABLE
+        config_stamp)
 
     # ─── Deploy script via file(CONFIGURE) ───────────────────────────────────
 
@@ -99,6 +105,22 @@ execute_process(
         COMMAND "${CMAKE_COMMAND}" -P "${deploy_script}"
         COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
         DEPENDS "${src_dir}/${game_exe}" CODEGEN
+        VERBATIM)
+
+    # ─── Config.ini generation ───────────────────────────────────────────────
+    # Generate config.ini from template to skip launcher window and use
+    # modern defaults (1600x1200, fullscreen, etc.)
+
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/config.ini.in"
+        "${deploy_dir}/config.ini"
+        @ONLY)
+
+    add_custom_command(
+        OUTPUT "${config_stamp}"
+        COMMENT "generating config.ini for ${version}"
+        COMMAND "${CMAKE_COMMAND}" -E touch "${config_stamp}"
+        DEPENDS "${deploy_dir}/config.ini" CODEGEN
         VERBATIM)
 
     # ─── Proxy DLL ───────────────────────────────────────────────────────────
@@ -143,7 +165,8 @@ execute_process(
     endif()
 
     add_custom_target(
-        deploy_game_${version} ALL DEPENDS "${deploy_stamp}" "${bass_stamp}"
+        deploy_game_${version} ALL
+        DEPENDS "${deploy_stamp}" "${bass_stamp}" "${config_stamp}"
         COMMENT "all runtime dependencies deployed for ${version}")
 
     # ─── Proton runner ───────────────────────────────────────────────────────
@@ -175,7 +198,8 @@ execute_process(
     set(install_dest "${CMAKE_INSTALL_BINDIR}/${version}")
 
     install(FILES "${deploy_dir}/${game_exe}" "${deploy_dir}/run_game.sh"
-                  "${deploy_dir}/bass.dll" DESTINATION "${install_dest}")
+                  "${deploy_dir}/bass.dll" "${deploy_dir}/config.ini"
+            DESTINATION "${install_dest}")
 
     if(USE_BASS_PROXY_LIB)
         install(FILES "${deploy_dir}/original.dll" "${deploy_dir}/_original.dll"
