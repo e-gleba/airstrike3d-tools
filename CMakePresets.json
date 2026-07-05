@@ -241,7 +241,26 @@
     {
       "name": "msvc-release",
       "displayName": "MSVC Release",
-      "description": "Configure, build, test, and package MSVC x86 Release",
+      "description": "Configure, build, and package MSVC x86 Release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc"
+        },
+        {
+          "type": "build",
+          "name": "msvc-build-release"
+        },
+        {
+          "type": "package",
+          "name": "msvc-package"
+        }
+      ]
+    },
+    {
+      "name": "msvc-release-with-tests",
+      "displayName": "MSVC Release (with CTest)",
+      "description": "Configure, build, test, and package MSVC x86 Release (requires Steam + Proton)",
       "steps": [
         {
           "type": "configure",
@@ -279,7 +298,26 @@
     {
       "name": "clang_windows_x86-release",
       "displayName": "Clang Windows x86 Release",
-      "description": "Configure, build, test, and package Clang Windows x86 Release",
+      "description": "Configure, build, and package Clang Windows x86 Release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "clang_windows_x86"
+        },
+        {
+          "type": "build",
+          "name": "clang_windows_x86-build-release"
+        },
+        {
+          "type": "package",
+          "name": "clang_windows_x86-package"
+        }
+      ]
+    },
+    {
+      "name": "clang_windows_x86-release-with-tests",
+      "displayName": "Clang Windows x86 Release (with CTest)",
+      "description": "Configure, build, test, and package Clang Windows x86 Release (requires Steam + Proton)",
       "steps": [
         {
           "type": "configure",
@@ -317,7 +355,26 @@
     {
       "name": "llvm-mingw-i686-release",
       "displayName": "LLVM-MinGW Win32 Release",
-      "description": "Configure, build, test, and package for Windows 32-bit (jobs=1 due to LLD deadlock)",
+      "description": "Configure, build, and package for Windows 32-bit (jobs=1 due to LLD deadlock)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-release"
+        },
+        {
+          "type": "package",
+          "name": "llvm-mingw-i686-package"
+        }
+      ]
+    },
+    {
+      "name": "llvm-mingw-i686-release-with-tests",
+      "displayName": "LLVM-MinGW Win32 Release (with CTest)",
+      "description": "Configure, build, test, and package for Windows 32-bit (requires Steam + Proton, jobs=1 due to LLD deadlock)",
       "steps": [
         {
           "type": "configure",
