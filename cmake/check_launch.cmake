@@ -1,7 +1,7 @@
 # check_launch.cmake — CTest script: smoke-test emulator launch + DLL load
-# Runs game for 10 seconds, verifies:
+# Runs game with timeout, verifies:
 # 1. Banner appears in logs (Proton started)
-# 2. Process exits cleanly (exit code 0 or timeout)
+# 2. Process either exits cleanly (code 0) OR is still running (timeout = success)
 # 3. No DLL load errors in output
 #
 # Reads variables from environment: AS3D_DEPLOY_DIR, AS3D_GAME_EXE, AS3D_TEST_TIMEOUT
@@ -60,28 +60,7 @@ if(found_banner EQUAL -1)
         "stderr: ${err}")
 endif()
 
-# Check process exit code
-# Exit code 0 = clean exit (game ran and exited)
-# Exit code from timeout = game was still running (expected, not an error)
-# Any other exit code = process crashed or failed to start
-if(rc EQUAL 0)
-    message(STATUS "Emulator exited cleanly for ${game_exe}")
-elseif(rc EQUAL 124)
-    # timeout(1) returns 124 when process is killed due to timeout
-    message(STATUS "Emulator timed out after ${timeout_seconds}s (expected for long-running game)")
-else()
-    # Any other exit code indicates failure (crash, DLL load error, etc.)
-    message(FATAL_ERROR
-        "Emulator failed with exit code ${rc}.\n"
-        "This typically indicates:\n"
-        "  - DLL load failure (bass.dll or dependencies)\n"
-        "  - Game crash during initialization\n"
-        "  - Missing runtime dependencies\n"
-        "stdout: ${out}\n"
-        "stderr: ${err}")
-endif()
-
-# Additional check: look for explicit DLL errors in output
+# Check for explicit DLL load failures
 string(FIND "${combined}" "Failed to load" dll_error)
 if(NOT dll_error EQUAL -1)
     message(FATAL_ERROR
@@ -91,4 +70,25 @@ if(NOT dll_error EQUAL -1)
         "stderr: ${err}")
 endif()
 
-message(STATUS "Emulator smoke test passed for ${game_exe} (exit code: ${rc})")
+# Check process exit code
+# Exit code 0 = clean exit (game ran and exited normally) - SUCCESS
+# Timeout (game still running after timeout_seconds) - SUCCESS
+# Other exit codes = crash, DLL failure, etc. - FAILURE
+if(rc EQUAL 0)
+    message(STATUS "Emulator exited cleanly for ${game_exe}")
+elseif(rc MATCHES "timeout" OR rc MATCHES "Timeout")
+    # Game is still running after timeout - this is SUCCESS
+    message(STATUS "Emulator timed out after ${timeout_seconds}s (game is running, DLL loaded successfully)")
+else()
+    # Any other exit code indicates failure
+    message(FATAL_ERROR
+        "Emulator failed with exit code: ${rc}\n"
+        "This typically indicates:\n"
+        "  - DLL load failure (bass.dll or dependencies)\n"
+        "  - Game crash during initialization\n"
+        "  - Missing runtime dependencies\n"
+        "stdout: ${out}\n"
+        "stderr: ${err}")
+endif()
+
+message(STATUS "Emulator smoke test passed for ${game_exe}")
