@@ -4,6 +4,7 @@
 
 #include "sdk/scripting/bindings/math.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace sdk::scripting::bindings::math
@@ -38,7 +39,7 @@ double clamp(double v, double lo, double hi) noexcept
 
 vec3 normalize(double x, double y, double z) noexcept
 {
-    const auto len = std::sqrt(x * x + y * y + z * z);
+    const double len = std::sqrt(x * x + y * y + z * z);
     if (len < 1e-10) return {0.0, 0.0, 0.0};
     return {x / len, y / len, z / len};
 }
@@ -57,10 +58,10 @@ mat4 lookat_matrix(double ex, double ey, double ez,
                    double ux, double uy, double uz) noexcept
 {
     // Forward vector (eye to center)
-    const auto fx = cx - ex;
-    const auto fy = cy - ey;
-    const auto fz = cz - ez;
-    const auto flen = std::sqrt(fx * fx + fy * fy + fz * fz);
+    const double fx = cx - ex;
+    const double fy = cy - ey;
+    const double fz = cz - ez;
+    const double flen = std::sqrt(fx * fx + fy * fy + fz * fz);
     
     if (flen < 1e-10) {
         // Identity matrix if eye == center
@@ -72,15 +73,15 @@ mat4 lookat_matrix(double ex, double ey, double ez,
         };
     }
     
-    const auto fnx = fx / flen;
-    const auto fny = fy / flen;
-    const auto fnz = fz / flen;
+    const double fnx = fx / flen;
+    const double fny = fy / flen;
+    const double fnz = fz / flen;
     
     // Right vector (forward × up)
-    auto rx = fny * uz - fnz * uy;
-    auto ry = fnz * ux - fnx * uz;
-    auto rz = fnx * uy - fny * ux;
-    const auto rlen = std::sqrt(rx * rx + ry * ry + rz * rz);
+    double rx = fny * uz - fnz * uy;
+    double ry = fnz * ux - fnx * uz;
+    double rz = fnx * uy - fny * ux;
+    const double rlen = std::sqrt(rx * rx + ry * ry + rz * rz);
     
     if (rlen < 1e-10) {
         // Up and forward are parallel, use default up
@@ -97,9 +98,9 @@ mat4 lookat_matrix(double ex, double ey, double ez,
     rz /= rlen;
     
     // Recompute up (right × forward)
-    const auto upx = ry * fnz - rz * fny;
-    const auto upy = rz * fnx - rx * fnz;
-    const auto upz = rx * fny - ry * fnx;
+    const double upx = ry * fnz - rz * fny;
+    const double upy = rz * fnx - rx * fnz;
+    const double upz = rx * fny - ry * fnx;
     
     // Column-major 4x4 matrix
     return {
