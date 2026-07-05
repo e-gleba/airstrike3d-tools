@@ -8,7 +8,7 @@
 #   llvm_mingw_host_os         package host suffix
 #   llvm_mingw_auto_download   download if missing
 
-cmake_minimum_required(VERSION 3.31...3.31)
+cmake_minimum_required(VERSION 3.31)
 
 include_guard(GLOBAL)
 
@@ -18,7 +18,7 @@ if(NOT DEFINED CMAKE_SYSTEM_PROCESSOR OR CMAKE_SYSTEM_PROCESSOR STREQUAL "")
     set(CMAKE_SYSTEM_PROCESSOR x86_64)
 endif()
 
-set(llvm_mingw_version "20260602" CACHE STRING "llvm-mingw release tag")
+set(llvm_mingw_version "20260616" CACHE STRING "llvm-mingw release tag")
 set(llvm_mingw_host_os "ubuntu-22.04" CACHE STRING
                                             "llvm-mingw host OS package suffix")
 set(llvm_mingw_auto_download ON CACHE BOOL "Download llvm-mingw if absent")
