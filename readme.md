@@ -77,6 +77,7 @@
   - [Prerequisites](#prerequisites)
   - [Quick Start](#quick-start)
   - [Building C++ Components](#building-c-components)
+  - [Game Configuration](#game-configuration)
   - [Testing with CTest](#testing-with-ctest)
 - [Ghidra Project](#ghidra-project)
 - [Contributing](#contributing)
@@ -499,6 +500,46 @@ cmake --workflow --preset msvc-release
 
 Available for local development when Visual Studio 2022 is preferred. Not used in CI.
 
+### Game Configuration
+
+The build system automatically generates `config.ini` for each game version during deployment. This ensures the game starts directly with sensible defaults instead of showing the launcher configuration window.
+
+#### Default Settings
+
+Generated from [`cmake/config.ini.in`](cmake/config.ini.in) template:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `VideoMode` | 5 (1600×1200) | Modern resolution for better image quality |
+| `Fullscreen` | 1 | Immersive gameplay |
+| `WaitVSync` | 0 | Reduces input lag |
+| `ShowFPS` | 1 | Debug overlay for performance monitoring |
+| `SfxVolume` | 0.5 | Balanced sound effects (50%) |
+| `MusicVolume` | 0.5 | Balanced music (50%) |
+| `FirstRun` | 0 | Skips initial setup dialogs |
+
+#### Customizing Configuration
+
+To modify defaults for all versions, edit `cmake/config.ini.in`:
+
+```ini
+[Display]
+VideoMode=6          # Change to 1920×1080 or higher
+Fullscreen=0         # Windowed mode for debugging
+WaitVSync=1          # Enable VSync to reduce tearing
+```
+
+To customize per-version, create version-specific overrides in `2_XX/config.ini.in` (not yet implemented — all versions currently share the same template).
+
+#### Why Auto-Generate?
+
+The original games shipped without `config.ini` and required users to configure settings via a launcher dialog on first run. This automated approach:
+
+- **Eliminates manual setup** — games start immediately with tested defaults
+- **Ensures consistency** — same configuration across all three versions
+- **Supports automation** — CTest can launch games without human intervention
+- **Preserves defaults** — template tracks optimal settings for modern systems
+
 ### Testing with CTest
 
 The project includes comprehensive CTest integration for validating the Proton launcher emulator across all three game versions (2_06, 2_51, 2_71). Tests are organized in three tiers with increasing scope and execution time.
@@ -507,7 +548,7 @@ The project includes comprehensive CTest integration for validating the Proton l
 
 | Tier | Purpose | Platform | Typical Duration |
 |------|---------|----------|------------------|
-| **deploy** | Verify deployment artifacts (exe, dll, data) staged correctly | Any | <1s |
+| **deploy** | Verify deployment artifacts (exe, dll, data, config.ini) staged correctly | Any | <1s |
 | **proton** | Detect Proton + Steam Linux Runtime availability | Linux only | <2s |
 | **launch** | Smoke-test emulator boot (banner detection) | Linux + Proton | 5–30s |
 
