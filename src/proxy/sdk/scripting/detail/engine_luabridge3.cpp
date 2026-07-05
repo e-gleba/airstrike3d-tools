@@ -10,6 +10,7 @@
 /// - luabridge::LuaRef instead of sol::protected_function for callbacks
 /// - TypeResult<T> for error handling instead of sol::error
 /// - 2.6× faster Lua→C++ calls on hot paths
+/// - Raw Lua C API used for constant tables (addVariable incompatible with constexpr fns)
 
 #include "sdk/scripting/engine.hpp"
 
@@ -234,95 +235,100 @@ struct engine::impl final
             .endNamespace();
     }
 
-    /// @brief Register VK_* and GL_* constants.
+    /// @brief Register VK_* and GL_* constants using raw Lua C API.
     ///
-    /// Uses addVariable() with getter functions to expose read-only constants.
-    /// Example: VK.SHIFT returns vk_shift() value.
+    /// LuaBridge3's addVariable() requires a variable pointer or getter/setter pair,
+    /// but our constants are constexpr functions. Using raw Lua C API to build tables
+    /// with integer values matches the sol2 backend's behavior exactly (vk["SHIFT"] = value).
     void register_constants()
     {
         using namespace sdk::graphics::constants;
 
-        // Virtual key constants (VK_*)
-        luabridge::getGlobalNamespace(lua)
-            .beginNamespace("VK")
-                .addVariable("SHIFT", vk_shift, false)
-                .addVariable("CONTROL", vk_control, false)
-                .addVariable("SPACE", vk_space, false)
-                .addVariable("INSERT", vk_insert, false)
-                .addVariable("ESCAPE", vk_escape, false)
-                .addVariable("TAB", vk_tab, false)
-                .addVariable("RETURN", vk_return, false)
-                .addVariable("BACK", vk_back, false)
-                .addVariable("DELETE", vk_delete, false)
-                .addVariable("HOME", vk_home, false)
-                .addVariable("END", vk_end, false)
-                .addVariable("PRIOR", vk_prior, false)
-                .addVariable("NEXT", vk_next, false)
-                .addVariable("LEFT", vk_left, false)
-                .addVariable("RIGHT", vk_right, false)
-                .addVariable("UP", vk_up, false)
-                .addVariable("DOWN", vk_down, false)
-                .addVariable("F1", vk_f1, false)
-                .addVariable("F2", vk_f2, false)
-                .addVariable("F3", vk_f3, false)
-                .addVariable("F4", vk_f4, false)
-                .addVariable("F5", vk_f5, false)
-                .addVariable("F6", vk_f6, false)
-                .addVariable("F7", vk_f7, false)
-                .addVariable("F8", vk_f8, false)
-                .addVariable("F9", vk_f9, false)
-                .addVariable("F10", vk_f10, false)
-                .addVariable("F11", vk_f11, false)
-                .addVariable("F12", vk_f12, false)
-                .addVariable("LBUTTON", vk_lbutton, false)
-                .addVariable("RBUTTON", vk_rbutton, false)
-                .addVariable("MBUTTON", vk_mbutton, false)
-                .addVariable("W", vk_w, false)
-                .addVariable("A", vk_a, false)
-                .addVariable("S", vk_s, false)
-                .addVariable("D", vk_d, false)
-                .addVariable("Q", vk_q, false)
-                .addVariable("E", vk_e, false)
-                .addVariable("C", vk_c, false)
-                .addVariable("R", vk_r, false)
-                .addVariable("Z", vk_z, false)
-                .addVariable("X", vk_x, false)
-                .addVariable("V", vk_v, false)
-            .endNamespace();
+        // Helper: set integer field on table at top of stack
+        auto set_int = [this](const char* name, std::int32_t value) {
+            lua_pushinteger(lua, value);
+            lua_setfield(lua, -2, name);
+        };
 
-        // OpenGL constants (GL_*)
-        luabridge::getGlobalNamespace(lua)
-            .beginNamespace("GL")
-                .addVariable("MODELVIEW", gl_modelview, false)
-                .addVariable("PROJECTION", gl_projection, false)
-                .addVariable("TEXTURE", gl_texture, false)
-                .addVariable("DEPTH_TEST", gl_depth_test, false)
-                .addVariable("BLEND", gl_blend, false)
-                .addVariable("ALPHA_TEST", gl_alpha_test, false)
-                .addVariable("CULL_FACE", gl_cull_face, false)
-                .addVariable("LIGHTING", gl_lighting, false)
-                .addVariable("FOG", gl_fog, false)
-                .addVariable("TEXTURE_2D", gl_texture_2d, false)
-                .addVariable("FRONT", gl_front, false)
-                .addVariable("BACK", gl_back, false)
-                .addVariable("FRONT_AND_BACK", gl_front_and_back, false)
-                .addVariable("SRC_ALPHA", gl_src_alpha, false)
-                .addVariable("ONE_MINUS_SRC_ALPHA", gl_one_minus_src_alpha, false)
-                .addVariable("ONE", gl_one, false)
-                .addVariable("ZERO", gl_zero, false)
-                .addVariable("LINES", gl_lines, false)
-                .addVariable("LINE_STRIP", gl_line_strip, false)
-                .addVariable("LINE_LOOP", gl_line_loop, false)
-                .addVariable("TRIANGLES", gl_triangles, false)
-                .addVariable("TRIANGLE_STRIP", gl_triangle_strip, false)
-                .addVariable("TRIANGLE_FAN", gl_triangle_fan, false)
-                .addVariable("QUADS", gl_quads, false)
-                .addVariable("POINTS", gl_points, false)
-                .addVariable("POLYGON", gl_polygon, false)
-                .addVariable("LINE", gl_line, false)
-                .addVariable("FILL", gl_fill, false)
-                .addVariable("ALL_ATTRIB_BITS", gl_all_attrib_bits, false)
-            .endNamespace();
+        // VK table: virtual key constants
+        lua_newtable(lua);
+        set_int("SHIFT",   vk_shift());
+        set_int("CONTROL", vk_control());
+        set_int("SPACE",   vk_space());
+        set_int("INSERT",  vk_insert());
+        set_int("ESCAPE",  vk_escape());
+        set_int("TAB",     vk_tab());
+        set_int("RETURN",  vk_return());
+        set_int("BACK",    vk_back());
+        set_int("DELETE",  vk_delete());
+        set_int("HOME",    vk_home());
+        set_int("END",     vk_end());
+        set_int("PRIOR",   vk_prior());
+        set_int("NEXT",    vk_next());
+        set_int("LEFT",    vk_left());
+        set_int("RIGHT",   vk_right());
+        set_int("UP",      vk_up());
+        set_int("DOWN",    vk_down());
+        set_int("F1",      vk_f1());
+        set_int("F2",      vk_f2());
+        set_int("F3",      vk_f3());
+        set_int("F4",      vk_f4());
+        set_int("F5",      vk_f5());
+        set_int("F6",      vk_f6());
+        set_int("F7",      vk_f7());
+        set_int("F8",      vk_f8());
+        set_int("F9",      vk_f9());
+        set_int("F10",     vk_f10());
+        set_int("F11",     vk_f11());
+        set_int("F12",     vk_f12());
+        set_int("LBUTTON", vk_lbutton());
+        set_int("RBUTTON", vk_rbutton());
+        set_int("MBUTTON", vk_mbutton());
+        set_int("W",       vk_w());
+        set_int("A",       vk_a());
+        set_int("S",       vk_s());
+        set_int("D",       vk_d());
+        set_int("Q",       vk_q());
+        set_int("E",       vk_e());
+        set_int("C",       vk_c());
+        set_int("R",       vk_r());
+        set_int("Z",       vk_z());
+        set_int("X",       vk_x());
+        set_int("V",       vk_v());
+        lua_setglobal(lua, "VK");
+
+        // GL table: OpenGL constants
+        lua_newtable(lua);
+        set_int("MODELVIEW",           gl_modelview());
+        set_int("PROJECTION",          gl_projection());
+        set_int("TEXTURE",             gl_texture());
+        set_int("DEPTH_TEST",          gl_depth_test());
+        set_int("BLEND",               gl_blend());
+        set_int("ALPHA_TEST",          gl_alpha_test());
+        set_int("CULL_FACE",           gl_cull_face());
+        set_int("LIGHTING",            gl_lighting());
+        set_int("FOG",                 gl_fog());
+        set_int("TEXTURE_2D",          gl_texture_2d());
+        set_int("FRONT",               gl_front());
+        set_int("BACK",                gl_back());
+        set_int("FRONT_AND_BACK",      gl_front_and_back());
+        set_int("SRC_ALPHA",           gl_src_alpha());
+        set_int("ONE_MINUS_SRC_ALPHA", gl_one_minus_src_alpha());
+        set_int("ONE",                 gl_one());
+        set_int("ZERO",                gl_zero());
+        set_int("LINES",               gl_lines());
+        set_int("LINE_STRIP",          gl_line_strip());
+        set_int("LINE_LOOP",           gl_line_loop());
+        set_int("TRIANGLES",           gl_triangles());
+        set_int("TRIANGLE_STRIP",      gl_triangle_strip());
+        set_int("TRIANGLE_FAN",        gl_triangle_fan());
+        set_int("QUADS",               gl_quads());
+        set_int("POINTS",              gl_points());
+        set_int("POLYGON",             gl_polygon());
+        set_int("LINE",                gl_line());
+        set_int("FILL",                gl_fill());
+        set_int("ALL_ATTRIB_BITS",     gl_all_attrib_bits());
+        lua_setglobal(lua, "GL");
     }
 
     /// @brief Register SDK graphics and platform functions (sdk.gl_*, sdk.is_key_down, etc.).
