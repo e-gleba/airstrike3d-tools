@@ -2,11 +2,11 @@ cpmaddpackage(
     NAME
     safetyhook
     VERSION
-    0.6.9
+    0.7.0
     GIT_REPOSITORY
     https://github.com/cursey/safetyhook
     GIT_TAG
-    v0.6.9
+    v0.7.0
     EXCLUDE_FROM_ALL
     YES
     SYSTEM
