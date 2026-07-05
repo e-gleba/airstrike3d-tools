@@ -21,6 +21,14 @@
 #include "sdk/scripting/callback.hpp"
 #include "sdk/ui/ui.hpp"
 
+// Lua C headers MUST precede LuaBridge (enforced by LuaBridge3 Config.h:34).
+extern "C"
+{
+#include <lauxlib.h>
+#include <lua.h>
+#include <lualib.h>
+}
+
 #include <LuaBridge/LuaBridge.h>
 
 #include <array>
@@ -31,13 +39,6 @@
 #include <span>
 #include <stdexcept>
 #include <vector>
-
-extern "C"
-{
-#include <lauxlib.h>
-#include <lua.h>
-#include <lualib.h>
-}
 
 namespace fs = std::filesystem;
 
