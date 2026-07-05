@@ -6,6 +6,7 @@
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <sol/sol.hpp>
 
 #include <array>
 
@@ -228,6 +229,98 @@ void tooltip(const std::string& t) noexcept
     {
         ImGui::SetTooltip("%s", t.c_str());
     }
+}
+
+// ── Registration function for Lua bindings ──────────────────────────────────
+
+void register_ui(sol::state& lua)
+{
+    auto ui = lua["ui"].get_or_create<sol::table>();
+    
+    // Window management
+    ui["begin_window"] = &begin_window;
+    ui["end_window"] = &end_window;
+    
+    // Text rendering
+    ui["text"] = &text;
+    ui["text_wrapped"] = &text_wrapped;
+    ui["text_disabled"] = &text_disabled;
+    ui["text_colored"] = &text_colored;
+    
+    // Buttons
+    ui["button"] = &button;
+    ui["button_sized"] = &button_sized;
+    
+    // Input widgets
+    ui["checkbox"] = [](const std::string& label, bool v) {
+        bool result = checkbox(label, v);
+        return std::make_tuple(v, result);
+    };
+    ui["drag_float"] = [](const std::string& label, float v,
+                          float spd, float mn, float mx) {
+        bool result = drag_float(label, v, spd, mn, mx);
+        return std::make_tuple(v, result);
+    };
+    ui["slider_float"] = [](const std::string& label, float v,
+                            float mn, float mx) {
+        bool result = slider_float(label, v, mn, mx);
+        return std::make_tuple(v, result);
+    };
+    ui["slider_int"] = [](const std::string& label, int v,
+                          int mn, int mx) {
+        bool result = slider_int(label, v, mn, mx);
+        return std::make_tuple(v, result);
+    };
+    ui["input_text"] = [](const std::string& label, std::string text) {
+        bool result = input_text(label, text);
+        return std::make_tuple(text, result);
+    };
+    ui["color_edit3"] = [](const std::string& label, float r, float g, float b) {
+        bool result = color_edit3(label, r, g, b);
+        return std::make_tuple(r, g, b, result);
+    };
+    
+    // Layout
+    ui["separator"] = &separator;
+    ui["same_line"] = &same_line;
+    ui["spacing"] = &spacing;
+    ui["tree_node"] = &tree_node;
+    ui["tree_pop"] = &tree_pop;
+    ui["tab_bar_begin"] = &tab_bar_begin;
+    ui["tab_bar_end"] = &tab_bar_end;
+    ui["tab_item_begin"] = &tab_item_begin;
+    ui["tab_item_end"] = &tab_item_end;
+    ui["collapsing_header"] = &collapsing_header;
+    
+    // Groups
+    ui["begin_group"] = &begin_group;
+    ui["end_group"] = &end_group;
+    
+    // Positioning
+    ui["set_next_window_pos"] = &set_next_window_pos;
+    ui["set_next_window_size"] = &set_next_window_size;
+    ui["set_cursor_pos_x"] = &set_cursor_pos_x;
+    ui["get_window_width"] = &get_window_width;
+    
+    // Styling
+    ui["push_style_color"] = &push_style_color;
+    ui["pop_style_color"] = &pop_style_color;
+    ui["push_style_var_float"] = &push_style_var_float;
+    ui["push_style_var_vec2"] = &push_style_var_vec2;
+    ui["pop_style_var"] = &pop_style_var;
+    
+    // Columns
+    ui["columns"] = &columns;
+    ui["next_column"] = &next_column;
+    ui["set_column_width"] = &set_column_width;
+    
+    // Utilities
+    ui["get_delta_time"] = &get_delta_time;
+    ui["get_framerate"] = &get_framerate;
+    ui["want_capture_keyboard"] = &want_capture_keyboard;
+    ui["want_capture_mouse"] = &want_capture_mouse;
+    ui["progress_bar"] = &progress_bar;
+    ui["tooltip"] = &tooltip;
 }
 
 } // namespace sdk::scripting::bindings::ui
