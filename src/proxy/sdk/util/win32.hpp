@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <tuple>
 #include <windows.h>
 
