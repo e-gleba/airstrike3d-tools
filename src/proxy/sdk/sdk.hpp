@@ -1,8 +1,7 @@
-
 #pragma once
 
 namespace sdk
 {
-void install_hooks();
-void uninstall_hooks();
+void install_hooks() noexcept;
+void uninstall_hooks() noexcept;
 } // namespace sdk
