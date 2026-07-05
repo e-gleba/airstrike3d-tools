@@ -51,15 +51,14 @@ function(add_proton_emulator_tests)
     add_test(
         NAME "deploy_files_exist_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_deploy.cmake"
-            "-Ddeploy_dir=${dir}"
-            "-Dgame_exe=${exe}")
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_deploy.cmake")
     set_tests_properties(
         "deploy_files_exist_${ver}"
         PROPERTIES
             LABELS "deploy;${ver}"
             FIXTURES_REQUIRED "deploy_${ver}"
-            TIMEOUT 10)
+            TIMEOUT 10
+            ENVIRONMENT "AS3D_DEPLOY_DIR=${dir};AS3D_GAME_EXE=${exe}")
 
     # Fixture: deployment must complete before deploy-tests run
     add_test(
@@ -78,15 +77,15 @@ function(add_proton_emulator_tests)
     add_test(
         NAME "proton_available_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_proton.cmake"
-            "-Ddeploy_dir=${dir}")
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_proton.cmake")
     set_tests_properties(
         "proton_available_${ver}"
         PROPERTIES
             LABELS "proton;integration;${ver}"
             FIXTURES_REQUIRED "deploy_${ver}"
             SKIP_REGULAR_EXPRESSION "PROTON_SKIP"
-            TIMEOUT 15)
+            TIMEOUT 15
+            ENVIRONMENT "AS3D_DEPLOY_DIR=${dir}")
 
     # ── Tier 3: Emulator smoke launch ────────────────────────────────────────
     # Runs run_game.sh, expects clean banner output within timeout.
@@ -95,10 +94,7 @@ function(add_proton_emulator_tests)
     add_test(
         NAME "emulator_launch_${ver}"
         COMMAND
-            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_launch.cmake"
-            "-Ddeploy_dir=${dir}"
-            "-Dgame_exe=${exe}"
-            "-Dtimeout_seconds=${AS3D_EMULATOR_TEST_TIMEOUT}")
+            "${CMAKE_COMMAND}" -P "${test_scripts_dir}/check_launch.cmake")
     set_tests_properties(
         "emulator_launch_${ver}"
         PROPERTIES
@@ -106,7 +102,7 @@ function(add_proton_emulator_tests)
             FIXTURES_REQUIRED "deploy_${ver};proton_available_${ver}"
             SKIP_REGULAR_EXPRESSION "PROTON_SKIP"
             TIMEOUT 30
-            ENVIRONMENT "AS3D_TEST_VERSION=${ver}")
+            ENVIRONMENT "AS3D_DEPLOY_DIR=${dir};AS3D_GAME_EXE=${exe};AS3D_TEST_TIMEOUT=${AS3D_EMULATOR_TEST_TIMEOUT}")
 
     message(STATUS "Registered Proton emulator tests for ${ver}")
 endfunction()
