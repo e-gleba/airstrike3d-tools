@@ -5,14 +5,15 @@
 #include "sdk/scripting/bindings/math.hpp"
 
 #include <cmath>
-#include <numbers>
 
 namespace sdk::scripting::bindings::math
 {
 
+constexpr double k_pi = 3.14159265358979323846;
+
 double radians(double degrees) noexcept
 {
-    return degrees * std::numbers::pi / 180.0;
+    return degrees * k_pi / 180.0;
 }
 
 double cos(double v) noexcept
