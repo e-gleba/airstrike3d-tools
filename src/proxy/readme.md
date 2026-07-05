@@ -16,6 +16,8 @@ Your Proxy DLL
 bass_real.dll (original BASS library)
     ↓ meanwhile injects
 OpenGL hooks + ImGui overlay
+    ↓ and runs
+Lua plugin scripts (LuaBridge3)
 ```
 
 ## Features
@@ -24,6 +26,7 @@ OpenGL hooks + ImGui overlay
 - **Visual Effects**: Post-processing shaders (vignette, sepia, scanlines, invert)
 - **Hook Analysis**: Real-time display of active function intercepts
 - **Debug Controls**: Wireframe toggle, clear color, ImGui theming
+- **Lua Scripting**: Plugin system for modding and automation
 
 ## Technical Implementation
 
@@ -32,6 +35,46 @@ OpenGL hooks + ImGui overlay
 - **Framebuffer Objects**: Renders game to texture for post-processing
 - **GLSL Shaders**: Hardware-accelerated visual effects
 - **ImGui Integration**: Immediate-mode GUI overlay system
+- **Lua Scripting Engine**: LuaBridge3 backend (2.6× faster than sol2)
+
+## Lua Scripting
+
+The proxy uses [LuaBridge3](https://github.com/kunitoki/LuaBridge3) for C++/Lua bindings:
+
+- Header-only, MIT-licensed
+- 2.6× faster Lua→C++ calls compared to sol2
+- Leaner compile times
+- Raw `lua_State*` with `luabridge::LuaRef` for type-safe callbacks
+
+See `sdk/scripting/detail/readme.md` for Lua API documentation.
+
+## Directory Structure
+
+```
+src/proxy/
+├── CMakeLists.txt              # Build configuration
+├── dll_main.cpp                # DLL entry point and BASS forwarding
+├── readme.md                   # This file
+└── sdk/                        # Version-agnostic SDK library
+    ├── core/                   # Core utilities, types, contracts
+    ├── graphics/               # OpenGL bindings and constants
+    ├── math/                   # Vector math utilities
+    ├── overlay/                # ImGui overlay rendering
+    ├── platform/               # OS-specific functions, logging
+    ├── scripting/              # Lua scripting engine
+    │   ├── callback.hpp        # Thread-safe callback lists
+    │   ├── engine.hpp          # Public engine interface (pimpl)
+    │   └── detail/             # LuaBridge3 implementation
+    ├── ui/                     # ImGui wrapper functions
+    └── sdk.hpp                 # Umbrella header
+```
+
+## Build Instructions
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
 
 ## Security Warnings
 

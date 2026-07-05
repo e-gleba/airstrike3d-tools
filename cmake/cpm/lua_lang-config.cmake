@@ -4,7 +4,7 @@ cpmaddpackage(
     GIT_REPOSITORY
     https://github.com/lua/lua.git
     VERSION
-    5.4.8
+    5.5.0
     DOWNLOAD_ONLY
     YES)
 
@@ -41,32 +41,4 @@ if(lua_ADDED)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_definitions(lua PRIVATE LUA_USE_JUMPTABLE)
     endif()
-endif()
-
-option(SOL2_PATCHED "whether sol2 patch has been applied" OFF)
-
-if(NOT SOL2_PATCHED)
-    set(SOL2_PATCHED ON CACHE BOOL "whether sol2 patch has been applied" FORCE)
-
-    cpmaddpackage(
-        NAME
-        sol2
-        GIT_REPOSITORY
-        https://github.com/ThePhD/sol2.git
-        VERSION
-        3.3.0
-        EXCLUDE_FROM_ALL
-        YES
-        PATCHES
-        "${CMAKE_SOURCE_DIR}/cmake/patches/sol2_emplace_fix.patch")
-else()
-    cpmaddpackage(
-        NAME
-        sol2
-        GIT_REPOSITORY
-        https://github.com/ThePhD/sol2.git
-        VERSION
-        3.3.0
-        EXCLUDE_FROM_ALL
-        YES)
 endif()
