@@ -7,17 +7,20 @@
 #include "sdk/overlay/overlay.hpp"
 #include "sdk/util/win32.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstring>
 #include <format>
 #include <memory>
+#include <ranges>
 #include <safetyhook.hpp>
+#include <string_view>
 
 namespace sdk
 {
 
-// ─── LoadLibrary hooks (catch late DirectX DLL loads) ────────────────────────
+// ─── LoadLibrary hooks (catch late DirectX DLL loads) ─────────────────────────
 
 static safetyhook::InlineHook g_ll_a_hook;
 static safetyhook::InlineHook g_ll_w_hook;
@@ -29,51 +32,37 @@ static std::unique_ptr<lua::LuaState> g_lua_state;
 namespace
 {
 
-bool str_contains_i(const char* haystack, const char* needle)
+[[nodiscard]] bool str_contains_i(std::string_view haystack, std::string_view needle) noexcept
 {
-    if ((haystack == nullptr) || (needle == nullptr))
+    if (haystack.empty() || needle.empty())
     {
         return false;
     }
 
-    for (const char* h = haystack; *h != '\0'; ++h)
-    {
-        const char* n   = needle;
-        const char* cur = h;
-        while (*n != '\0' && *cur != '\0' &&
-               std::tolower(static_cast<unsigned char>(*cur)) ==
-                   std::tolower(static_cast<unsigned char>(*n)))
-        {
-            ++cur;
-            ++n;
+    return std::ranges::search(
+        haystack,
+        needle,
+        [](char a, char b) noexcept {
+            return std::tolower(static_cast<unsigned char>(a)) ==
+                   std::tolower(static_cast<unsigned char>(b));
         }
-        if (*n == '\0')
-        {
-            return true;
-        }
-    }
-    return false;
+    ).begin() != haystack.end();
 }
 
-bool is_dx_dll_name(const char* name)
+[[nodiscard]] bool is_dx_dll_name(const char* name) noexcept
 {
     if (name == nullptr)
     {
         return false;
     }
 
-    static constexpr const char* k_patterns[] = {
+    static constexpr std::array<std::string_view, 6> k_patterns = {{
         "d3d8", "d3d9", "ddraw", "dxgi", "d3d11", "d3d12",
-    };
+    }};
 
-    for (const auto* p : k_patterns)
-    {
-        if (str_contains_i(name, p))
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(k_patterns, [name](std::string_view pattern) noexcept {
+        return str_contains_i(name, pattern);
+    });
 }
 
 void on_dx_detected()
@@ -139,16 +128,16 @@ HMODULE WINAPI hk_load_library_w(LPCWSTR name)
 
     if ((result != nullptr) && (name != nullptr))
     {
-        char buf[128]{};
+        std::array<char, 128> buf{};
         WideCharToMultiByte(CP_ACP,
                             0,
                             name,
                             -1,
-                            buf,
-                            static_cast<int>(sizeof(buf)),
+                            buf.data(),
+                            static_cast<int>(buf.size()),
                             nullptr,
                             nullptr);
-        if (is_dx_dll_name(buf))
+        if (is_dx_dll_name(buf.data()))
         {
             on_dx_detected();
         }
@@ -193,25 +182,23 @@ static BOOL WINAPI hk_wgl_swap(HDC dc)
 
 } // namespace
 
-// ─── Public API ──────────────────────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 void install_hooks()
 {
     sdk::log_info("detecting render API...");
 
     // 1. Check for already-loaded DirectX DLLs (d3d8, d3d9, ddraw, etc.)
-    static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {
+    static constexpr std::array<const wchar_t*, 6> k_dx_dlls = {{
         L"d3d8.dll", L"d3d9.dll",  L"ddraw.dll",
         L"dxgi.dll", L"d3d11.dll", L"d3d12.dll",
-    };
+    }};
 
-    for (const auto* dll : k_dx_dlls)
+    if (std::ranges::any_of(k_dx_dlls, [](const wchar_t* dll) noexcept {
+            return GetModuleHandleW(dll) != nullptr;
+        }))
     {
-        if (GetModuleHandleW(dll) != nullptr)
-        {
-            on_dx_detected();
-            break;
-        }
+        on_dx_detected();
     }
 
     // 2. Hook LoadLibrary to catch late DirectX DLL loads
