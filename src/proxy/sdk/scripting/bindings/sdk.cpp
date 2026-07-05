@@ -11,6 +11,7 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <windows.h>
+#include <sol/sol.hpp>
 
 #include <format>
 #include <string_view>
@@ -198,6 +199,59 @@ void log_error(const std::string& m)
 std::string get_log_dir() noexcept
 {
     return "logs";
+}
+
+// ── Registration function for Lua bindings ──────────────────────────────────
+
+void register_sdk(sol::state& lua)
+{
+    auto sdk_table = lua["sdk"].get_or_create<sol::table>();
+    
+    // OpenGL wrappers
+    sdk_table["gl_enable"] = &gl_enable;
+    sdk_table["gl_disable"] = &gl_disable;
+    sdk_table["gl_depth_mask"] = &gl_depth_mask;
+    sdk_table["gl_blend_func"] = &gl_blend_func;
+    sdk_table["gl_line_width"] = &gl_line_width;
+    sdk_table["gl_point_size"] = &gl_point_size;
+    sdk_table["gl_color4f"] = &gl_color4f;
+    sdk_table["gl_color3f"] = &gl_color3f;
+    sdk_table["gl_polygon_mode"] = &gl_polygon_mode;
+    sdk_table["gl_push_attrib"] = &gl_push_attrib;
+    sdk_table["gl_pop_attrib"] = &gl_pop_attrib;
+    sdk_table["gl_push_matrix"] = &gl_push_matrix;
+    sdk_table["gl_pop_matrix"] = &gl_pop_matrix;
+    sdk_table["gl_begin"] = &gl_begin;
+    sdk_table["gl_end"] = &gl_end;
+    sdk_table["gl_vertex3f"] = &gl_vertex3f;
+    sdk_table["gl_vertex2f"] = &gl_vertex2f;
+    sdk_table["gl_translate"] = &gl_translate;
+    sdk_table["gl_rotate"] = &gl_rotate;
+    sdk_table["gl_scale"] = &gl_scale;
+    sdk_table["gl_mult_matrix_d"] = &gl_mult_matrix_d;
+    sdk_table["gl_apply_lookat"] = &gl_apply_lookat;
+    
+    // Input
+    sdk_table["is_key_down"] = &is_key_down;
+    sdk_table["get_cursor_pos"] = []() {
+        auto p = get_cursor_pos();
+        return std::make_tuple(p.x, p.y);
+    };
+    sdk_table["set_cursor_pos"] = &set_cursor_pos;
+    sdk_table["show_cursor"] = &show_cursor;
+    sdk_table["send_chars"] = &send_chars;
+    
+    // Window
+    sdk_table["get_window_rect"] = []() {
+        auto r = get_window_rect();
+        return std::make_tuple(r.left, r.top, r.right, r.bottom);
+    };
+    
+    // Logging
+    sdk_table["log_info"] = &log_info;
+    sdk_table["log_warn"] = &log_warn;
+    sdk_table["log_error"] = &log_error;
+    sdk_table["get_log_dir"] = &get_log_dir;
 }
 
 } // namespace sdk::scripting::bindings::sdk
