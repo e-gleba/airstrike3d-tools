@@ -1,9 +1,9 @@
 /// @file callback.hpp
-/// @brief Type-erased, thread-safe callback lists for Lua ↔ C++ events.
+/// @brief Type-erased, thread-safe callback lists for scripting ↔ C++ events.
 ///
-/// Stores `std::function` — **no sol2 types** leak through this interface.
-/// The conversion from `sol::protected_function` to `std::function` happens
-/// inside `detail/lua_engine.cpp`.
+/// Stores `std::function` — **no scripting backend types** leak through.
+/// The conversion from backend-specific functions (e.g., `sol::protected_function`)
+/// to `std::function` happens inside the scripting engine implementation.
 ///
 /// Two list types:
 ///   - `callback_list<Args...>` — fire-and-forget, invokes all slots
@@ -13,10 +13,11 @@
 
 #include <functional>
 #include <mutex>
+#include <ranges>
 #include <utility>
 #include <vector>
 
-namespace sdk::lua
+namespace sdk::callback
 {
 
 /// Thread-safe list of `void(Args...)` callbacks.
@@ -52,9 +53,15 @@ public:
         return fns_.empty();
     }
 
+    [[nodiscard]] std::size_t size() const
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.size();
+    }
+
 private:
-    std::recursive_mutex&     mtx_;
-    std::vector<slot_fn>      fns_;
+    std::recursive_mutex& mtx_;
+    std::vector<slot_fn>  fns_;
 };
 
 /// Thread-safe list of `bool(Args...)` callbacks with consuming semantics.
@@ -76,7 +83,8 @@ public:
     [[nodiscard]] bool invoke(Args... args)
     {
         std::lock_guard lk{mtx_};
-        for (auto& fn : fns_) {
+        // C++23: use ranges for cleaner iteration
+        for (auto& fn : fns_ | std::views::all) {
             if (fn(args...)) return true;
         }
         return false;
@@ -94,9 +102,15 @@ public:
         return fns_.empty();
     }
 
+    [[nodiscard]] std::size_t size() const
+    {
+        std::lock_guard lk{mtx_};
+        return fns_.size();
+    }
+
 private:
-    std::recursive_mutex&     mtx_;
-    std::vector<slot_fn>      fns_;
+    std::recursive_mutex& mtx_;
+    std::vector<slot_fn>  fns_;
 };
 
-} // namespace sdk::lua
+} // namespace sdk::callback

@@ -1,11 +1,14 @@
-// src/proxy/sdk/lua/bindings/constants.cpp
-// Game and OpenGL constants exposed to Lua.
-// Pure C++ — no sol2 types.
+// src/proxy/sdk/scripting/bindings/constants.cpp
+// Game and OpenGL constants exposed to scripting.
+// Pure C++ — no backend types.
+
+#include "constants.hpp"
 
 #include <windows.h>
 #include <GL/gl.h>
+#include <sol/sol.hpp>
 
-namespace sdk::lua::bindings::constants
+namespace sdk::scripting::bindings::constants
 {
 
 // ── Virtual keys ─────────────────────────────────────────────────────────────
@@ -110,4 +113,87 @@ int gl_fill()            noexcept { return GL_FILL; }
 // State masks
 int gl_all_attrib_bits() noexcept { return GL_ALL_ATTRIB_BITS; }
 
-} // namespace sdk::lua::bindings::constants
+// ── Registration function for Lua bindings ──────────────────────────────────
+
+void register_constants(sol::state& lua)
+{
+    auto constants = lua["constants"].get_or_create<sol::table>();
+    
+    // Virtual keys
+    constants["vk_shift"] = &vk_shift;
+    constants["vk_control"] = &vk_control;
+    constants["vk_space"] = &vk_space;
+    constants["vk_insert"] = &vk_insert;
+    constants["vk_escape"] = &vk_escape;
+    constants["vk_tab"] = &vk_tab;
+    constants["vk_return"] = &vk_return;
+    constants["vk_back"] = &vk_back;
+    constants["vk_delete"] = &vk_delete;
+    constants["vk_home"] = &vk_home;
+    constants["vk_end"] = &vk_end;
+    constants["vk_prior"] = &vk_prior;
+    constants["vk_next"] = &vk_next;
+    constants["vk_left"] = &vk_left;
+    constants["vk_right"] = &vk_right;
+    constants["vk_up"] = &vk_up;
+    constants["vk_down"] = &vk_down;
+    constants["vk_f1"] = &vk_f1;
+    constants["vk_f2"] = &vk_f2;
+    constants["vk_f3"] = &vk_f3;
+    constants["vk_f4"] = &vk_f4;
+    constants["vk_f5"] = &vk_f5;
+    constants["vk_f6"] = &vk_f6;
+    constants["vk_f7"] = &vk_f7;
+    constants["vk_f8"] = &vk_f8;
+    constants["vk_f9"] = &vk_f9;
+    constants["vk_f10"] = &vk_f10;
+    constants["vk_f11"] = &vk_f11;
+    constants["vk_f12"] = &vk_f12;
+    constants["vk_lbutton"] = &vk_lbutton;
+    constants["vk_rbutton"] = &vk_rbutton;
+    constants["vk_mbutton"] = &vk_mbutton;
+    constants["vk_w"] = &vk_w;
+    constants["vk_a"] = &vk_a;
+    constants["vk_s"] = &vk_s;
+    constants["vk_d"] = &vk_d;
+    constants["vk_q"] = &vk_q;
+    constants["vk_e"] = &vk_e;
+    constants["vk_c"] = &vk_c;
+    constants["vk_r"] = &vk_r;
+    constants["vk_z"] = &vk_z;
+    constants["vk_x"] = &vk_x;
+    constants["vk_v"] = &vk_v;
+    
+    // OpenGL constants
+    constants["gl_modelview"] = &gl_modelview;
+    constants["gl_projection"] = &gl_projection;
+    constants["gl_texture"] = &gl_texture;
+    constants["gl_depth_test"] = &gl_depth_test;
+    constants["gl_blend"] = &gl_blend;
+    constants["gl_alpha_test"] = &gl_alpha_test;
+    constants["gl_cull_face"] = &gl_cull_face;
+    constants["gl_lighting"] = &gl_lighting;
+    constants["gl_fog"] = &gl_fog;
+    constants["gl_texture_2d"] = &gl_texture_2d;
+    constants["gl_front"] = &gl_front;
+    constants["gl_back"] = &gl_back;
+    constants["gl_front_and_back"] = &gl_front_and_back;
+    constants["gl_src_alpha"] = &gl_src_alpha;
+    constants["gl_one_minus_src_alpha"] = &gl_one_minus_src_alpha;
+    constants["gl_one"] = &gl_one;
+    constants["gl_zero"] = &gl_zero;
+    constants["gl_lines"] = &gl_lines;
+    constants["gl_line_strip"] = &gl_line_strip;
+    constants["gl_line_loop"] = &gl_line_loop;
+    constants["gl_triangles"] = &gl_triangles;
+    constants["gl_triangle_strip"] = &gl_triangle_strip;
+    constants["gl_triangle_fan"] = &gl_triangle_fan;
+    constants["gl_quads"] = &gl_quads;
+    constants["gl_points"] = &gl_points;
+    constants["gl_polygon"] = &gl_polygon;
+    constants["gl_line"] = &gl_line;
+    constants["gl_fill"] = &gl_fill;
+    constants["gl_all_attrib_bits"] = &gl_all_attrib_bits;
+}
+
+} // namespace sdk::scripting::bindings::constants

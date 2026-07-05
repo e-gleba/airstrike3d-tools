@@ -1,9 +1,9 @@
 /// @file bindings/constants.hpp
-/// @brief Pure C++ constant accessors for Lua binding (no sol2 types).
+/// @brief Game and OpenGL constants for scripting — no backend types.
 
 #pragma once
 
-namespace sdk::lua::bindings::constants
+namespace sdk::scripting::bindings::constants
 {
 
 // ── Virtual keys ─────────────────────────────────────────────────────────────
@@ -108,4 +108,4 @@ namespace sdk::lua::bindings::constants
 // State masks (for glPushAttrib / glPopAttrib)
 [[nodiscard]] int gl_all_attrib_bits() noexcept;
 
-} // namespace sdk::lua::bindings::constants
+} // namespace sdk::scripting::bindings::constants

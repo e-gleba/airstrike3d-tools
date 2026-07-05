@@ -1,3 +1,6 @@
+// src/proxy/sdk/overlay/overlay_imgui.cpp
+// Overlay implementation using ImGui backend.
+
 #include "overlay.hpp"
 #include "sdk/core/context.hpp"
 #include "sdk/core/logging.hpp"
