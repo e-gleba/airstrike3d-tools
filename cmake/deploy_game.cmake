@@ -18,7 +18,7 @@
 # When AS3D_ENABLE_TESTS is ON and PROJECT_IS_TOP_LEVEL, registers CTest
 # emulator tests (deploy / proton / launch tiers) for this version.
 #
-# Requires: cmake_minimum_required(VERSION 3.31...3.31) in root project.
+# Requires the root project to define AS3D_PROJECT_ROOT.
 
 include_guard(GLOBAL)
 
@@ -38,12 +38,12 @@ function(add_game_deployment)
             )
     endif()
 
-    set(version ${arg_VERSION})
-    set(game_exe ${arg_GAME_EXE_NAME})
-    set(src_dir ${arg_SOURCE_DIR})
-    set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR})
-    set(project_scripts_dir ${CMAKE_SOURCE_DIR}/scripts)
-    set(shared_lua_dir ${CMAKE_SOURCE_DIR}/lua)
+    set(version "${arg_VERSION}")
+    set(game_exe "${arg_GAME_EXE_NAME}")
+    set(src_dir "${arg_SOURCE_DIR}")
+    set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
+    set(project_scripts_dir "${AS3D_PROJECT_ROOT}/scripts")
+    set(shared_lua_dir "${AS3D_PROJECT_ROOT}/lua")
     set(version_config_in "${src_dir}/config.ini.in")
 
     if(NOT EXISTS "${version_config_in}")
@@ -71,12 +71,6 @@ function(add_game_deployment)
         ".bass_stamp"
         OUTPUT_VARIABLE
         bass_stamp)
-    cmake_path(
-        APPEND
-        deploy_dir
-        ".config_stamp"
-        OUTPUT_VARIABLE
-        config_stamp)
 
     # ─── Deploy script via file(CONFIGURE) ───────────────────────────────────
 
@@ -134,24 +128,15 @@ execute_process(
             CODEGEN
         VERBATIM)
 
-    # ─── Config.ini generation (per-version template) ────────────────────────
-
     configure_file(
         "${version_config_in}"
         "${deploy_dir}/config.ini"
         @ONLY)
 
-    add_custom_command(
-        OUTPUT "${config_stamp}"
-        COMMENT "generating config.ini for ${version}"
-        COMMAND "${CMAKE_COMMAND}" -E touch "${config_stamp}"
-        DEPENDS "${deploy_dir}/config.ini" "${version_config_in}" CODEGEN
-        VERBATIM)
-
     # ─── Proxy DLL ───────────────────────────────────────────────────────────
 
     if(USE_BASS_PROXY_LIB)
-        include("${CMAKE_SOURCE_DIR}/cmake/proxy_utils.cmake")
+        include("${AS3D_PROJECT_ROOT}/cmake/proxy_utils.cmake")
         add_bass_proxy(
             VERSION
             "${version}"
@@ -191,13 +176,13 @@ execute_process(
 
     add_custom_target(
         deploy_game_${version} ALL
-        DEPENDS "${deploy_stamp}" "${bass_stamp}" "${config_stamp}"
+        DEPENDS "${deploy_stamp}" "${bass_stamp}" "${deploy_dir}/config.ini"
         COMMENT "all runtime dependencies deployed for ${version}")
 
     # ─── Proton runner ───────────────────────────────────────────────────────
 
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/run_with_proton.sh.in"
+        "${AS3D_PROJECT_ROOT}/cmake/run_with_proton.sh.in"
         "${deploy_dir}/run_game.sh"
         @ONLY
         FILE_PERMISSIONS
@@ -233,15 +218,13 @@ execute_process(
 
     install(DIRECTORY "${deploy_dir}/data/" DESTINATION "${install_dest}/data")
 
-    if(EXISTS "${deploy_dir}/plugins")
-        install(DIRECTORY "${deploy_dir}/plugins/"
-                DESTINATION "${install_dest}/plugins")
-    endif()
+    install(DIRECTORY "${deploy_dir}/plugins/"
+            DESTINATION "${install_dest}/plugins"
+            OPTIONAL)
 
-    if(EXISTS "${deploy_dir}/scripts")
-        install(DIRECTORY "${deploy_dir}/scripts/"
-                DESTINATION "${install_dest}/scripts")
-    endif()
+    install(DIRECTORY "${deploy_dir}/scripts/"
+            DESTINATION "${install_dest}/scripts"
+            OPTIONAL)
 
     # ─── CTest emulator tests ────────────────────────────────────────────────
     # Registered here (not in root CMakeLists.txt) because deploy_dir is
@@ -249,7 +232,7 @@ execute_process(
     # so subdirectory consumers don't inherit our tests.
 
     if(AS3D_ENABLE_TESTS AND PROJECT_IS_TOP_LEVEL)
-        include("${CMAKE_SOURCE_DIR}/cmake/proton_testing.cmake")
+        include("${AS3D_PROJECT_ROOT}/cmake/proton_testing.cmake")
         add_proton_emulator_tests(
             VERSION "${version}"
             GAME_EXE_NAME "${game_exe}"

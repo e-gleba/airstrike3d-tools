@@ -1,12 +1,11 @@
 add_executable(proxy_rendering_tests
                rendering_tests.cpp
-               "${CMAKE_SOURCE_DIR}/src/proxy/sdk/graphics/rendering.cpp"
-               "${CMAKE_SOURCE_DIR}/src/proxy/sdk/graphics/detail/camera_math.cpp")
+               "${AS3D_PROJECT_ROOT}/src/proxy/sdk/graphics/rendering.cpp"
+               "${AS3D_PROJECT_ROOT}/src/proxy/sdk/graphics/detail/camera_math.cpp")
 
 target_include_directories(proxy_rendering_tests
-                           PRIVATE "${CMAKE_SOURCE_DIR}/src/proxy")
-target_compile_features(proxy_rendering_tests PRIVATE cxx_std_23)
-target_link_libraries(proxy_rendering_tests PRIVATE warnings)
+                           PRIVATE "${AS3D_PROJECT_ROOT}/src/proxy")
+target_link_libraries(proxy_rendering_tests PRIVATE as3d_build_options warnings)
 target_link_options(
     proxy_rendering_tests
     PRIVATE $<$<CXX_COMPILER_ID:Clang>:-static>)
@@ -15,10 +14,11 @@ set_target_properties(
     proxy_rendering_tests
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
                RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_BINARY_DIR}"
-               RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}")
+               RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}"
+               CXX_EXTENSIONS OFF)
 
 set(game_exe "proxy_rendering_tests.exe")
-configure_file("${CMAKE_SOURCE_DIR}/cmake/run_with_proton.sh.in"
+configure_file("${AS3D_PROJECT_ROOT}/cmake/run_with_proton.sh.in"
                "${CMAKE_CURRENT_BINARY_DIR}/run_tests.sh"
                @ONLY
                FILE_PERMISSIONS

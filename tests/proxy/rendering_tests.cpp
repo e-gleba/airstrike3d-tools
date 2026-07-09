@@ -9,9 +9,11 @@
 namespace
 {
 
+inline constexpr double k_comparison_epsilon = 0.000'001;
+
 [[nodiscard]] bool near(double lhs, double rhs) noexcept
 {
-    return std::abs(lhs - rhs) < 0.000'001;
+    return std::abs(lhs - rhs) < k_comparison_epsilon;
 }
 
 } // namespace
@@ -37,7 +39,7 @@ int main()
 
     set_camera_enabled(true);
     set_camera_pose({
-        .position      = { 1.0, 2.0, 3.0 },
+        .position      = { .x = 1.0, .y = 2.0, .z = 3.0 },
         .yaw_degrees   = 45.0,
         .pitch_degrees = 120.0,
     });
@@ -51,14 +53,15 @@ int main()
     try
     {
         set_camera_pose({
-            .position      = { std::nan(""), 0.0, 0.0 },
+            .position      = { .x = std::nan(""), .y = 0.0, .z = 0.0 },
             .yaw_degrees   = 0.0,
             .pitch_degrees = 0.0,
         });
         return EXIT_FAILURE;
     }
-    catch (const std::invalid_argument&)
+    catch (const std::invalid_argument& error)
     {
+        static_cast<void>(error);
     }
 
     constexpr auto lines = std::array{
@@ -83,8 +86,9 @@ int main()
         set_world_lines(std::span{ lines }.first(1));
         return EXIT_FAILURE;
     }
-    catch (const std::invalid_argument&)
+    catch (const std::invalid_argument& error)
     {
+        static_cast<void>(error);
     }
 
     set_visual_settings({
@@ -98,15 +102,15 @@ int main()
     }
 
     const camera_pose source{
-        .position      = { 12.0, 34.0, -56.0 },
+        .position      = { .x = 12.0, .y = 34.0, .z = -56.0 },
         .yaw_degrees   = -90.0,
         .pitch_degrees = 20.0,
     };
     const auto view           = detail::make_right_handed_view(source);
     const auto forward        = detail::basis_from_pose(source).forward;
-    const auto view_forward_z = static_cast<double>(view[2]) * forward.x +
-                                static_cast<double>(view[6]) * forward.y +
-                                static_cast<double>(view[10]) * forward.z;
+    const auto view_forward_z = (static_cast<double>(view[2]) * forward.x) +
+                                (static_cast<double>(view[6]) * forward.y) +
+                                (static_cast<double>(view[10]) * forward.z);
     if (!near(view_forward_z, -1.0))
     {
         return EXIT_FAILURE;
