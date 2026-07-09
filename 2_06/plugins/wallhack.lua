@@ -260,33 +260,16 @@ sdk.on_key_down(function(vk)
     return false
 end)
 
-sdk.on_gl_identity(function()
+sdk.on_frame(function()
     if not cfg.enabled then
+        sdk.set_visual_mode(0, 1.0, 0.0, 0xFFFFFFFF)
         return
     end
-    
-    local ok, err = TOOLS_UI.safe_call(function()
-        gl_push_attrib(GL_ALL_ATTRIB_BITS)
-        
-        local applicator = mode_applicators[cfg.mode]
-        if applicator then
-            applicator()
-        else
-            log_warn(format("Invalid mode %d, falling back to mode 1", cfg.mode))
-            cfg.mode = 1
-            mode_applicators[1]()
-        end
-    end)
-    
-    if not ok then
-        log_warn(format("Failed to apply wallhack mode: %s", tostring(err)))
-    end
-end)
-
-sdk.on_frame(function()
-    if cfg.enabled then
-        restore_state()
-    end
+    local color = math.floor(cfg.wire_color[4] * 255) * 0x1000000
+        + math.floor(cfg.wire_color[1] * 255) * 0x10000
+        + math.floor(cfg.wire_color[2] * 255) * 0x100
+        + math.floor(cfg.wire_color[3] * 255)
+    sdk.set_visual_mode(cfg.mode, cfg.xray_alpha, cfg.bias_amount, color)
 end)
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
@@ -397,6 +380,7 @@ sdk.on_load(function()
 end)
 
 sdk.on_unload(function()
+    sdk.set_visual_mode(0, 1.0, 0.0, 0xFFFFFFFF)
     -- Reset state
     state.mode_changed = false
     state.last_mode = 1

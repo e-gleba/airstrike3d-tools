@@ -8,22 +8,33 @@
 # Dependencies (via CPM): warnings, imgui_opengl3, dwmapi, glm, glu32,
 # opengl32, safetyhook, spdlog, lua, LuaBridge3.
 
-file(
-    GLOB_RECURSE
-    sdk_sources
-    CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/*.cpp")
+set(sdk_sources
+    dll_main.cpp
+    sdk/core/hooks.cpp
+    sdk/core/detail/logging_spdlog.cpp
+    sdk/graphics/rendering.cpp
+    sdk/graphics/detail/d3d8_hooks.cpp
+    sdk/graphics/detail/gl_hooks_opengl.cpp
+    sdk/graphics/detail/graphics_opengl.cpp
+    sdk/math/detail/math_glm.cpp
+    sdk/overlay/detail/overlay_imgui.cpp
+    sdk/platform/detail/platform_win32.cpp
+    sdk/scripting/detail/engine_lua.cpp
+    sdk/ui/detail/ui_imgui.cpp)
+
+add_library(
+    imgui_d3d8_as3d STATIC
+    sdk/overlay/detail/imgui_impl_d3d8_as3d.cpp)
+target_include_directories(imgui_d3d8_as3d PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+target_compile_features(imgui_d3d8_as3d PUBLIC cxx_std_23)
+target_compile_definitions(imgui_d3d8_as3d PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(imgui_d3d8_as3d PUBLIC imgui::imgui d3d8)
 
 add_library(bass_proxy_sdk STATIC ${sdk_sources})
 
 target_include_directories(bass_proxy_sdk PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
 
-# target_compile_features does not support generator expressions.
-# Use compiler-specific flags instead: /std:c++latest for MSVC,
-# -std=c++26 for Clang/GCC.
-target_compile_options(
-    bass_proxy_sdk PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>
-                           $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-std=c++26>)
+target_compile_features(bass_proxy_sdk PUBLIC cxx_std_23)
 
 set_target_properties(
     bass_proxy_sdk
@@ -44,7 +55,10 @@ target_compile_definitions(
 target_link_libraries(
     bass_proxy_sdk
     PRIVATE warnings
+            imgui_win32
             imgui_opengl3
+            imgui_d3d8_as3d
+            d3d8
             dwmapi
             glm
             glu32

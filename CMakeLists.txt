@@ -61,6 +61,7 @@ endif()
 # does nothing and CTest reports "No tests were found!!!".
 if(PROJECT_IS_TOP_LEVEL AND AS3D_ENABLE_TESTS)
     include(CTest)
+    add_subdirectory(tests/proxy)
 endif()
 
 add_subdirectory(external SYSTEM)

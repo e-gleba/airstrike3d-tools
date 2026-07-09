@@ -7,4 +7,5 @@
 #include "sdk/core/hooks.hpp"
 #include "sdk/core/logging.hpp"
 #include "sdk/core/types.hpp"
+#include "sdk/graphics/rendering.hpp"
 #include "sdk/scripting/scripting.hpp"

@@ -124,16 +124,10 @@ local function calc_vectors()
     return fx, fy, fz, rx, ry, rz, ux, uy, uz
 end
 
----Apply camera transform via gl_apply_lookat
+---Publish the camera pose through the renderer-neutral SDK.
 local function apply_camera()
-    local fx, fy, fz, _, _, _, ux, uy, uz = calc_vectors()
-    
     local ok, err = TOOLS_UI.safe_call(function()
-        sdk.gl_apply_lookat(
-            cam.pos_x, cam.pos_y, cam.pos_z,
-            cam.pos_x + fx, cam.pos_y + fy, cam.pos_z + fz,
-            ux, uy, uz
-        )
+        sdk.camera_set_pose(cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch)
     end)
     
     if not ok then
@@ -190,6 +184,7 @@ end
 -- ── Frame Update ────────────────────────────────────────────────────────────
 
 sdk.on_frame(function()
+    sdk.camera_enable(cam.enabled)
     if not cam.enabled then
         if cam.mouse_look then
             disable_mouse_look()
@@ -243,22 +238,7 @@ sdk.on_frame(function()
             end
         end
     end
-end)
-
--- ── OpenGL Hooks ────────────────────────────────────────────────────────────
-
-sdk.on_gl_identity(function()
-    if cam.enabled and cam.hook_identity then
-        apply_camera()
-    end
-end)
-
-sdk.on_glu_lookat(function(...)
-    if not cam.enabled then
-        return false
-    end
     apply_camera()
-    return true -- consumed: skip original gluLookAt
 end)
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
@@ -357,6 +337,7 @@ sdk.on_load(function()
 end)
 
 sdk.on_unload(function()
+    sdk.camera_enable(false)
     if cam.mouse_look then
         disable_mouse_look()
     end

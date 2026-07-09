@@ -42,6 +42,7 @@ function(add_game_deployment)
     set(src_dir ${arg_SOURCE_DIR})
     set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR})
     set(project_scripts_dir ${CMAKE_SOURCE_DIR}/scripts)
+    set(shared_plugins_dir ${CMAKE_SOURCE_DIR}/2_06/plugins)
 
     cmake_path(
         APPEND
@@ -80,9 +81,14 @@ execute_process(
     COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/data"
     COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/data" "@deploy_dir@/data"
 )
-if(EXISTS "@src_dir@/plugins")
+if(EXISTS "@shared_plugins_dir@")
     execute_process(
         COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
+        COMMAND "@CMAKE_COMMAND@" -E copy_directory "@shared_plugins_dir@" "@deploy_dir@/plugins"
+    )
+endif()
+if(EXISTS "@src_dir@/plugins" AND NOT "@src_dir@/plugins" STREQUAL "@shared_plugins_dir@")
+    execute_process(
         COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/plugins" "@deploy_dir@/plugins"
     )
 endif()

@@ -154,102 +154,57 @@ local function validate_config()
     return true
 end
 
--- ── GL State Management ─────────────────────────────────────────────────────
+-- ── Renderer-neutral drawing ────────────────────────────────────────────────
 
----Push GL state for line rendering
-local function push_line_state()
-    local ok, err = TOOLS_UI.safe_call(function()
-        gl_push_attrib(GL_ALL_ATTRIB_BITS)
-        gl_push_matrix()
-        gl_disable(GL_DEPTH_TEST)
-        gl_disable(GL_TEXTURE_2D)
-        gl_disable(GL_LIGHTING)
-        gl_enable(GL_BLEND)
-        gl_blend_func(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    end)
-    
-    if not ok then
-        log_warn(format("Failed to push GL state: %s", tostring(err)))
-        return false
-    end
-    
-    return true
+local function argb(r, g, b, a)
+    return math.floor(a * 255) * 0x1000000
+        + math.floor(r * 255) * 0x10000
+        + math.floor(g * 255) * 0x100
+        + math.floor(b * 255)
 end
 
----Pop GL state after rendering
-local function pop_line_state()
-    local ok, err = TOOLS_UI.safe_call(function()
-        gl_pop_matrix()
-        gl_pop_attrib()
-    end)
-    
-    if not ok then
-        log_warn(format("Failed to pop GL state: %s", tostring(err)))
-    end
+local function append_line(vertices, ax, ay, az, bx, by, bz, color)
+    vertices[#vertices + 1] = ax
+    vertices[#vertices + 1] = ay
+    vertices[#vertices + 1] = az
+    vertices[#vertices + 1] = color
+    vertices[#vertices + 1] = bx
+    vertices[#vertices + 1] = by
+    vertices[#vertices + 1] = bz
+    vertices[#vertices + 1] = color
 end
 
--- ── Drawing ─────────────────────────────────────────────────────────────────
+local function publish_grid()
+    if not cfg.enabled then
+        sdk.clear_world_lines()
+        return
+    end
 
----Draw reference grid
-local function draw_grid()
+    local vertices = {}
     local half = cfg.grid_size * 0.5
-    local step = cfg.grid_step
-    local y = cfg.grid_y
-    local gc = cfg.grid_color
-    
-    local ok, err = TOOLS_UI.safe_call(function()
-        gl_line_width(1.0)
-        gl_color4f(gc[1], gc[2], gc[3], gc[4])
-        gl_begin(GL_LINES)
-        
-        local line_count = 0
-        
-        -- Lines along X axis
-        for x = -half, half, step do
-            gl_vertex3f(x, y, -half)
-            gl_vertex3f(x, y, half)
-            line_count = line_count + 1
-        end
-        
-        -- Lines along Z axis
-        for z = -half, half, step do
-            gl_vertex3f(-half, y, z)
-            gl_vertex3f(half, y, z)
-            line_count = line_count + 1
-        end
-        
-        gl_end()
-        
-        state.grid_lines = line_count
-        state.vertex_count = line_count * 2
-    end)
-    
-    if not ok then
-        log_warn(format("Failed to draw grid: %s", tostring(err)))
+    local color = argb(cfg.grid_color[1], cfg.grid_color[2],
+        cfg.grid_color[3], cfg.grid_color[4])
+    local count = 0
+    for x = -half, half, cfg.grid_step do
+        append_line(vertices, x, cfg.grid_y, -half, x, cfg.grid_y, half, color)
+        count = count + 1
     end
-end
-
----Draw world axes
-local function draw_axes()
-    local len = cfg.axes_len
-    local y = cfg.grid_y
-    
-    local ok, err = TOOLS_UI.safe_call(function()
-        gl_line_width(3.0)
-        gl_begin(GL_LINES)
-        
-        for _, ax in ipairs(AXIS_DEFS) do
-            gl_color4f(ax.r, ax.g, ax.b, ax.a)
-            gl_vertex3f(0, y, 0)
-            gl_vertex3f(ax.dx * len, y + ax.dy * len, ax.dz * len)
-        end
-        
-        gl_end()
-    end)
-    
-    if not ok then
-        log_warn(format("Failed to draw axes: %s", tostring(err)))
+    for z = -half, half, cfg.grid_step do
+        append_line(vertices, -half, cfg.grid_y, z, half, cfg.grid_y, z, color)
+        count = count + 1
     end
+    if cfg.axes then
+        for _, axis in ipairs(AXIS_DEFS) do
+            append_line(vertices, 0, cfg.grid_y, 0,
+                axis.dx * cfg.axes_len,
+                cfg.grid_y + axis.dy * cfg.axes_len,
+                axis.dz * cfg.axes_len,
+                argb(axis.r, axis.g, axis.b, axis.a))
+        end
+    end
+    state.grid_lines = count
+    state.vertex_count = #vertices / 4
+    sdk.set_world_lines(vertices)
 end
 
 -- ── Hooks ───────────────────────────────────────────────────────────────────
@@ -264,23 +219,7 @@ sdk.on_key_down(function(vk)
     return false
 end)
 
-sdk.on_gl_identity(function()
-    if not cfg.enabled then
-        return
-    end
-    
-    if not push_line_state() then
-        return
-    end
-    
-    draw_grid()
-    
-    if cfg.axes then
-        draw_axes()
-    end
-    
-    pop_line_state()
-end)
+sdk.on_frame(publish_grid)
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
 
@@ -370,6 +309,7 @@ sdk.on_load(function()
 end)
 
 sdk.on_unload(function()
+    sdk.clear_world_lines()
     -- Reset state
     state.vertex_count = 0
     state.grid_lines = 0
