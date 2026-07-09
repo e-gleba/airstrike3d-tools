@@ -133,5 +133,15 @@ int main()
         return EXIT_FAILURE;
     }
 
+    set_camera_enabled(false);
+    set_camera_enabled(true);
+    const auto adopted = get_camera_pose();
+    if (!near(adopted.position.x, source.position.x) ||
+        !near(adopted.position.y, source.position.y) ||
+        !near(adopted.position.z, source.position.z))
+    {
+        return EXIT_FAILURE;
+    }
+
     return EXIT_SUCCESS;
 }

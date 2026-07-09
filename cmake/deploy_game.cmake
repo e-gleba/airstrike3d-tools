@@ -105,12 +105,24 @@ execute_process(
 ]=]
         @ONLY)
 
+    file(GLOB_RECURSE shared_plugin_files CONFIGURE_DEPENDS
+         "${shared_plugins_dir}/*")
+    file(GLOB_RECURSE version_plugin_files CONFIGURE_DEPENDS
+         "${src_dir}/plugins/*")
+    file(GLOB_RECURSE project_script_files CONFIGURE_DEPENDS
+         "${project_scripts_dir}/*")
+
     add_custom_command(
         OUTPUT "${deploy_stamp}"
         COMMENT "deploying runtime deps => ${deploy_dir}"
         COMMAND "${CMAKE_COMMAND}" -P "${deploy_script}"
         COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
-        DEPENDS "${src_dir}/${game_exe}" CODEGEN
+        DEPENDS
+            "${src_dir}/${game_exe}"
+            ${shared_plugin_files}
+            ${version_plugin_files}
+            ${project_script_files}
+            CODEGEN
         VERBATIM)
 
     # ─── Config.ini generation ───────────────────────────────────────────────

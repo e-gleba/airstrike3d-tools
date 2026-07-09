@@ -21,18 +21,33 @@ inline constexpr std::size_t k_maximum_line_vertices = 200'000;
 inline constexpr double      k_minimum_pitch         = -89.0;
 inline constexpr double      k_maximum_pitch         = 89.0;
 
-std::atomic<render_api>    g_backend{ render_api::unknown };
-std::atomic<bool>          g_camera_enabled{ false };
-std::mutex                 g_camera_mutex;
-camera_pose                g_camera_pose;
-camera_pose                g_observed_camera;
-bool                       g_has_observed_camera{};
-std::mutex                 g_visual_mutex;
-visual_settings            g_visual_settings;
-std::atomic<std::uint64_t> g_line_generation{};
+std::atomic<render_api> g_backend{ render_api::unknown };
+std::atomic<bool>       g_camera_enabled{ false };
+std::mutex              g_camera_mutex;
+camera_pose             g_camera_pose{
+                .position      = { 0.0, 10.0, 0.0 },
+                .yaw_degrees   = -90.0,
+                .pitch_degrees = 0.0,
+};
+camera_pose                                     g_observed_camera;
+bool                                            g_has_observed_camera{};
+bool                                            g_adopted_live_camera{};
+std::mutex                                      g_visual_mutex;
+visual_settings                                 g_visual_settings;
+std::atomic<std::uint64_t>                      g_line_generation{};
 std::shared_ptr<const detail::world_line_batch> g_world_lines{
     std::make_shared<const detail::world_line_batch>()
 };
+
+void adopt_live_camera_locked() noexcept
+{
+    if (!g_has_observed_camera || g_adopted_live_camera)
+    {
+        return;
+    }
+    g_camera_pose         = g_observed_camera;
+    g_adopted_live_camera = true;
+}
 
 [[nodiscard]] camera_pose sanitize_pose(camera_pose pose)
 {
@@ -84,7 +99,18 @@ bool supports(capability value) noexcept
 
 void set_camera_enabled(bool enabled) noexcept
 {
-    g_camera_enabled.store(enabled, std::memory_order::release);
+    const auto was_enabled =
+        g_camera_enabled.exchange(enabled, std::memory_order::acq_rel);
+    std::lock_guard lock{ g_camera_mutex };
+    if (!enabled)
+    {
+        g_adopted_live_camera = false;
+        return;
+    }
+    if (!was_enabled)
+    {
+        adopt_live_camera_locked();
+    }
 }
 
 bool camera_enabled() noexcept
@@ -208,6 +234,12 @@ void observe_camera(camera_pose pose)
     std::lock_guard lock{ g_camera_mutex };
     g_observed_camera     = pose;
     g_has_observed_camera = true;
+    // If freecam is already on, snap once to the live game camera so D3D8
+    // does not keep the plugin default (0,10,0) after the first view lands.
+    if (g_camera_enabled.load(std::memory_order::acquire))
+    {
+        adopt_live_camera_locked();
+    }
 }
 
 auto world_lines_snapshot() noexcept -> std::shared_ptr<const world_line_batch>

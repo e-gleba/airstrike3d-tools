@@ -39,6 +39,37 @@ inline void call_if_hooked(Hook& hook, Args&&... args)
 
 bool g_scene_state_pushed{};
 bool g_world_lines_drawn{};
+bool g_internal_gl{};
+
+class internal_gl_scope final
+{
+public:
+    internal_gl_scope() noexcept
+        : previous_{ std::exchange(g_internal_gl, true) }
+    {
+    }
+
+    ~internal_gl_scope() { g_internal_gl = previous_; }
+
+    internal_gl_scope(const internal_gl_scope&)            = delete;
+    internal_gl_scope& operator=(const internal_gl_scope&) = delete;
+
+private:
+    bool previous_;
+};
+
+void reset_modelview()
+{
+    if (const auto load_identity =
+            call_orig<gl_load_identity_fn>(g_hooks.gl_load_identity))
+    {
+        load_identity();
+        return;
+    }
+
+    internal_gl_scope scope;
+    glLoadIdentity();
+}
 
 void apply_camera()
 {
@@ -49,17 +80,11 @@ void apply_camera()
 
     try
     {
-        // gluLookAt multiplies; reset modelview so identity and look-at
-        // hooks both replace the view instead of stacking it.
-        if (const auto load_identity =
-                call_orig<gl_load_identity_fn>(g_hooks.gl_load_identity))
-        {
-            load_identity();
-        }
+        // Replace modelview. gluLookAt multiplies, so reset first.
+        reset_modelview();
 
         const auto pose    = graphics::get_camera_pose();
         const auto forward = graphics::detail::basis_from_pose(pose).forward;
-
         graphics::apply_lookat(pose.position.x,
                                pose.position.y,
                                pose.position.z,
@@ -132,11 +157,11 @@ void draw_world_lines()
     glDisable(GL_LIGHTING);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBegin(GL_LINES);
     if (!batch->settings.depth_test)
     {
         glDisable(GL_DEPTH_TEST);
     }
+    glBegin(GL_LINES);
     for (const auto& vertex : batch->vertices)
     {
         const auto color = vertex.argb;
@@ -167,6 +192,11 @@ void APIENTRY hk_gl_load_identity()
 {
     detail::call_if_hooked<detail::gl_load_identity_fn>(
         detail::g_hooks.gl_load_identity);
+
+    if (detail::g_internal_gl)
+    {
+        return;
+    }
 
     if (g_ctx.current_matrix_mode.load() ==
         static_cast<matrix_mode>(GL_MODELVIEW))
