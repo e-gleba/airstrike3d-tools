@@ -50,12 +50,18 @@ else()
         )
 endif()
 
-# Windows + OpenGL backend for the BASS proxy overlay.
-add_library(imgui_opengl3 STATIC)
+# Shared Win32 platform backend.
+add_library(imgui_win32 STATIC)
+target_sources(imgui_win32 PRIVATE
+               ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
+target_include_directories(
+    imgui_win32 SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)
+target_link_libraries(imgui_win32 PUBLIC imgui::imgui)
 
+# OpenGL renderer backend.
+add_library(imgui_opengl3 STATIC)
 target_sources(
-    imgui_opengl3 PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
-                          ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
+    imgui_opengl3 PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
 
 target_include_directories(
     imgui_opengl3 SYSTEM PUBLIC $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>)

@@ -7,9 +7,9 @@ project(
     HOMEPAGE_URL "https://github.com/e-gleba/airstrike3d-tools"
     LANGUAGES C CXX)
 
-include(CMakePrintHelpers)
-
-set(CMAKE_UNITY_BUILD ON)
+# Keep project-owned paths stable when this repository is consumed through
+# add_subdirectory(). CMAKE_SOURCE_DIR refers to the embedding project there.
+set(AS3D_PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 option(AS3D_ENABLE_TESTS "Build and register CTest emulator tests" ON)
@@ -17,34 +17,23 @@ set(AS3D_EMULATOR_TEST_TIMEOUT
     "5"
     CACHE STRING "Timeout (seconds) for emulator smoke-launch tests")
 
-# CMAKE_CURRENT_LIST_DIR is used instead of CMAKE_SOURCE_DIR so that this
-# file works correctly if the project is ever consumed as a subdirectory of a
-# larger build.  Ref: Professional CMake §8.3 "Project-relative Variables"
 list(
     APPEND
     CMAKE_PREFIX_PATH
-    ${CMAKE_CURRENT_LIST_DIR}/cmake
-    ${CMAKE_CURRENT_LIST_DIR}/cmake/code_quality)
+    "${AS3D_PROJECT_ROOT}/cmake"
+    "${AS3D_PROJECT_ROOT}/cmake/code_quality")
 
-# When cross-compiling, CMAKE_FIND_ROOT_PATH_MODE_PACKAGE is typically set to
-# ONLY in the toolchain file. That restricts find_package() to searching only
-# under CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT — our local cmake/ dirs
-# wouldn't be found. Adding them to CMAKE_FIND_ROOT_PATH fixes this.
 if(CMAKE_CROSSCOMPILING)
     list(
         APPEND
         CMAKE_FIND_ROOT_PATH
-        ${CMAKE_CURRENT_LIST_DIR}/cmake
-        ${CMAKE_CURRENT_LIST_DIR}/cmake/code_quality)
+        "${AS3D_PROJECT_ROOT}/cmake"
+        "${AS3D_PROJECT_ROOT}/cmake/code_quality")
 endif()
 
-cmake_print_variables(
-    CMAKE_PREFIX_PATH
-    CMAKE_FIND_ROOT_PATH
-    CMAKE_CROSSCOMPILING
-    CMAKE_SYSTEM_NAME
-    CMAKE_CXX_COMPILER_ID
-    CMAKE_CXX_COMPILER_VERSION)
+add_library(as3d_build_options INTERFACE)
+target_compile_features(as3d_build_options INTERFACE cxx_std_23)
+set_target_properties(as3d_build_options PROPERTIES INTERFACE_CXX_EXTENSIONS OFF)
 
 find_package(warnings CONFIG REQUIRED)
 
@@ -61,6 +50,7 @@ endif()
 # does nothing and CTest reports "No tests were found!!!".
 if(PROJECT_IS_TOP_LEVEL AND AS3D_ENABLE_TESTS)
     include(CTest)
+    add_subdirectory(tests/proxy)
 endif()
 
 add_subdirectory(external SYSTEM)

@@ -3,11 +3,11 @@
 #include "sdk/core/context.hpp"
 #include "sdk/core/detail/context_state.hpp"
 #include "sdk/core/logging.hpp"
+#include "sdk/overlay/detail/imgui_impl_d3d8_as3d.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_win32.h>
-#include <mutex>
 #include <windows.h>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,
@@ -21,21 +21,39 @@ namespace sdk::overlay
 namespace
 {
 
+enum class renderer : std::uint8_t
+{
+    none,
+    opengl,
+    direct3d8
+};
+
+renderer g_renderer{ renderer::none };
+
 LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l);
 
-void init_imgui(HDC dc)
+[[nodiscard]] bool init_common(HWND window)
 {
-    detail::g_state.window = WindowFromDC(dc);
-    if (detail::g_state.window == nullptr)
+    if (g_ctx.imgui_initialized.load(std::memory_order::acquire))
     {
-        return;
+        return true;
     }
 
-    detail::g_state.original_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
-        detail::g_state.window,
-        GWLP_WNDPROC,
-        reinterpret_cast<LONG_PTR>(hk_wnd_proc)));
+    sdk::detail::g_state.window = window;
+    if (window == nullptr)
+    {
+        return false;
+    }
 
+    sdk::detail::g_state.original_wnd_proc =
+        reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+            window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(hk_wnd_proc)));
+    if (sdk::detail::g_state.original_wnd_proc == nullptr)
+    {
+        return false;
+    }
+
+    IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
     auto& io{ ImGui::GetIO() };
@@ -45,11 +63,14 @@ void init_imgui(HDC dc)
     ImGui::StyleColorsDark();
     io.FontAllowUserScaling = true;
 
-    ImGui_ImplWin32_Init(detail::g_state.window);
-    ImGui_ImplOpenGL3_Init(std::string{ k_glsl_version }.c_str());
+    if (!ImGui_ImplWin32_Init(window))
+    {
+        ImGui::DestroyContext();
+        return false;
+    }
 
-    g_ctx.imgui_initialized.store(true);
-    sdk::log_info("overlay initialized (ImGui backend)");
+    g_ctx.imgui_initialized.store(true, std::memory_order_release);
+    return true;
 }
 
 LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
@@ -73,45 +94,122 @@ LRESULT CALLBACK hk_wnd_proc(HWND h, UINT m, WPARAM w, LPARAM l)
         return 1;
     }
 
-    return CallWindowProc(detail::g_state.original_wnd_proc, h, m, w, l);
+    return CallWindowProc(sdk::detail::g_state.original_wnd_proc, h, m, w, l);
 }
 
 } // namespace
 
-void init(std::uintptr_t native_device_context)
+void init_opengl(std::uintptr_t native_device_context)
 {
-    static std::once_flag flag;
-    const auto dc = reinterpret_cast<HDC>(native_device_context);
-
-    if (wglGetCurrentContext() == nullptr)
+    if (g_renderer != renderer::none)
     {
         return;
     }
 
-    std::call_once(flag, init_imgui, dc);
+    const auto dc = reinterpret_cast<HDC>(native_device_context);
+
+    if (wglGetCurrentContext() == nullptr || !init_common(WindowFromDC(dc)))
+    {
+        return;
+    }
+
+    if (!ImGui_ImplOpenGL3_Init(std::string{ k_glsl_version }.c_str()))
+    {
+        shutdown();
+        return;
+    }
+
+    g_renderer = renderer::opengl;
+    g_ctx.imgui_initialized.store(true, std::memory_order_release);
+    sdk::log_info("overlay initialized (OpenGL)");
+}
+
+void init_direct3d8(std::uintptr_t native_device, std::uintptr_t native_window)
+{
+    if (g_renderer != renderer::none)
+    {
+        return;
+    }
+
+    if (!init_common(reinterpret_cast<HWND>(native_window)) ||
+        !detail::d3d8_init(reinterpret_cast<IDirect3DDevice8*>(native_device)))
+    {
+        shutdown();
+        return;
+    }
+
+    g_renderer = renderer::direct3d8;
+    g_ctx.imgui_initialized.store(true, std::memory_order_release);
+    sdk::log_info("overlay initialized (Direct3D 8)");
 }
 
 void render()
 {
-    ImGui_ImplOpenGL3_NewFrame();
+    if (g_renderer == renderer::opengl)
+    {
+        ImGui_ImplOpenGL3_NewFrame();
+    }
+    else if (g_renderer == renderer::direct3d8)
+    {
+        detail::d3d8_new_frame();
+    }
+    else
+    {
+        return;
+    }
+
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
     g_ctx.cb.on_overlay.invoke();
 
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (g_renderer == renderer::opengl)
+    {
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+    else
+    {
+        detail::d3d8_render_draw_data(ImGui::GetDrawData());
+    }
+}
+
+void invalidate_device_objects() noexcept
+{
+    if (g_renderer == renderer::direct3d8)
+    {
+        detail::d3d8_invalidate_device_objects();
+    }
 }
 
 void shutdown() noexcept
 {
     if (g_ctx.imgui_initialized.load())
     {
-        ImGui_ImplOpenGL3_Shutdown();
+        if (g_renderer == renderer::opengl)
+        {
+            ImGui_ImplOpenGL3_Shutdown();
+        }
+        else if (g_renderer == renderer::direct3d8)
+        {
+            detail::d3d8_shutdown();
+        }
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
         g_ctx.imgui_initialized.store(false);
     }
+
+    if ((sdk::detail::g_state.window != nullptr) &&
+        (sdk::detail::g_state.original_wnd_proc != nullptr))
+    {
+        SetWindowLongPtrA(
+            sdk::detail::g_state.window,
+            GWLP_WNDPROC,
+            reinterpret_cast<LONG_PTR>(sdk::detail::g_state.original_wnd_proc));
+    }
+    sdk::detail::g_state.window            = nullptr;
+    sdk::detail::g_state.original_wnd_proc = nullptr;
+    g_renderer                             = renderer::none;
 }
 
 } // namespace sdk::overlay

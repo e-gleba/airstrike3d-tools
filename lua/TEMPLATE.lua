@@ -1,11 +1,9 @@
 ---@meta
---- Airstrike 3D Tools — Plugin Template
---- Professional plugin template with best practices.
+--- Shared plugin template for the root `lua/` tree.
+--- Deployed to each game version as runtime `plugins/`.
 ---
 --- @module plugin_template
---- @author Your Name
---- @license MIT
---- @version 1.0.0
+--- @version 1.1.0
 ---
 --- Description of what this plugin does.
 
@@ -110,15 +108,9 @@ sdk.on_key_down(function(vk)
     return false -- not consumed
 end)
 
--- OpenGL identity hook (for rendering overlays)
-sdk.on_gl_identity(function()
-    if not cfg.enabled then
-        return
-    end
-    
-    -- Your GL rendering logic here
-    -- Remember to use TOOLS_UI.safe_call for GL operations
-end)
+-- Renderer-neutral graphics are available through sdk.camera_*,
+-- sdk.set_world_lines(), and sdk.set_visual_mode(). Check a feature before use:
+local has_world_lines = sdk.has_graphics_capability("world_lines")
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
 

@@ -6,7 +6,8 @@
 #       SOURCE_DIR    <path>
 #   )
 #
-# Deploys: data/, plugins/, scripts/ (from project root), bass.dll, exe, config.ini
+# Deploys: data/, plugins/ (from root lua/), optional version plugins/,
+# scripts/ (Python tools), bass.dll, exe, and generated config.ini.
 #
 # Creates targets:
 #   bass_proxy_${VERSION}    — proxy DLL (if USE_BASS_PROXY_LIB)
@@ -17,7 +18,7 @@
 # When AS3D_ENABLE_TESTS is ON and PROJECT_IS_TOP_LEVEL, registers CTest
 # emulator tests (deploy / proton / launch tiers) for this version.
 #
-# Requires: cmake_minimum_required(VERSION 3.31...3.31) in root project.
+# Requires the root project to define AS3D_PROJECT_ROOT.
 
 include_guard(GLOBAL)
 
@@ -37,11 +38,20 @@ function(add_game_deployment)
             )
     endif()
 
-    set(version ${arg_VERSION})
-    set(game_exe ${arg_GAME_EXE_NAME})
-    set(src_dir ${arg_SOURCE_DIR})
-    set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR})
-    set(project_scripts_dir ${CMAKE_SOURCE_DIR}/scripts)
+    set(version "${arg_VERSION}")
+    set(game_exe "${arg_GAME_EXE_NAME}")
+    set(src_dir "${arg_SOURCE_DIR}")
+    set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}")
+    set(project_scripts_dir "${AS3D_PROJECT_ROOT}/scripts")
+    set(shared_lua_dir "${AS3D_PROJECT_ROOT}/lua")
+    set(version_config_in "${src_dir}/config.ini.in")
+
+    if(NOT EXISTS "${version_config_in}")
+        message(
+            FATAL_ERROR
+                "add_game_deployment: missing ${version_config_in}"
+            )
+    endif()
 
     cmake_path(
         APPEND
@@ -61,12 +71,6 @@ function(add_game_deployment)
         ".bass_stamp"
         OUTPUT_VARIABLE
         bass_stamp)
-    cmake_path(
-        APPEND
-        deploy_dir
-        ".config_stamp"
-        OUTPUT_VARIABLE
-        config_stamp)
 
     # ─── Deploy script via file(CONFIGURE) ───────────────────────────────────
 
@@ -80,6 +84,12 @@ execute_process(
     COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/data"
     COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/data" "@deploy_dir@/data"
 )
+if(EXISTS "@shared_lua_dir@")
+    execute_process(
+        COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
+        COMMAND "@CMAKE_COMMAND@" -E copy_directory "@shared_lua_dir@" "@deploy_dir@/plugins"
+    )
+endif()
 if(EXISTS "@src_dir@/plugins")
     execute_process(
         COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
@@ -99,34 +109,34 @@ execute_process(
 ]=]
         @ONLY)
 
+    file(GLOB_RECURSE shared_lua_files CONFIGURE_DEPENDS "${shared_lua_dir}/*")
+    file(GLOB_RECURSE version_plugin_files CONFIGURE_DEPENDS
+         "${src_dir}/plugins/*")
+    file(GLOB_RECURSE project_script_files CONFIGURE_DEPENDS
+         "${project_scripts_dir}/*")
+
     add_custom_command(
         OUTPUT "${deploy_stamp}"
         COMMENT "deploying runtime deps => ${deploy_dir}"
         COMMAND "${CMAKE_COMMAND}" -P "${deploy_script}"
         COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
-        DEPENDS "${src_dir}/${game_exe}" CODEGEN
+        DEPENDS
+            "${src_dir}/${game_exe}"
+            ${shared_lua_files}
+            ${version_plugin_files}
+            ${project_script_files}
+            CODEGEN
         VERBATIM)
-
-    # ─── Config.ini generation ───────────────────────────────────────────────
-    # Generate config.ini from template to skip launcher window and use
-    # modern defaults (1600x1200, fullscreen, etc.)
 
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/config.ini.in"
+        "${version_config_in}"
         "${deploy_dir}/config.ini"
         @ONLY)
-
-    add_custom_command(
-        OUTPUT "${config_stamp}"
-        COMMENT "generating config.ini for ${version}"
-        COMMAND "${CMAKE_COMMAND}" -E touch "${config_stamp}"
-        DEPENDS "${deploy_dir}/config.ini" CODEGEN
-        VERBATIM)
 
     # ─── Proxy DLL ───────────────────────────────────────────────────────────
 
     if(USE_BASS_PROXY_LIB)
-        include("${CMAKE_SOURCE_DIR}/cmake/proxy_utils.cmake")
+        include("${AS3D_PROJECT_ROOT}/cmake/proxy_utils.cmake")
         add_bass_proxy(
             VERSION
             "${version}"
@@ -166,13 +176,13 @@ execute_process(
 
     add_custom_target(
         deploy_game_${version} ALL
-        DEPENDS "${deploy_stamp}" "${bass_stamp}" "${config_stamp}"
+        DEPENDS "${deploy_stamp}" "${bass_stamp}" "${deploy_dir}/config.ini"
         COMMENT "all runtime dependencies deployed for ${version}")
 
     # ─── Proton runner ───────────────────────────────────────────────────────
 
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/run_with_proton.sh.in"
+        "${AS3D_PROJECT_ROOT}/cmake/run_with_proton.sh.in"
         "${deploy_dir}/run_game.sh"
         @ONLY
         FILE_PERMISSIONS
@@ -208,15 +218,13 @@ execute_process(
 
     install(DIRECTORY "${deploy_dir}/data/" DESTINATION "${install_dest}/data")
 
-    if(EXISTS "${deploy_dir}/plugins")
-        install(DIRECTORY "${deploy_dir}/plugins/"
-                DESTINATION "${install_dest}/plugins")
-    endif()
+    install(DIRECTORY "${deploy_dir}/plugins/"
+            DESTINATION "${install_dest}/plugins"
+            OPTIONAL)
 
-    if(EXISTS "${deploy_dir}/scripts")
-        install(DIRECTORY "${deploy_dir}/scripts/"
-                DESTINATION "${install_dest}/scripts")
-    endif()
+    install(DIRECTORY "${deploy_dir}/scripts/"
+            DESTINATION "${install_dest}/scripts"
+            OPTIONAL)
 
     # ─── CTest emulator tests ────────────────────────────────────────────────
     # Registered here (not in root CMakeLists.txt) because deploy_dir is
@@ -224,7 +232,7 @@ execute_process(
     # so subdirectory consumers don't inherit our tests.
 
     if(AS3D_ENABLE_TESTS AND PROJECT_IS_TOP_LEVEL)
-        include("${CMAKE_SOURCE_DIR}/cmake/proton_testing.cmake")
+        include("${AS3D_PROJECT_ROOT}/cmake/proton_testing.cmake")
         add_proton_emulator_tests(
             VERSION "${version}"
             GAME_EXE_NAME "${game_exe}"

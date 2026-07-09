@@ -9,7 +9,7 @@ include_guard(GLOBAL)
 find_program(
     OBJDUMP_EXECUTABLE
     NAMES llvm-objdump objdump
-    HINTS "${CMAKE_SOURCE_DIR}/llvm_mingw/bin" REQUIRED
+    HINTS "${AS3D_PROJECT_ROOT}/llvm_mingw/bin" REQUIRED
     DOC "PE object dump utility for export parsing")
 
 function(generate_proxy_def input_dll output_var)

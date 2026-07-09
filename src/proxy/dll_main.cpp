@@ -24,10 +24,9 @@ BOOL APIENTRY DllMain(HMODULE                 h_module,
 
         case DLL_PROCESS_DETACH:
         {
-            sdk::uninstall_hooks();
-            sdk::log_info("[bass_proxy] detached");
-
-            sdk::logging::shutdown();
+            // The proxy is pinned after hook installation. Process teardown
+            // owns all remaining resources; doing hook, Lua, COM, or ImGui
+            // cleanup while the Windows loader lock is held is unsafe.
             break;
         }
 

@@ -1,7 +1,6 @@
 #include "sdk/graphics/graphics.hpp"
 
-#include "sdk/core/context.hpp"
-#include "sdk/core/detail/context_state.hpp"
+#include "sdk/graphics/detail/opengl_state.hpp"
 
 #include <GL/gl.h>
 #include <windows.h>
@@ -117,17 +116,30 @@ void mult_matrix(std::span<const double, 16> matrix)
 namespace
 {
 
-using glu_look_at_fn = void(APIENTRY*)(GLdouble, GLdouble, GLdouble,
-                                        GLdouble, GLdouble, GLdouble,
-                                        GLdouble, GLdouble, GLdouble);
+using glu_look_at_fn = void(APIENTRY*)(GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble,
+                                       GLdouble);
 
 } // namespace
 
-void apply_lookat(double ex, double ey, double ez,
-                  double cx, double cy, double cz,
-                  double ux, double uy, double uz) noexcept
+void apply_lookat(double ex,
+                  double ey,
+                  double ez,
+                  double cx,
+                  double cy,
+                  double cz,
+                  double ux,
+                  double uy,
+                  double uz) noexcept
 {
-    const auto orig = detail::call_orig<glu_look_at_fn>(detail::g_state.hooks.glu_look_at);
+    const auto orig = sdk::gl::detail::call_orig<glu_look_at_fn>(
+        sdk::gl::detail::g_hooks.glu_look_at);
     if (orig != nullptr)
     {
         orig(ex, ey, ez, cx, cy, cz, ux, uy, uz);

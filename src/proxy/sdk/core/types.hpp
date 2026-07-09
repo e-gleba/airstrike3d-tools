@@ -13,7 +13,7 @@ enum class render_api : std::uint8_t
 {
     unknown,
     opengl,
-    directx
+    direct3d8
 };
 
 struct vec2 final

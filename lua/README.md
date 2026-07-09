@@ -206,7 +206,7 @@ See included plugins:
 ## Development
 
 ### Testing
-1. Place plugin in `2_06/plugins/`
+1. Place shared plugins in `lua/` (deployed to each game's runtime `plugins/`)
 2. Launch game
 3. Press `[INSERT]` to open UI
 4. Check logs for errors

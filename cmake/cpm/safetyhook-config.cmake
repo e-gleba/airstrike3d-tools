@@ -13,6 +13,6 @@ cpmaddpackage(
     YES
     OPTIONS
     "SAFETYHOOK_FETCH_ZYDIS YES" # Fetch Zydis disassembler (required)
-    "SAFETYHOOK_BUILD_TESTS OFF" # Skip tests
+    "SAFETYHOOK_BUILD_TEST OFF" # Skip tests
     "SAFETYHOOK_BUILD_EXAMPLES OFF" # Skip examples
     "CMAKE_UNITY_BUILD OFF")
