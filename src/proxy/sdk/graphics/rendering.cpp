@@ -34,8 +34,8 @@ bool                                            g_has_observed_camera{};
 bool                                            g_adopted_live_camera{};
 std::mutex                                      g_visual_mutex;
 visual_settings                                 g_visual_settings;
-std::atomic<std::uint64_t>                      g_line_generation{};
-std::shared_ptr<const detail::world_line_batch> g_world_lines{
+std::atomic<std::uint64_t> g_line_generation{};
+std::atomic<std::shared_ptr<const detail::world_line_batch>> g_world_lines{
     std::make_shared<const detail::world_line_batch>()
 };
 
@@ -60,8 +60,7 @@ void adopt_live_camera_locked() noexcept
 void publish_world_lines(
     std::shared_ptr<const detail::world_line_batch> batch) noexcept
 {
-    std::atomic_store_explicit(
-        &g_world_lines, std::move(batch), std::memory_order_release);
+    g_world_lines.store(std::move(batch), std::memory_order_release);
 }
 
 [[nodiscard]] std::uint64_t next_line_generation() noexcept
@@ -244,7 +243,7 @@ void observe_camera(camera_pose pose)
 
 auto world_lines_snapshot() noexcept -> std::shared_ptr<const world_line_batch>
 {
-    return std::atomic_load_explicit(&g_world_lines, std::memory_order_acquire);
+    return g_world_lines.load(std::memory_order_acquire);
 }
 
 } // namespace detail
