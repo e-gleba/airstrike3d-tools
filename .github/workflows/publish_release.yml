@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v1.0.7)'
+        description: 'Version tag (e.g. v1.10.0)'
         required: true
         type: string
 
@@ -140,17 +140,17 @@ jobs:
         run: |
           generated_body=$(gh api repos/${{ github.repository }}/releases/generate-notes \
             -f tag_name="${{ inputs.version }}" \
-            -f previous_tag_name="v1.0.7" \
+            -f previous_tag_name="v1.0.9" \
             -f target_commitish="main" \
             --jq '.body')
 
           cat > release_notes.md << 'HEADER'
-          ## 🚀 LuaBridge3 Migration & SDK Modernization
+          ## 🎮 Direct3D 8 Backend & Dual-Renderer Plugins
 
-          Flagship release — complete migration from sol2 to **LuaBridge3**, full C++20/23 SDK
-          modernization following Boost-style guidelines, ultra-professional Lua plugin
-          framework rewrite (~2,500 LOC), CTest emulator testing infrastructure, and
-          production-grade logging.
+          Flagship graphics release — native **Direct3D 8** interception for AirStrike 2
+          **v2.51**, renderer-neutral freecam / overlay / world tools shared with OpenGL
+          builds (v2.06 / v2.71), custom ImGui D3D8 renderer, and MSVC-ABI CI fixes so
+          `d3d8.h` builds cleanly on modern Windows toolchains.
 
           ---
 
@@ -158,115 +158,67 @@ jobs:
 
           | Area | What landed |
           |---|---|
-          | 🔌 **LuaBridge3** | Complete migration from sol2 → LuaBridge3 — 2.6× faster Lua→C++ calls, reduced compile times, C++20/23 compliant |
-          | 📜 **Plugin Framework v3** | Ultra-professional Lua plugin rewrite — module pattern, LuaLS type annotations, xpcall error handling, 100+ type annotations, 30+ validation functions |
-          | 🏗 **SDK Refactor** | Public C++23 API split from backend detail — contract checks, noexcept audit, `require`/`ensure` preconditions |
-          | 🧪 **CTest** | 3-tier Proton emulator testing: deploy → proton → launch (12 tests across 3 game versions) |
-          | 🔧 **SafetyHook 0.7.0** | C++20 module interface, Itanium ABI VMT fix, MinGW VMT support |
-          | 📋 **Logging** | Macros → type-safe `sdk::log_{level}()` wrappers with `std::source_location` and `std::format_string` compile-time checking |
-          | ⚙️ **CI/CD** | Matrix strategy with YAML anchors — minimal duplication across platforms |
+          | 🎯 **D3D8 backend** | Full `Direct3DCreate8` → device vtable hooks (`Present`, `SetTransform`, `Reset`, …) for v2.51 |
+          | 🖥 **ImGui D3D8** | In-tree custom Dear ImGui D3D8 renderer (upstream never shipped one) |
+          | 📷 **Freecam** | Right-handed camera math, live pose adoption, OpenGL modelview stacking fixed |
+          | 🔌 **Shared plugins** | One `lua/` tree deployed to every game version — freecam, wallhack, world grid, cheats |
+          | 🏗 **Renderer-neutral API** | C++23 camera / world-line surface shared by OpenGL and D3D8 |
+          | 🔧 **MSVC-ABI DX8 SDK** | Vendored minimal DX8 headers/lib when modern Windows SDK lacks `d3d8.h` |
+          | ✅ **Issue #50** | DX8 proxy tracking issue closed — dual-backend path unblocked |
 
           ---
 
-          ### 🔌 LuaBridge3 Migration
+          ### 🎯 Direct3D 8 Interception
 
-          The single biggest architectural change in this release. **sol2** has been completely
-          removed and replaced with [LuaBridge3](https://github.com/kunitoki/LuaBridge3) as the
-          sole Lua binding backend.
-
-          **Why LuaBridge3:**
-          - **2.6× faster** Lua→C++ call throughput vs sol2
-          - **C++20/23 compliant** — no more template metaprogramming workarounds
-          - **Stepanov principles** — value semantics, regular types, minimal magic
-          - **Reducuced compile times** — lighter header footprint
-          - **Header-only, zero-config** — drop-in CPM dependency
-
-          sol2 served us well, but its heavy template machinery fought against modern C++
-          standards and bloated compile times. LuaBridge3 aligns with the project's
-          engineering direction.
-
-          ---
-
-          ### 📜 Plugin Framework v3.0.0
-
-          Complete rewrite of all Lua plugins to production-grade quality:
-
-          | Plugin | Version | Key improvements |
-          |---|---|---|
-          | `_ui_framework.lua` | v3 | Module pattern, proper exports, type annotations |
-          | `cheats.lua` | v2 | Cooldown tracking, validation, statistics |
-          | `freecam.lua` | v3 | Optimized vector math, better state management |
-          | `wallhack.lua` | v3 | Robust GL state management, safe mode cycling |
-          | `world_grid.lua` | v3 | Optimized drawing, comprehensive validation |
-
-          **Documentation shipped:**
-          - `README.md` — complete plugin development guide
-          - `TEMPLATE.lua` — professional plugin template
-          - `CHANGELOG.md` — version history and migration guide
-          - `EXAMPLES.md` — 7 comprehensive examples
-
-          **Code quality metrics:** ~2,500 LOC, 100+ type annotations, 20+ error handlers,
-          30+ validation functions, 50+ performance optimizations.
-
-          ---
-
-          ### 🏗 SDK Architecture
-
-          The SDK has been reorganized into **std-only public interfaces** with third-party
-          code isolated under `detail/` backends:
+          AirStrike 2 **v2.51** is the D3D8 port. This release brings it to parity with the
+          OpenGL tooling path:
 
           ```
-          sdk/
-          ├── core/          # Hooks, callbacks, context (backend-agnostic)
-          ├── ui/            # Public UI API
-          ├── graphics/      # Public graphics API
-          ├── math/          # Public math API
-          ├── platform/      # Platform abstraction
-          ├── scripting/     # Lua binding surface (was lua/)
-          │   ├── bindings/  # C++ binding definitions
-          │   └── detail/    # LuaBridge3 implementation (only file touching Lua C API)
-          └── logging/       # Type-safe logging wrappers
+          Direct3DCreate8 (inline hook)
+            └→ IDirect3D8::CreateDevice (vtable)
+                 └→ IDirect3DDevice8:
+                      Present → on_frame + ImGui overlay
+                      SetTransform(D3DTS_VIEW) → freecam / camera path
+                      Reset → invalidate ImGui + reinstall hooks
           ```
 
-          **Modernization highlights:**
-          - `std::int32_t`, `std::uint8_t` fixed-width types throughout
-          - `std::ranges` (views::filter, views::transform, for_each, any_of, search)
-          - `[[nodiscard]]` on all query functions
-          - `std::string_view` for read-only string parameters
-          - `std::source_location` for automatic caller capture
-          - `require`/`ensure` contract checks with `std::source_location`
-          - Thorough `noexcept` audit — removed from functions that may throw
-          - `final` on leaf classes for devirtualization
+          - Dynamic `GetProcAddress` only — no hard link to `d3d8.lib` at load time
+          - Safe COM vtable copy-patch-restore
+          - Device-lost / `Reset` recovery for overlay lifetime
 
           ---
 
-          ### 🧪 CTest Emulator Testing
+          ### 📷 Camera & Freecam
 
-          New 3-tier testing infrastructure validates deployment across all game versions
-          (2.06, 2.51, 2.71):
-
-          | Tier | What | Platform |
-          |---|---|---|
-          | `deploy` | Artifact file existence validation | Cross-platform |
-          | `proton` | Proton/Steam runtime discovery | Linux only |
-          | `launch` | 10s emulator boot + DLL load + exit code validation | Linux (Proton) |
-
-          4 tests per version × 3 versions = **12 total tests**.
-
-          Workflow presets with `-with-tests` suffix enable local development with full
-          test coverage. Standard CI presets skip tests (no Steam in CI).
+          - Right-handed view math for D3D8 (no inverted axes)
+          - Adopt **live** game camera instead of a hard-coded default pose
+          - OpenGL freecam: reset modelview before override (no matrix stacking soup)
+          - Fail-loud C++23 contracts (`span`, exceptions) at camera / world-line boundaries
 
           ---
 
-          ### 🔧 Dependency Upgrades
+          ### 🔌 Shared Lua Plugins
 
-          | Dependency | From | To | Notes |
-          |---|---|---|---|
-          | **LuaBridge** | sol2 | 3.x | Complete migration |
-          | **Lua** | 5.4.x | 5.4.8 | Patch update |
-          | **SafetyHook** | 0.6.9 | 0.7.0 | C++20 modules, Itanium ABI fix |
-          | **CMake** | 3.30 | 3.31 | Code generation features |
-          | **llvm-mingw** | — | 20260616 | Toolchain bump |
+          Plugins live under shared `lua/` and deploy into each version's `plugins/` dir:
+
+          | Plugin | Notes |
+          |---|---|
+          | freecam | Works on OpenGL **and** D3D8 |
+          | wallhack | Renderer-neutral visual modes |
+          | world_grid | Shared world-line batch API |
+          | cheats / UI framework | Unchanged Lua surface |
+
+          Per-version `config.ini.in` templates kept local to `2_06` / `2_51` / `2_71`.
+
+          ---
+
+          ### 🔧 Build / CI
+
+          | Change | Why |
+          |---|---|
+          | Vendored **min-dx8-sdk** for MSVC-ABI Clang | Modern Windows SDK dropped `d3d8.h` |
+          | `std::atomic<shared_ptr>` gated on library support | MSVC STL vs libc++ (llvm-mingw) |
+          | CMake merge prep | Deterministic deploy/install; drop obsolete sol2 patch |
 
           ---
 
@@ -279,11 +231,13 @@ jobs:
 
           ---
 
-          ### 🔮 Up Next
+          ### 🔗 Related
 
-          | Issue | What | Blocks |
-          |---|---|---|
-          | [#50](https://github.com/e-gleba/airstrike3d-tools/issues/50) | DX8 proxy for SDK | Proxy-enabled Linux 2.51 / 2.71 |
+          | Link | What |
+          |---|---|
+          | [#71](https://github.com/e-gleba/airstrike3d-tools/pull/71) | Native D3D8 backend + dual-renderer plugins |
+          | [#72](https://github.com/e-gleba/airstrike3d-tools/pull/72) | CI / MSVC-ABI DX8 SDK + atomic shared_ptr fix |
+          | [#50](https://github.com/e-gleba/airstrike3d-tools/issues/50) | DX8 tracking issue (closed) |
 
           ---
 
