@@ -166,6 +166,12 @@ local move_bindings = {
 -- ── State Management ────────────────────────────────────────────────────────
 
 local was_rbutton_down = false
+local adopted_live_camera = false
+
+local function sync_pose_from_sdk()
+    cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch =
+        sdk.camera_get_pose()
+end
 
 ---Enable mouse look
 local function enable_mouse_look()
@@ -186,21 +192,31 @@ end
 sdk.on_frame(function()
     if not cam.enabled then
         sdk.camera_enable(false)
+        adopted_live_camera = false
         if cam.mouse_look then
             disable_mouse_look()
         end
         return
     end
 
+    -- Prefer the live game camera when available. Fall back to plugin
+    -- defaults so OpenGL can enable before the first gluLookAt, then
+    -- one-shot adopt later when the game publishes a view (D3D8).
     if not sdk.camera_is_enabled() then
-        if not sdk.camera_adopt_current() then
-            return
+        if sdk.camera_adopt_current() then
+            adopted_live_camera = true
+            sync_pose_from_sdk()
+        else
+            sdk.camera_set_pose(
+                cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
+            )
         end
-        cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch =
-            sdk.camera_get_pose()
         sdk.camera_enable(true)
+    elseif not adopted_live_camera and sdk.camera_adopt_current() then
+        adopted_live_camera = true
+        sync_pose_from_sdk()
     end
-    
+
     -- Right-click toggle for mouse look
     local rbutton_down = is_key_down(VK_RBUTTON)
     if rbutton_down and not was_rbutton_down then
@@ -209,14 +225,14 @@ sdk.on_frame(function()
         disable_mouse_look()
     end
     was_rbutton_down = rbutton_down
-    
+
     -- Mouse look: recenter cursor and compute delta
     if cam.mouse_look then
         local wl, wt, wr, wb = get_window_rect()
         local cx = floor((wl + wr) * 0.5)
         local cy = floor((wt + wb) * 0.5)
         local mx, my = get_cursor_pos()
-        
+
         if mx ~= cx or my ~= cy then
             sdk.camera_rotate(
                 (mx - cx) * cam.sensitivity,
@@ -225,12 +241,12 @@ sdk.on_frame(function()
             set_cursor_pos(cx, cy)
         end
     end
-    
+
     -- WASD movement
     local dt = ui.get_delta_time()
     local speed = cam.base_speed * (is_key_down(VK_SHIFT) and cam.sprint_mult or 1)
     local step = speed * dt
-    
+
     local forward = (is_key_down(VK_W) and step or 0)
         - (is_key_down(VK_S) and step or 0)
     local right = (is_key_down(VK_D) and step or 0)
@@ -238,8 +254,7 @@ sdk.on_frame(function()
     local up = (is_key_down(VK_SPACE) and step or 0)
         - (is_key_down(VK_CONTROL) and step or 0)
     sdk.camera_move_local(forward, right, up)
-    cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch =
-        sdk.camera_get_pose()
+    sync_pose_from_sdk()
 end)
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
@@ -318,6 +333,7 @@ local function draw_panel()
         cam.pos_z = DEFAULT.pos_z
         cam.yaw = DEFAULT.yaw
         cam.pitch = DEFAULT.pitch
+        adopted_live_camera = true
         sdk.camera_set_pose(
             cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
         )
@@ -326,9 +342,11 @@ local function draw_panel()
     ui.same_line()
     ui.text_disabled("Restore default position and rotation")
 
-    sdk.camera_set_pose(
-        cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
-    )
+    if sdk.camera_is_enabled() then
+        sdk.camera_set_pose(
+            cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
+        )
+    end
 end
 
 -- ── Registration ────────────────────────────────────────────────────────────

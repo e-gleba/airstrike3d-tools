@@ -49,6 +49,14 @@ void apply_camera()
 
     try
     {
+        // gluLookAt multiplies; reset modelview so identity and look-at
+        // hooks both replace the view instead of stacking it.
+        if (const auto load_identity =
+                call_orig<gl_load_identity_fn>(g_hooks.gl_load_identity))
+        {
+            load_identity();
+        }
+
         const auto pose    = graphics::get_camera_pose();
         const auto forward = graphics::detail::basis_from_pose(pose).forward;
 
