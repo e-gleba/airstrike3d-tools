@@ -1,3 +1,4 @@
+#include "sdk/graphics/detail/camera_math.hpp"
 #include "sdk/graphics/rendering.hpp"
 
 #include <array>
@@ -50,14 +51,18 @@ int main()
         line_vertex{ .x = 1.0F, .argb = 0xFF112233U },
         line_vertex{ .x = 2.0F, .argb = 0xFF445566U },
     };
-    set_world_lines(lines);
+    if (!set_world_lines(lines))
+    {
+        return EXIT_FAILURE;
+    }
     auto snapshot = detail::world_lines_snapshot();
-    if (snapshot.size() != lines.size() || snapshot[1].x != 2.0F)
+    if (snapshot->vertices.size() != lines.size() ||
+        snapshot->vertices[1].x != 2.0F)
     {
         return EXIT_FAILURE;
     }
     clear_world_lines();
-    if (!detail::world_lines_snapshot().empty())
+    if (!detail::world_lines_snapshot()->vertices.empty())
     {
         return EXIT_FAILURE;
     }
@@ -68,6 +73,42 @@ int main()
     });
     const auto visual = get_visual_settings();
     if (visual.mode != visual_mode::ghost || visual.alpha != 1.0F)
+    {
+        return EXIT_FAILURE;
+    }
+
+    const camera_pose source{
+        .position      = { 12.0, 34.0, -56.0 },
+        .yaw_degrees   = -90.0,
+        .pitch_degrees = 20.0,
+    };
+    const auto view           = detail::make_right_handed_view(source);
+    const auto forward        = detail::basis_from_pose(source).forward;
+    const auto view_forward_z = static_cast<double>(view[2]) * forward.x +
+                                static_cast<double>(view[6]) * forward.y +
+                                static_cast<double>(view[10]) * forward.z;
+    if (!near(view_forward_z, -1.0))
+    {
+        return EXIT_FAILURE;
+    }
+    const auto round_trip = detail::decompose_right_handed_view(view);
+    if (!round_trip || !near(round_trip->position.x, source.position.x) ||
+        !near(round_trip->position.y, source.position.y) ||
+        !near(round_trip->position.z, source.position.z) ||
+        !near(round_trip->yaw_degrees, source.yaw_degrees) ||
+        !near(round_trip->pitch_degrees, source.pitch_degrees))
+    {
+        return EXIT_FAILURE;
+    }
+
+    detail::observe_camera(source);
+    if (!adopt_observed_camera())
+    {
+        return EXIT_FAILURE;
+    }
+    move_camera_local(10.0, 0.0, 0.0);
+    const auto moved = get_camera_pose();
+    if (!(moved.position.z < source.position.z))
     {
         return EXIT_FAILURE;
     }

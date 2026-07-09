@@ -75,6 +75,41 @@ struct engine::impl final
 {
     lua_State* lua;
 
+    static void submit_world_lines(const std::vector<double>& packed,
+                                   bool                       depth_test)
+    {
+        using namespace sdk::graphics;
+
+        require((packed.size() % 4U) == 0U,
+                "set_world_lines: expected x,y,z,argb tuples");
+        std::vector<line_vertex> vertices;
+        vertices.reserve(packed.size() / 4U);
+        for (std::size_t index = 0; index < packed.size(); index += 4U)
+        {
+            constexpr auto max_float =
+                static_cast<double>(std::numeric_limits<float>::max());
+            const auto argb = packed[index + 3U];
+            require(std::isfinite(packed[index]) &&
+                        std::isfinite(packed[index + 1U]) &&
+                        std::isfinite(packed[index + 2U]) &&
+                        std::abs(packed[index]) <= max_float &&
+                        std::abs(packed[index + 1U]) <= max_float &&
+                        std::abs(packed[index + 2U]) <= max_float &&
+                        std::isfinite(argb) && argb >= 0.0 &&
+                        argb <= static_cast<double>(
+                                    std::numeric_limits<std::uint32_t>::max()),
+                    "set_world_lines: values are out of range");
+            vertices.push_back({
+                .x    = static_cast<float>(packed[index]),
+                .y    = static_cast<float>(packed[index + 1U]),
+                .z    = static_cast<float>(packed[index + 2U]),
+                .argb = static_cast<std::uint32_t>(argb),
+            });
+        }
+        require(set_world_lines(vertices, { .depth_test = depth_test }),
+                "set_world_lines: invalid geometry");
+    }
+
     /// @brief Initialize Lua state and register all bindings.
     /// @throws std::runtime_error if lua_State creation fails.
     impl()
@@ -488,6 +523,11 @@ struct engine::impl final
                              return false;
                          })
             .addFunction("camera_enable", &set_camera_enabled)
+            .addFunction("camera_is_enabled", &camera_enabled)
+            .addFunction("camera_adopt_current", &adopt_observed_camera)
+            .addFunction("camera_has_observed", &has_observed_camera)
+            .addFunction("camera_move_local", &move_camera_local)
+            .addFunction("camera_rotate", &rotate_camera)
             .addFunction(
                 "camera_set_pose",
                 [](double x, double y, double z, double yaw, double pitch)
@@ -521,40 +561,12 @@ struct engine::impl final
                                                     pose.yaw_degrees,
                                                     pose.pitch_degrees);
                          })
-            .addFunction(
-                "set_world_lines",
-                [](const std::vector<double>& packed)
-                {
-                    require((packed.size() % 4U) == 0U,
-                            "set_world_lines: expected x,y,z,argb tuples");
-                    std::vector<line_vertex> vertices;
-                    vertices.reserve(packed.size() / 4U);
-                    for (std::size_t index = 0; index < packed.size();
-                         index += 4U)
-                    {
-                        constexpr auto max_float = static_cast<double>(
-                            std::numeric_limits<float>::max());
-                        const auto argb = packed[index + 3U];
-                        require(std::isfinite(packed[index]) &&
-                                    std::isfinite(packed[index + 1U]) &&
-                                    std::isfinite(packed[index + 2U]) &&
-                                    std::abs(packed[index]) <= max_float &&
-                                    std::abs(packed[index + 1U]) <= max_float &&
-                                    std::abs(packed[index + 2U]) <= max_float &&
-                                    std::isfinite(argb) && argb >= 0.0 &&
-                                    argb <= static_cast<double>(
-                                                std::numeric_limits<
-                                                    std::uint32_t>::max()),
-                                "set_world_lines: values are out of range");
-                        vertices.push_back({
-                            .x    = static_cast<float>(packed[index]),
-                            .y    = static_cast<float>(packed[index + 1U]),
-                            .z    = static_cast<float>(packed[index + 2U]),
-                            .argb = static_cast<std::uint32_t>(argb),
-                        });
-                    }
-                    set_world_lines(vertices);
-                })
+            .addFunction("set_world_lines",
+                         [](const std::vector<double>& packed)
+                         { submit_world_lines(packed, false); })
+            .addFunction("set_world_lines_depth_tested",
+                         [](const std::vector<double>& packed, bool depth_test)
+                         { submit_world_lines(packed, depth_test); })
             .addFunction("clear_world_lines", &clear_world_lines)
             .addFunction(
                 "set_visual_mode",

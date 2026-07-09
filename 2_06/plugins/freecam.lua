@@ -184,12 +184,21 @@ end
 -- ── Frame Update ────────────────────────────────────────────────────────────
 
 sdk.on_frame(function()
-    sdk.camera_enable(cam.enabled)
     if not cam.enabled then
+        sdk.camera_enable(false)
         if cam.mouse_look then
             disable_mouse_look()
         end
         return
+    end
+
+    if not sdk.camera_is_enabled() then
+        if not sdk.camera_adopt_current() then
+            return
+        end
+        cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch =
+            sdk.camera_get_pose()
+        sdk.camera_enable(true)
     end
     
     -- Right-click toggle for mouse look
@@ -209,8 +218,10 @@ sdk.on_frame(function()
         local mx, my = get_cursor_pos()
         
         if mx ~= cx or my ~= cy then
-            cam.yaw = mod(cam.yaw + (mx - cx) * cam.sensitivity, 360.0)
-            cam.pitch = clamp(cam.pitch - (my - cy) * cam.sensitivity, -89.0, 89.0)
+            sdk.camera_rotate(
+                (mx - cx) * cam.sensitivity,
+                -(my - cy) * cam.sensitivity
+            )
             set_cursor_pos(cx, cy)
         end
     end
@@ -220,25 +231,15 @@ sdk.on_frame(function()
     local speed = cam.base_speed * (is_key_down(VK_SHIFT) and cam.sprint_mult or 1)
     local step = speed * dt
     
-    local fx, fy, fz, rx, ry, rz = calc_vectors()
-    
-    -- Build axis lookup table
-    local axes = {
-        front = { fx, fy, fz },
-        right = { rx, ry, rz },
-        up = { 0, 1, 0 },
-    }
-    
-    -- Process movement bindings
-    for _, bind in ipairs(move_bindings) do
-        if is_key_down(bind.key) then
-            local axis = axes[bind.axis]
-            if axis then
-                move_along(axis[1], axis[2], axis[3], bind.sign * step)
-            end
-        end
-    end
-    apply_camera()
+    local forward = (is_key_down(VK_W) and step or 0)
+        - (is_key_down(VK_S) and step or 0)
+    local right = (is_key_down(VK_D) and step or 0)
+        - (is_key_down(VK_A) and step or 0)
+    local up = (is_key_down(VK_SPACE) and step or 0)
+        - (is_key_down(VK_CONTROL) and step or 0)
+    sdk.camera_move_local(forward, right, up)
+    cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch =
+        sdk.camera_get_pose()
 end)
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────
@@ -317,10 +318,17 @@ local function draw_panel()
         cam.pos_z = DEFAULT.pos_z
         cam.yaw = DEFAULT.yaw
         cam.pitch = DEFAULT.pitch
+        sdk.camera_set_pose(
+            cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
+        )
         sdk.log_info("Camera reset to default position")
     end
     ui.same_line()
     ui.text_disabled("Restore default position and rotation")
+
+    sdk.camera_set_pose(
+        cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch
+    )
 end
 
 -- ── Registration ────────────────────────────────────────────────────────────

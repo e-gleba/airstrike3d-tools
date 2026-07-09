@@ -1,6 +1,7 @@
 add_executable(proxy_rendering_tests
                rendering_tests.cpp
-               "${CMAKE_SOURCE_DIR}/src/proxy/sdk/graphics/rendering.cpp")
+               "${CMAKE_SOURCE_DIR}/src/proxy/sdk/graphics/rendering.cpp"
+               "${CMAKE_SOURCE_DIR}/src/proxy/sdk/graphics/detail/camera_math.cpp")
 
 target_include_directories(proxy_rendering_tests
                            PRIVATE "${CMAKE_SOURCE_DIR}/src/proxy")

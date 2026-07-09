@@ -6,6 +6,7 @@
 #include "sdk/core/types.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -35,6 +36,11 @@ struct line_vertex final
     std::uint32_t argb{ 0xFFFFFFFFU };
 };
 
+struct line_settings final
+{
+    bool depth_test{};
+};
+
 enum class visual_mode : std::uint8_t
 {
     disabled,
@@ -59,9 +65,15 @@ void                      set_camera_enabled(bool enabled) noexcept;
 [[nodiscard]] bool        camera_enabled() noexcept;
 void                      set_camera_pose(camera_pose pose) noexcept;
 [[nodiscard]] camera_pose get_camera_pose() noexcept;
+[[nodiscard]] bool        adopt_observed_camera() noexcept;
+[[nodiscard]] bool        has_observed_camera() noexcept;
+void move_camera_local(double forward, double right, double up) noexcept;
+void rotate_camera(double yaw_delta_degrees,
+                   double pitch_delta_degrees) noexcept;
 
-void set_world_lines(std::span<const line_vertex> vertices);
-void clear_world_lines() noexcept;
+[[nodiscard]] bool set_world_lines(std::span<const line_vertex> vertices,
+                                   line_settings                settings = {});
+void               clear_world_lines() noexcept;
 
 void set_visual_settings(visual_settings settings) noexcept;
 [[nodiscard]] visual_settings get_visual_settings() noexcept;
@@ -69,8 +81,17 @@ void set_visual_settings(visual_settings settings) noexcept;
 namespace detail
 {
 
+struct world_line_batch final
+{
+    std::vector<line_vertex> vertices;
+    line_settings            settings;
+    std::uint64_t            generation{};
+};
+
 void               set_active_backend(render_api backend) noexcept;
-[[nodiscard]] auto world_lines_snapshot() -> std::vector<line_vertex>;
+void               observe_camera(camera_pose pose) noexcept;
+[[nodiscard]] auto world_lines_snapshot() noexcept
+    -> std::shared_ptr<const world_line_batch>;
 
 } // namespace detail
 

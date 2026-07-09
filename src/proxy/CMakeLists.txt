@@ -13,6 +13,7 @@ set(sdk_sources
     sdk/core/hooks.cpp
     sdk/core/detail/logging_spdlog.cpp
     sdk/graphics/rendering.cpp
+    sdk/graphics/detail/camera_math.cpp
     sdk/graphics/detail/d3d8_hooks.cpp
     sdk/graphics/detail/gl_hooks_opengl.cpp
     sdk/graphics/detail/graphics_opengl.cpp

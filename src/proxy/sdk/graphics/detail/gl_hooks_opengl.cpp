@@ -1,10 +1,10 @@
 #include "sdk/core/context.hpp"
+#include "sdk/graphics/detail/camera_math.hpp"
 #include "sdk/graphics/detail/opengl_state.hpp"
 #include "sdk/graphics/graphics.hpp"
 #include "sdk/graphics/rendering.hpp"
 
 #include <GL/gl.h>
-#include <cmath>
 #include <type_traits>
 #include <utility>
 
@@ -44,21 +44,15 @@ void apply_camera()
         return;
     }
 
-    constexpr double k_degrees_to_radians = 0.017453292519943295769;
-    const auto       pose                 = graphics::get_camera_pose();
-    const auto       yaw   = pose.yaw_degrees * k_degrees_to_radians;
-    const auto       pitch = pose.pitch_degrees * k_degrees_to_radians;
-    const auto       cp    = std::cos(pitch);
-    const auto       fx    = std::cos(yaw) * cp;
-    const auto       fy    = std::sin(pitch);
-    const auto       fz    = std::sin(yaw) * cp;
+    const auto pose    = graphics::get_camera_pose();
+    const auto forward = graphics::detail::basis_from_pose(pose).forward;
 
     graphics::apply_lookat(pose.position.x,
                            pose.position.y,
                            pose.position.z,
-                           pose.position.x + fx,
-                           pose.position.y + fy,
-                           pose.position.z + fz,
+                           pose.position.x + forward.x,
+                           pose.position.y + forward.y,
+                           pose.position.z + forward.z,
                            0.0,
                            1.0,
                            0.0);
@@ -108,8 +102,8 @@ void draw_world_lines()
         return;
     }
 
-    const auto lines = graphics::detail::world_lines_snapshot();
-    if (lines.empty())
+    const auto batch = graphics::detail::world_lines_snapshot();
+    if (batch->vertices.empty())
     {
         return;
     }
@@ -120,7 +114,11 @@ void draw_world_lines()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBegin(GL_LINES);
-    for (const auto& vertex : lines)
+    if (!batch->settings.depth_test)
+    {
+        glDisable(GL_DEPTH_TEST);
+    }
+    for (const auto& vertex : batch->vertices)
     {
         const auto color = vertex.argb;
         glColor4ub(static_cast<GLubyte>((color >> 16U) & 0xFFU),
@@ -171,6 +169,12 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
+    if (const auto observed =
+            graphics::detail::pose_from_look_at({ ex, ey, ez }, { cx, cy, cz }))
+    {
+        graphics::detail::observe_camera(*observed);
+    }
+
     if (graphics::camera_enabled())
     {
         detail::apply_camera();

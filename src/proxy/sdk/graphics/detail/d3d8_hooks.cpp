@@ -2,6 +2,7 @@
 
 #include "sdk/core/context.hpp"
 #include "sdk/core/logging.hpp"
+#include "sdk/graphics/detail/camera_math.hpp"
 #include "sdk/graphics/rendering.hpp"
 #include "sdk/overlay/overlay.hpp"
 
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <d3d8.h>
 #include <exception>
 #include <format>
@@ -87,10 +89,16 @@ struct hook_state final
     safetyhook::InlineHook         draw_primitive_up;
     safetyhook::InlineHook         draw_indexed_primitive_up;
     std::mutex                     mutex;
+    std::mutex                     transform_mutex;
     std::atomic<IDirect3DDevice8*> device{};
     std::atomic<HWND>              window{};
     std::atomic<bool>              scene_active{};
     std::atomic<bool>              frame_callbacks_run{};
+    D3DMATRIX                      main_view{};
+    D3DMATRIX                      main_projection{};
+    D3DVIEWPORT8                   main_viewport{};
+    bool                           main_perspective_active{};
+    bool                           has_main_scene{};
 };
 
 hook_state        g_hooks;
@@ -153,58 +161,23 @@ template <typename function> void guarded(function&& fn) noexcept
 
 [[nodiscard]] D3DMATRIX camera_matrix() noexcept
 {
-    constexpr double k_degrees_to_radians = 0.017453292519943295769;
-    const auto       pose                 = graphics::get_camera_pose();
-    const auto       yaw   = pose.yaw_degrees * k_degrees_to_radians;
-    const auto       pitch = pose.pitch_degrees * k_degrees_to_radians;
-    const auto       cp    = std::cos(pitch);
-
-    auto normalize = [](std::array<double, 3> value)
-    {
-        const auto length = std::sqrt(
-            value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
-        if (length > 0.0)
-        {
-            for (auto& component : value)
-            {
-                component /= length;
-            }
-        }
-        return value;
-    };
-    auto cross = [](const auto& lhs, const auto& rhs)
-    {
-        return std::array{
-            lhs[1] * rhs[2] - lhs[2] * rhs[1],
-            lhs[2] * rhs[0] - lhs[0] * rhs[2],
-            lhs[0] * rhs[1] - lhs[1] * rhs[0],
-        };
-    };
-    auto dot = [](const auto& lhs, const auto& rhs)
-    { return lhs[0] * rhs[0] + lhs[1] * rhs[1] + lhs[2] * rhs[2]; };
-
-    const auto eye =
-        std::array{ pose.position.x, pose.position.y, pose.position.z };
-    const auto z_axis = normalize(
-        std::array{ std::cos(yaw) * cp, std::sin(pitch), std::sin(yaw) * cp });
-    const auto x_axis = normalize(cross(std::array{ 0.0, 1.0, 0.0 }, z_axis));
-    const auto y_axis = cross(z_axis, x_axis);
-
-    D3DMATRIX result{};
-    result._11 = static_cast<float>(x_axis[0]);
-    result._12 = static_cast<float>(y_axis[0]);
-    result._13 = static_cast<float>(z_axis[0]);
-    result._21 = static_cast<float>(x_axis[1]);
-    result._22 = static_cast<float>(y_axis[1]);
-    result._23 = static_cast<float>(z_axis[1]);
-    result._31 = static_cast<float>(x_axis[2]);
-    result._32 = static_cast<float>(y_axis[2]);
-    result._33 = static_cast<float>(z_axis[2]);
-    result._41 = static_cast<float>(-dot(x_axis, eye));
-    result._42 = static_cast<float>(-dot(y_axis, eye));
-    result._43 = static_cast<float>(-dot(z_axis, eye));
-    result._44 = 1.0F;
+    D3DMATRIX  result{};
+    const auto matrix =
+        graphics::detail::make_right_handed_view(graphics::get_camera_pose());
+    std::memcpy(result.m, matrix.data(), sizeof(result.m));
     return result;
+}
+
+[[nodiscard]] bool is_right_handed_perspective(const D3DMATRIX& matrix) noexcept
+{
+    constexpr float k_epsilon = 0.01F;
+    return std::isfinite(matrix._34) && std::isfinite(matrix._44) &&
+           matrix._34 < -0.5F && std::abs(matrix._44) < k_epsilon;
+}
+
+[[nodiscard]] bool is_primary(IDirect3DDevice8* device) noexcept
+{
+    return device == g_hooks.device.load(std::memory_order::acquire);
 }
 
 class internal_render_scope final
@@ -251,25 +224,26 @@ private:
 
 void draw_world_lines(IDirect3DDevice8* device)
 {
-    struct d3d_line_vertex final
-    {
-        float    x;
-        float    y;
-        float    z;
-        D3DCOLOR color;
-    };
+    static_assert(sizeof(graphics::line_vertex) == 16);
 
-    const auto source = graphics::detail::world_lines_snapshot();
-    if (source.size() < 2)
+    const auto batch = graphics::detail::world_lines_snapshot();
+    if (batch->vertices.size() < 2)
     {
         return;
     }
 
-    std::vector<d3d_line_vertex> vertices;
-    vertices.reserve(source.size());
-    for (const auto& vertex : source)
+    D3DMATRIX    view{};
+    D3DMATRIX    projection{};
+    D3DVIEWPORT8 viewport{};
     {
-        vertices.push_back({ vertex.x, vertex.y, vertex.z, vertex.argb });
+        std::lock_guard lock{ g_hooks.transform_mutex };
+        if (!g_hooks.has_main_scene)
+        {
+            return;
+        }
+        view = graphics::camera_enabled() ? camera_matrix() : g_hooks.main_view;
+        projection = g_hooks.main_projection;
+        viewport   = g_hooks.main_viewport;
     }
 
     d3d_state_block state{ device };
@@ -283,20 +257,46 @@ void draw_world_lines(IDirect3DDevice8* device)
     identity._22 = 1.0F;
     identity._33 = 1.0F;
     identity._44 = 1.0F;
-    static_cast<void>(device->SetTransform(D3DTS_WORLD, &identity));
+    if (FAILED(device->SetTransform(D3DTS_WORLD, &identity)) ||
+        FAILED(device->SetTransform(D3DTS_VIEW, &view)) ||
+        FAILED(device->SetTransform(D3DTS_PROJECTION, &projection)) ||
+        FAILED(device->SetViewport(&viewport)))
+    {
+        return;
+    }
+
+    static_cast<void>(device->SetPixelShader(0));
     static_cast<void>(device->SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE));
     static_cast<void>(device->SetTexture(0, nullptr));
     static_cast<void>(device->SetRenderState(D3DRS_LIGHTING, FALSE));
+    static_cast<void>(device->SetRenderState(D3DRS_FOGENABLE, FALSE));
+    static_cast<void>(device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE));
+    static_cast<void>(device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE));
+    static_cast<void>(device->SetRenderState(
+        D3DRS_ZENABLE, batch->settings.depth_test ? TRUE : FALSE));
+    static_cast<void>(device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE));
     static_cast<void>(device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE));
     static_cast<void>(
         device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA));
     static_cast<void>(
         device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA));
     static_cast<void>(
+        device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1));
+    static_cast<void>(
+        device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE));
+    static_cast<void>(
+        device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1));
+    static_cast<void>(
+        device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE));
+    static_cast<void>(
+        device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE));
+    static_cast<void>(
+        device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+    static_cast<void>(
         device->DrawPrimitiveUP(D3DPT_LINELIST,
-                                static_cast<UINT>(vertices.size() / 2),
-                                vertices.data(),
-                                sizeof(d3d_line_vertex)));
+                                static_cast<UINT>(batch->vertices.size() / 2),
+                                batch->vertices.data(),
+                                sizeof(graphics::line_vertex)));
 }
 
 template <typename draw_call>
@@ -422,7 +422,7 @@ HRESULT STDMETHODCALLTYPE hk_reset(IDirect3DDevice8*      device,
 HRESULT STDMETHODCALLTYPE hk_begin_scene(IDirect3DDevice8* device)
 {
     const auto result = original<scene_fn>(g_hooks.begin_scene)(device);
-    if (SUCCEEDED(result) && !g_internal_render)
+    if (SUCCEEDED(result) && !g_internal_render && is_primary(device))
     {
         guarded(
             [device]
@@ -444,7 +444,7 @@ HRESULT STDMETHODCALLTYPE hk_begin_scene(IDirect3DDevice8* device)
 
 HRESULT STDMETHODCALLTYPE hk_end_scene(IDirect3DDevice8* device)
 {
-    if (!g_internal_render)
+    if (!g_internal_render && is_primary(device))
     {
         guarded(
             [device]
@@ -473,7 +473,10 @@ HRESULT STDMETHODCALLTYPE hk_present(IDirect3DDevice8* device,
 {
     const auto result = original<present_fn>(g_hooks.present)(
         device, source, destination, override_window, dirty_region);
-    g_hooks.frame_callbacks_run.store(false, std::memory_order_release);
+    if (is_primary(device))
+    {
+        g_hooks.frame_callbacks_run.store(false, std::memory_order_release);
+    }
     return result;
 }
 
@@ -483,12 +486,60 @@ HRESULT STDMETHODCALLTYPE hk_set_transform(IDirect3DDevice8*     device,
 {
     try
     {
-        if (!g_internal_render && state == D3DTS_VIEW &&
-            graphics::camera_enabled())
+        if (g_internal_render || !is_primary(device) || matrix == nullptr)
         {
-            const auto replacement = camera_matrix();
             return original<set_transform_fn>(g_hooks.set_transform)(
-                device, state, &replacement);
+                device, state, matrix);
+        }
+
+        if (state == D3DTS_PROJECTION)
+        {
+            D3DVIEWPORT8 viewport{};
+            const auto   perspective = is_right_handed_perspective(*matrix);
+            const auto   has_viewport =
+                perspective && SUCCEEDED(device->GetViewport(&viewport));
+            std::lock_guard lock{ g_hooks.transform_mutex };
+            g_hooks.main_perspective_active = perspective;
+            if (perspective)
+            {
+                g_hooks.main_projection = *matrix;
+                if (has_viewport)
+                {
+                    g_hooks.main_viewport = viewport;
+                }
+            }
+        }
+        else if (state == D3DTS_VIEW)
+        {
+            bool main_perspective{};
+            {
+                std::lock_guard lock{ g_hooks.transform_mutex };
+                main_perspective = g_hooks.main_perspective_active;
+                if (main_perspective)
+                {
+                    g_hooks.main_view      = *matrix;
+                    g_hooks.has_main_scene = true;
+                }
+            }
+
+            if (main_perspective)
+            {
+                const auto matrix_values =
+                    std::span<const float, 16>{ &matrix->m[0][0], 16 };
+                if (const auto pose =
+                        graphics::detail::decompose_right_handed_view(
+                            matrix_values))
+                {
+                    graphics::detail::observe_camera(*pose);
+                }
+
+                if (graphics::camera_enabled())
+                {
+                    const auto replacement = camera_matrix();
+                    return original<set_transform_fn>(g_hooks.set_transform)(
+                        device, state, &replacement);
+                }
+            }
         }
     }
     catch (...)
@@ -504,6 +555,11 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive(IDirect3DDevice8* device,
                                             UINT              start,
                                             UINT              count)
 {
+    if (!is_primary(device))
+    {
+        return original<draw_primitive_fn>(g_hooks.draw_primitive)(
+            device, type, start, count);
+    }
     return with_visual_override(device,
                                 [&]
                                 {
@@ -520,6 +576,16 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive(IDirect3DDevice8* device,
                                                     UINT start_index,
                                                     UINT primitive_count)
 {
+    if (!is_primary(device))
+    {
+        return original<draw_indexed_primitive_fn>(
+            g_hooks.draw_indexed_primitive)(device,
+                                            type,
+                                            min_index,
+                                            vertex_count,
+                                            start_index,
+                                            primitive_count);
+    }
     return with_visual_override(device,
                                 [&]
                                 {
@@ -540,6 +606,11 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive_up(IDirect3DDevice8* device,
                                                const void* data,
                                                UINT        stride)
 {
+    if (!is_primary(device))
+    {
+        return original<draw_primitive_up_fn>(g_hooks.draw_primitive_up)(
+            device, type, primitive_count, data, stride);
+    }
     return with_visual_override(
         device,
         [&]
@@ -559,6 +630,19 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive_up(IDirect3DDevice8* device,
                                                        const void* data,
                                                        UINT        stride)
 {
+    if (!is_primary(device))
+    {
+        return original<draw_indexed_primitive_up_fn>(
+            g_hooks.draw_indexed_primitive_up)(device,
+                                               type,
+                                               min_vertex,
+                                               vertex_count,
+                                               primitive_count,
+                                               index_data,
+                                               index_format,
+                                               data,
+                                               stride);
+    }
     return with_visual_override(
         device,
         [&]
