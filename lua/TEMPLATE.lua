@@ -1,11 +1,9 @@
 ---@meta
---- Airstrike 3D Tools — Plugin Template
---- Professional plugin template with best practices.
+--- Shared plugin template for the root `lua/` tree.
+--- Deployed to each game version as runtime `plugins/`.
 ---
 --- @module plugin_template
---- @author Your Name
---- @license MIT
---- @version 1.0.0
+--- @version 1.1.0
 ---
 --- Description of what this plugin does.
 

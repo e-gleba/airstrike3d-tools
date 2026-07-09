@@ -6,7 +6,8 @@
 #       SOURCE_DIR    <path>
 #   )
 #
-# Deploys: data/, plugins/, scripts/ (from project root), bass.dll, exe, config.ini
+# Deploys: data/, plugins/ (from root lua/), optional version plugins/,
+# scripts/ (Python tools), bass.dll, exe, and generated config.ini.
 #
 # Creates targets:
 #   bass_proxy_${VERSION}    — proxy DLL (if USE_BASS_PROXY_LIB)
@@ -42,7 +43,15 @@ function(add_game_deployment)
     set(src_dir ${arg_SOURCE_DIR})
     set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR})
     set(project_scripts_dir ${CMAKE_SOURCE_DIR}/scripts)
-    set(shared_plugins_dir ${CMAKE_SOURCE_DIR}/2_06/plugins)
+    set(shared_lua_dir ${CMAKE_SOURCE_DIR}/lua)
+    set(version_config_in "${src_dir}/config.ini.in")
+
+    if(NOT EXISTS "${version_config_in}")
+        message(
+            FATAL_ERROR
+                "add_game_deployment: missing ${version_config_in}"
+            )
+    endif()
 
     cmake_path(
         APPEND
@@ -81,14 +90,15 @@ execute_process(
     COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/data"
     COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/data" "@deploy_dir@/data"
 )
-if(EXISTS "@shared_plugins_dir@")
+if(EXISTS "@shared_lua_dir@")
     execute_process(
         COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
-        COMMAND "@CMAKE_COMMAND@" -E copy_directory "@shared_plugins_dir@" "@deploy_dir@/plugins"
+        COMMAND "@CMAKE_COMMAND@" -E copy_directory "@shared_lua_dir@" "@deploy_dir@/plugins"
     )
 endif()
-if(EXISTS "@src_dir@/plugins" AND NOT "@src_dir@/plugins" STREQUAL "@shared_plugins_dir@")
+if(EXISTS "@src_dir@/plugins")
     execute_process(
+        COMMAND "@CMAKE_COMMAND@" -E make_directory "@deploy_dir@/plugins"
         COMMAND "@CMAKE_COMMAND@" -E copy_directory "@src_dir@/plugins" "@deploy_dir@/plugins"
     )
 endif()
@@ -105,8 +115,7 @@ execute_process(
 ]=]
         @ONLY)
 
-    file(GLOB_RECURSE shared_plugin_files CONFIGURE_DEPENDS
-         "${shared_plugins_dir}/*")
+    file(GLOB_RECURSE shared_lua_files CONFIGURE_DEPENDS "${shared_lua_dir}/*")
     file(GLOB_RECURSE version_plugin_files CONFIGURE_DEPENDS
          "${src_dir}/plugins/*")
     file(GLOB_RECURSE project_script_files CONFIGURE_DEPENDS
@@ -119,18 +128,16 @@ execute_process(
         COMMAND "${CMAKE_COMMAND}" -E touch "${deploy_stamp}"
         DEPENDS
             "${src_dir}/${game_exe}"
-            ${shared_plugin_files}
+            ${shared_lua_files}
             ${version_plugin_files}
             ${project_script_files}
             CODEGEN
         VERBATIM)
 
-    # ─── Config.ini generation ───────────────────────────────────────────────
-    # Generate config.ini from template to skip launcher window and use
-    # modern defaults (1600x1200, fullscreen, etc.)
+    # ─── Config.ini generation (per-version template) ────────────────────────
 
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/config.ini.in"
+        "${version_config_in}"
         "${deploy_dir}/config.ini"
         @ONLY)
 
@@ -138,7 +145,7 @@ execute_process(
         OUTPUT "${config_stamp}"
         COMMENT "generating config.ini for ${version}"
         COMMAND "${CMAKE_COMMAND}" -E touch "${config_stamp}"
-        DEPENDS "${deploy_dir}/config.ini" CODEGEN
+        DEPENDS "${deploy_dir}/config.ini" "${version_config_in}" CODEGEN
         VERBATIM)
 
     # ─── Proxy DLL ───────────────────────────────────────────────────────────

@@ -76,6 +76,7 @@ inline context g_ctx;
 
 constexpr std::int32_t k_ui_toggle_key = 0x2D; // VK_INSERT
 constexpr std::string_view k_glsl_version{ "#version 110" };
+/// Runtime plugin directory (deploy copies shared sources from repo `lua/`).
 constexpr std::string_view k_plugin_dir{ "plugins" };
 
 } // namespace sdk

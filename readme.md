@@ -506,39 +506,36 @@ The build system automatically generates `config.ini` for each game version duri
 
 #### Default Settings
 
-Generated from [`cmake/config.ini.in`](cmake/config.ini.in) template:
+Each game version owns its template:
 
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| `VideoMode` | 5 (1600×1200) | Modern resolution for better image quality |
-| `Fullscreen` | 1 | Immersive gameplay |
-| `WaitVSync` | 0 | Reduces input lag |
-| `ShowFPS` | 1 | Debug overlay for performance monitoring |
-| `SfxVolume` | 0.5 | Balanced sound effects (50%) |
-| `MusicVolume` | 0.5 | Balanced music (50%) |
-| `FirstRun` | 0 | Skips initial setup dialogs |
+| Version | Template | Notes |
+|---------|----------|-------|
+| 2.06 | [`2_06/config.ini.in`](2_06/config.ini.in) | OpenGL defaults |
+| 2.51 | [`2_51/config.ini.in`](2_51/config.ini.in) | Direct3D 8 defaults |
+| 2.71 | [`2_71/config.ini.in`](2_71/config.ini.in) | Operation Gulf / Direct3D 8 |
+
+Shared Lua plugins live in [`lua/`](lua/) and are copied into each deploy tree as runtime `plugins/`.
 
 #### Customizing Configuration
 
-To modify defaults for all versions, edit `cmake/config.ini.in`:
+Edit the version template, then rebuild/deploy:
 
 ```ini
+# 2_51/config.ini.in
 [Display]
-VideoMode=6          # Change to 1920×1080 or higher
-Fullscreen=0         # Windowed mode for debugging
-WaitVSync=1          # Enable VSync to reduce tearing
+VideoMode=10
+Fullscreen=0
+WaitVSync=1
 ```
-
-To customize per-version, create version-specific overrides in `2_XX/config.ini.in` (not yet implemented — all versions currently share the same template).
 
 #### Why Auto-Generate?
 
 The original games shipped without `config.ini` and required users to configure settings via a launcher dialog on first run. This automated approach:
 
 - **Eliminates manual setup** — games start immediately with tested defaults
-- **Ensures consistency** — same configuration across all three versions
+- **Keeps version-specific settings** — OpenGL and D3D8 configs stay separate
 - **Supports automation** — CTest can launch games without human intervention
-- **Preserves defaults** — template tracks optimal settings for modern systems
+- **Preserves defaults** — templates track optimal settings for modern systems
 
 ### Testing with CTest
 
