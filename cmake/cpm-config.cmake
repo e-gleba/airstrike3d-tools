@@ -28,6 +28,7 @@ if(CMAKE_CROSSCOMPILING)
     list(APPEND CMAKE_FIND_ROOT_PATH "${cpm_deps_dir}")
 endif()
 
+find_package(d3d8 CONFIG REQUIRED)
 find_package(freetype CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
