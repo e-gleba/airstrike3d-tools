@@ -77,6 +77,11 @@ jobs:
           path: ${{ env.CPM_SOURCE_CACHE }}
           key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/cmake/**/*.cmake') }}
 
+      - name: setup_msvc_environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
       - name: install_dependencies
         run: |
           choco install ninja --yes
