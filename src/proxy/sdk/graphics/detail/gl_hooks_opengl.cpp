@@ -1,10 +1,13 @@
 #include "sdk/core/context.hpp"
+#include "sdk/core/logging.hpp"
 #include "sdk/graphics/detail/camera_math.hpp"
 #include "sdk/graphics/detail/opengl_state.hpp"
 #include "sdk/graphics/graphics.hpp"
 #include "sdk/graphics/rendering.hpp"
 
 #include <GL/gl.h>
+#include <exception>
+#include <format>
 #include <type_traits>
 #include <utility>
 
@@ -44,18 +47,26 @@ void apply_camera()
         return;
     }
 
-    const auto pose    = graphics::get_camera_pose();
-    const auto forward = graphics::detail::basis_from_pose(pose).forward;
+    try
+    {
+        const auto pose    = graphics::get_camera_pose();
+        const auto forward = graphics::detail::basis_from_pose(pose).forward;
 
-    graphics::apply_lookat(pose.position.x,
-                           pose.position.y,
-                           pose.position.z,
-                           pose.position.x + forward.x,
-                           pose.position.y + forward.y,
-                           pose.position.z + forward.z,
-                           0.0,
-                           1.0,
-                           0.0);
+        graphics::apply_lookat(pose.position.x,
+                               pose.position.y,
+                               pose.position.z,
+                               pose.position.x + forward.x,
+                               pose.position.y + forward.y,
+                               pose.position.z + forward.z,
+                               0.0,
+                               1.0,
+                               0.0);
+    }
+    catch (const std::exception& error)
+    {
+        sdk::log_error(
+            std::format("OpenGL camera override failed: {}", error.what()));
+    }
 }
 
 void apply_visual_mode()
@@ -169,10 +180,18 @@ void APIENTRY hk_glu_look_at(GLdouble ex,
                              GLdouble uy,
                              GLdouble uz)
 {
-    if (const auto observed =
-            graphics::detail::pose_from_look_at({ ex, ey, ez }, { cx, cy, cz }))
+    try
     {
-        graphics::detail::observe_camera(*observed);
+        if (const auto observed = graphics::detail::pose_from_look_at(
+                { ex, ey, ez }, { cx, cy, cz }))
+        {
+            graphics::detail::observe_camera(*observed);
+        }
+    }
+    catch (const std::exception& error)
+    {
+        sdk::log_error(
+            std::format("OpenGL camera observe failed: {}", error.what()));
     }
 
     if (graphics::camera_enabled())

@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <stdexcept>
 
 namespace
 {
@@ -47,14 +48,24 @@ int main()
         return EXIT_FAILURE;
     }
 
+    try
+    {
+        set_camera_pose({
+            .position      = { std::nan(""), 0.0, 0.0 },
+            .yaw_degrees   = 0.0,
+            .pitch_degrees = 0.0,
+        });
+        return EXIT_FAILURE;
+    }
+    catch (const std::invalid_argument&)
+    {
+    }
+
     constexpr auto lines = std::array{
         line_vertex{ .x = 1.0F, .argb = 0xFF112233U },
         line_vertex{ .x = 2.0F, .argb = 0xFF445566U },
     };
-    if (!set_world_lines(lines))
-    {
-        return EXIT_FAILURE;
-    }
+    set_world_lines(lines);
     auto snapshot = detail::world_lines_snapshot();
     if (snapshot->vertices.size() != lines.size() ||
         snapshot->vertices[1].x != 2.0F)
@@ -65,6 +76,15 @@ int main()
     if (!detail::world_lines_snapshot()->vertices.empty())
     {
         return EXIT_FAILURE;
+    }
+
+    try
+    {
+        set_world_lines(std::span{ lines }.first(1));
+        return EXIT_FAILURE;
+    }
+    catch (const std::invalid_argument&)
+    {
     }
 
     set_visual_settings({

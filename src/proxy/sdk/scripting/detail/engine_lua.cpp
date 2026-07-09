@@ -75,39 +75,41 @@ struct engine::impl final
 {
     lua_State* lua;
 
-    static void submit_world_lines(const std::vector<double>& packed,
-                                   bool                       depth_test)
+    static void submit_world_lines(std::span<const double> packed,
+                                   bool                    depth_test)
     {
         using namespace sdk::graphics;
 
+        constexpr auto max_float =
+            static_cast<double>(std::numeric_limits<float>::max());
+        constexpr auto max_argb =
+            static_cast<double>(std::numeric_limits<std::uint32_t>::max());
+
         require((packed.size() % 4U) == 0U,
                 "set_world_lines: expected x,y,z,argb tuples");
+
         std::vector<line_vertex> vertices;
         vertices.reserve(packed.size() / 4U);
         for (std::size_t index = 0; index < packed.size(); index += 4U)
         {
-            constexpr auto max_float =
-                static_cast<double>(std::numeric_limits<float>::max());
-            const auto argb = packed[index + 3U];
-            require(std::isfinite(packed[index]) &&
-                        std::isfinite(packed[index + 1U]) &&
-                        std::isfinite(packed[index + 2U]) &&
-                        std::abs(packed[index]) <= max_float &&
-                        std::abs(packed[index + 1U]) <= max_float &&
-                        std::abs(packed[index + 2U]) <= max_float &&
-                        std::isfinite(argb) && argb >= 0.0 &&
-                        argb <= static_cast<double>(
-                                    std::numeric_limits<std::uint32_t>::max()),
+            const auto tuple = packed.subspan(index, 4U);
+            const auto x     = tuple[0];
+            const auto y     = tuple[1];
+            const auto z     = tuple[2];
+            const auto argb  = tuple[3];
+            require(std::isfinite(x) && std::isfinite(y) && std::isfinite(z) &&
+                        std::isfinite(argb) && std::abs(x) <= max_float &&
+                        std::abs(y) <= max_float && std::abs(z) <= max_float &&
+                        argb >= 0.0 && argb <= max_argb,
                     "set_world_lines: values are out of range");
             vertices.push_back({
-                .x    = static_cast<float>(packed[index]),
-                .y    = static_cast<float>(packed[index + 1U]),
-                .z    = static_cast<float>(packed[index + 2U]),
+                .x    = static_cast<float>(x),
+                .y    = static_cast<float>(y),
+                .z    = static_cast<float>(z),
                 .argb = static_cast<std::uint32_t>(argb),
             });
         }
-        require(set_world_lines(vertices, { .depth_test = depth_test }),
-                "set_world_lines: invalid geometry");
+        set_world_lines(vertices, { .depth_test = depth_test });
     }
 
     /// @brief Initialize Lua state and register all bindings.
@@ -563,10 +565,11 @@ struct engine::impl final
                          })
             .addFunction("set_world_lines",
                          [](const std::vector<double>& packed)
-                         { submit_world_lines(packed, false); })
-            .addFunction("set_world_lines_depth_tested",
-                         [](const std::vector<double>& packed, bool depth_test)
-                         { submit_world_lines(packed, depth_test); })
+                         { submit_world_lines(std::span{ packed }, false); })
+            .addFunction(
+                "set_world_lines_depth_tested",
+                [](const std::vector<double>& packed, bool depth_test)
+                { submit_world_lines(std::span{ packed }, depth_test); })
             .addFunction("clear_world_lines", &clear_world_lines)
             .addFunction(
                 "set_visual_mode",

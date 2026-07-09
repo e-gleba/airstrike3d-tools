@@ -159,7 +159,7 @@ template <typename function> void guarded(function&& fn) noexcept
     }
 }
 
-[[nodiscard]] D3DMATRIX camera_matrix() noexcept
+[[nodiscard]] D3DMATRIX camera_matrix()
 {
     D3DMATRIX  result{};
     const auto matrix =

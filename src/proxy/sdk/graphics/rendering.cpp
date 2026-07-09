@@ -1,5 +1,6 @@
 #include "sdk/graphics/rendering.hpp"
 
+#include "sdk/core/contract.hpp"
 #include "sdk/graphics/detail/camera_math.hpp"
 
 #include <algorithm>
@@ -8,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <ranges>
+#include <utility>
 
 namespace sdk::graphics
 {
@@ -16,6 +18,8 @@ namespace
 {
 
 inline constexpr std::size_t k_maximum_line_vertices = 200'000;
+inline constexpr double      k_minimum_pitch         = -89.0;
+inline constexpr double      k_maximum_pitch         = 89.0;
 
 std::atomic<render_api>    g_backend{ render_api::unknown };
 std::atomic<bool>          g_camera_enabled{ false };
@@ -30,11 +34,24 @@ std::shared_ptr<const detail::world_line_batch> g_world_lines{
     std::make_shared<const detail::world_line_batch>()
 };
 
-[[nodiscard]] bool finite(camera_pose pose) noexcept
+[[nodiscard]] camera_pose sanitize_pose(camera_pose pose)
 {
-    return std::isfinite(pose.position.x) && std::isfinite(pose.position.y) &&
-           std::isfinite(pose.position.z) && std::isfinite(pose.yaw_degrees) &&
-           std::isfinite(pose.pitch_degrees);
+    require(detail::is_finite(pose), "camera pose must be finite");
+    pose.pitch_degrees =
+        std::clamp(pose.pitch_degrees, k_minimum_pitch, k_maximum_pitch);
+    return pose;
+}
+
+void publish_world_lines(
+    std::shared_ptr<const detail::world_line_batch> batch) noexcept
+{
+    std::atomic_store_explicit(
+        &g_world_lines, std::move(batch), std::memory_order_release);
+}
+
+[[nodiscard]] std::uint64_t next_line_generation() noexcept
+{
+    return g_line_generation.fetch_add(1, std::memory_order_relaxed) + 1U;
 }
 
 } // namespace
@@ -75,13 +92,9 @@ bool camera_enabled() noexcept
     return g_camera_enabled.load(std::memory_order::acquire);
 }
 
-void set_camera_pose(camera_pose pose) noexcept
+void set_camera_pose(camera_pose pose)
 {
-    if (!finite(pose))
-    {
-        return;
-    }
-    pose.pitch_degrees = std::clamp(pose.pitch_degrees, -89.0, 89.0);
+    pose = sanitize_pose(pose);
     std::lock_guard lock{ g_camera_mutex };
     g_camera_pose = pose;
 }
@@ -109,12 +122,10 @@ bool has_observed_camera() noexcept
     return g_has_observed_camera;
 }
 
-void move_camera_local(double forward, double right, double up) noexcept
+void move_camera_local(double forward, double right, double up)
 {
-    if (!std::isfinite(forward) || !std::isfinite(right) || !std::isfinite(up))
-    {
-        return;
-    }
+    require(std::isfinite(forward) && std::isfinite(right) && std::isfinite(up),
+            "camera move: deltas must be finite");
 
     std::lock_guard lock{ g_camera_mutex };
     const auto      basis  = detail::basis_from_pose(g_camera_pose);
@@ -125,59 +136,49 @@ void move_camera_local(double forward, double right, double up) noexcept
                                 detail::scale(detail::world_up, up))));
 }
 
-void rotate_camera(double yaw_delta_degrees,
-                   double pitch_delta_degrees) noexcept
+void rotate_camera(double yaw_delta_degrees, double pitch_delta_degrees)
 {
-    if (!std::isfinite(yaw_delta_degrees) ||
-        !std::isfinite(pitch_delta_degrees))
-    {
-        return;
-    }
+    require(std::isfinite(yaw_delta_degrees) &&
+                std::isfinite(pitch_delta_degrees),
+            "camera rotate: deltas must be finite");
 
     std::lock_guard lock{ g_camera_mutex };
     g_camera_pose.yaw_degrees =
         std::remainder(g_camera_pose.yaw_degrees + yaw_delta_degrees, 360.0);
-    g_camera_pose.pitch_degrees = std::clamp(
-        g_camera_pose.pitch_degrees + pitch_delta_degrees, -89.0, 89.0);
+    g_camera_pose.pitch_degrees =
+        std::clamp(g_camera_pose.pitch_degrees + pitch_delta_degrees,
+                   k_minimum_pitch,
+                   k_maximum_pitch);
 }
 
-bool set_world_lines(std::span<const line_vertex> vertices,
+void set_world_lines(std::span<const line_vertex> vertices,
                      line_settings                settings)
 {
-    if ((vertices.size() % 2U) != 0U ||
-        vertices.size() > k_maximum_line_vertices ||
-        !std::ranges::all_of(vertices,
-                             [](const line_vertex& vertex)
-                             {
-                                 return std::isfinite(vertex.x) &&
-                                        std::isfinite(vertex.y) &&
-                                        std::isfinite(vertex.z);
-                             }))
-    {
-        return false;
-    }
+    require((vertices.size() % 2U) == 0U,
+            "set_world_lines: expected line-segment pairs");
+    require(vertices.size() <= k_maximum_line_vertices,
+            "set_world_lines: too many vertices");
+    require(std::ranges::all_of(vertices,
+                                [](const line_vertex& vertex)
+                                {
+                                    return std::isfinite(vertex.x) &&
+                                           std::isfinite(vertex.y) &&
+                                           std::isfinite(vertex.z);
+                                }),
+            "set_world_lines: vertices must be finite");
 
-    auto batch      = std::make_shared<detail::world_line_batch>();
-    batch->vertices = { vertices.begin(), vertices.end() };
-    batch->settings = settings;
-    batch->generation =
-        g_line_generation.fetch_add(1, std::memory_order_relaxed) + 1U;
-    std::atomic_store_explicit(
-        &g_world_lines,
-        std::shared_ptr<const detail::world_line_batch>{ std::move(batch) },
-        std::memory_order_release);
-    return true;
+    auto batch        = std::make_shared<detail::world_line_batch>();
+    batch->vertices   = { vertices.begin(), vertices.end() };
+    batch->settings   = settings;
+    batch->generation = next_line_generation();
+    publish_world_lines(std::move(batch));
 }
 
 void clear_world_lines() noexcept
 {
-    auto batch = std::make_shared<detail::world_line_batch>();
-    batch->generation =
-        g_line_generation.fetch_add(1, std::memory_order_relaxed) + 1U;
-    std::atomic_store_explicit(
-        &g_world_lines,
-        std::shared_ptr<const detail::world_line_batch>{ std::move(batch) },
-        std::memory_order_release);
+    auto batch        = std::make_shared<detail::world_line_batch>();
+    batch->generation = next_line_generation();
+    publish_world_lines(std::move(batch));
 }
 
 void set_visual_settings(visual_settings settings) noexcept
@@ -201,13 +202,9 @@ void set_active_backend(render_api backend) noexcept
     g_backend.store(backend, std::memory_order::release);
 }
 
-void observe_camera(camera_pose pose) noexcept
+void observe_camera(camera_pose pose)
 {
-    if (!finite(pose))
-    {
-        return;
-    }
-    pose.pitch_degrees = std::clamp(pose.pitch_degrees, -89.0, 89.0);
+    pose = sanitize_pose(pose);
     std::lock_guard lock{ g_camera_mutex };
     g_observed_camera     = pose;
     g_has_observed_camera = true;

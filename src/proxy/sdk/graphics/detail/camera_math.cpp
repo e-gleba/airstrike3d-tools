@@ -1,7 +1,11 @@
 #include "sdk/graphics/detail/camera_math.hpp"
 
+#include "sdk/core/contract.hpp"
+
 #include <algorithm>
 #include <cmath>
+#include <ranges>
+#include <string_view>
 
 namespace sdk::graphics::detail
 {
@@ -11,12 +15,6 @@ namespace
 
 inline constexpr double k_minimum_length     = 1.0e-9;
 inline constexpr double k_orthogonal_epsilon = 1.0e-3;
-
-[[nodiscard]] bool finite(vec3 value) noexcept
-{
-    return std::isfinite(value.x) && std::isfinite(value.y) &&
-           std::isfinite(value.z);
-}
 
 [[nodiscard]] camera_pose pose_from_forward(vec3 eye, vec3 forward) noexcept
 {
@@ -28,11 +26,28 @@ inline constexpr double k_orthogonal_epsilon = 1.0e-3;
     };
 }
 
+[[nodiscard]] vec3 require_unit(vec3 value, std::string_view message)
+{
+    const auto unit = normalize(value);
+    require(unit.has_value(), message);
+    return *unit;
+}
+
+[[nodiscard]] vec3 stable_right(vec3 forward)
+{
+    if (const auto right = normalize(cross(forward, world_up)))
+    {
+        return *right;
+    }
+    return require_unit(cross(forward, world_right),
+                        "camera basis: degenerate right axis");
+}
+
 } // namespace
 
 std::optional<vec3> normalize(vec3 value) noexcept
 {
-    if (!finite(value))
+    if (!is_finite(value))
     {
         return std::nullopt;
     }
@@ -47,28 +62,30 @@ std::optional<vec3> normalize(vec3 value) noexcept
     return scale(value, 1.0 / std::sqrt(squared_length));
 }
 
-camera_basis basis_from_pose(const camera_pose& pose) noexcept
+camera_basis basis_from_pose(const camera_pose& pose)
 {
-    const auto yaw   = pose.yaw_degrees * degrees_to_radians;
-    const auto pitch = pose.pitch_degrees * degrees_to_radians;
-    const auto cp    = std::cos(pitch);
-    const auto forward =
-        normalize({ std::cos(yaw) * cp, std::sin(pitch), std::sin(yaw) * cp })
-            .value_or(vec3{ 0.0, 0.0, -1.0 });
-    const auto right =
-        normalize(cross(forward, world_up)).value_or(vec3{ 1.0, 0.0, 0.0 });
-    const auto up = normalize(cross(right, forward)).value_or(world_up);
+    require(is_finite(pose), "camera basis: pose must be finite");
+
+    const auto yaw     = pose.yaw_degrees * degrees_to_radians;
+    const auto pitch   = pose.pitch_degrees * degrees_to_radians;
+    const auto cp      = std::cos(pitch);
+    const auto forward = require_unit(
+        { std::cos(yaw) * cp, std::sin(pitch), std::sin(yaw) * cp },
+        "camera basis: degenerate forward axis");
+    const auto right = stable_right(forward);
+    const auto up =
+        require_unit(cross(right, forward), "camera basis: degenerate up axis");
     return { .forward = forward, .right = right, .up = up };
 }
 
-std::array<float, 16> make_right_handed_view(const camera_pose& pose) noexcept
+std::array<float, 16> make_right_handed_view(const camera_pose& pose)
 {
     const auto basis  = basis_from_pose(pose);
     const auto z_axis = scale(basis.forward, -1.0);
-    const auto x_axis =
-        normalize(cross(world_up, z_axis)).value_or(basis.right);
-    const auto y_axis = cross(z_axis, x_axis);
-    const auto eye    = pose.position;
+    const auto x_axis = basis.right;
+    const auto y_axis =
+        require_unit(cross(z_axis, x_axis), "camera view: degenerate y axis");
+    const auto eye = pose.position;
 
     return {
         static_cast<float>(x_axis.x),
@@ -93,12 +110,10 @@ std::array<float, 16> make_right_handed_view(const camera_pose& pose) noexcept
 std::optional<camera_pose> decompose_right_handed_view(
     std::span<const float, 16> matrix) noexcept
 {
-    for (const auto component : matrix)
+    if (!std::ranges::all_of(
+            matrix, [](float component) { return std::isfinite(component); }))
     {
-        if (!std::isfinite(component))
-        {
-            return std::nullopt;
-        }
+        return std::nullopt;
     }
 
     const auto x_axis = normalize({ matrix[0], matrix[4], matrix[8] });
@@ -120,18 +135,21 @@ std::optional<camera_pose> decompose_right_handed_view(
     const auto eye =
         add(add(scale(*x_axis, -translation.x), scale(*y_axis, -translation.y)),
             scale(*z_axis, -translation.z));
-    const auto forward = scale(*z_axis, -1.0);
-    if (!finite(eye))
+    if (!is_finite(eye))
     {
         return std::nullopt;
     }
-    return pose_from_forward(eye, forward);
+    return pose_from_forward(eye, scale(*z_axis, -1.0));
 }
 
 std::optional<camera_pose> pose_from_look_at(vec3 eye, vec3 center) noexcept
 {
+    if (!is_finite(eye))
+    {
+        return std::nullopt;
+    }
     const auto forward = normalize(subtract(center, eye));
-    if (!finite(eye) || !forward)
+    if (!forward)
     {
         return std::nullopt;
     }

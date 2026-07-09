@@ -6,6 +6,7 @@
 #include "sdk/graphics/rendering.hpp"
 
 #include <array>
+#include <cmath>
 #include <optional>
 #include <span>
 
@@ -16,6 +17,7 @@ inline constexpr double pi                 = 3.14159265358979323846;
 inline constexpr double degrees_to_radians = pi / 180.0;
 inline constexpr double radians_to_degrees = 180.0 / pi;
 inline constexpr vec3   world_up{ 0.0, 1.0, 0.0 };
+inline constexpr vec3   world_right{ 1.0, 0.0, 0.0 };
 
 struct camera_basis final
 {
@@ -53,12 +55,30 @@ struct camera_basis final
     };
 }
 
+[[nodiscard]] constexpr bool is_finite(vec3 value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
+[[nodiscard]] constexpr bool is_finite(const camera_pose& pose) noexcept
+{
+    return is_finite(pose.position) && std::isfinite(pose.yaw_degrees) &&
+           std::isfinite(pose.pitch_degrees);
+}
+
 [[nodiscard]] std::optional<vec3> normalize(vec3 value) noexcept;
-[[nodiscard]] camera_basis basis_from_pose(const camera_pose& pose) noexcept;
+
+/// @throws std::invalid_argument if @p pose is non-finite or degenerate.
+[[nodiscard]] camera_basis basis_from_pose(const camera_pose& pose);
+
+/// @throws std::invalid_argument if @p pose is non-finite or degenerate.
 [[nodiscard]] std::array<float, 16> make_right_handed_view(
-    const camera_pose& pose) noexcept;
+    const camera_pose& pose);
+
 [[nodiscard]] std::optional<camera_pose> decompose_right_handed_view(
     std::span<const float, 16> matrix) noexcept;
+
 [[nodiscard]] std::optional<camera_pose> pose_from_look_at(
     vec3 eye, vec3 center) noexcept;
 
