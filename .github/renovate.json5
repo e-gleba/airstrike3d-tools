@@ -1,0 +1,138 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticPrefixFixDepsChoreOthers",
+    "group:monorepos",
+    "helpers:pinGitHubActionDigests"
+  ],
+
+  // ─── General ──────────────────────────────────────────────────────────────
+  timezone: "UTC",
+  schedule: ["before 8am on monday"],
+  prConcurrentLimit: 10,
+  prHourlyLimit: 3,
+  labels: ["dependencies"],
+  commitMessagePrefix: "chore(deps):",
+  commitMessageAction: "update",
+  commitMessageTopic: "{{depName}}",
+  commitMessageExtra: "to {{newValue}}",
+
+  // ─── Vulnerability alerts ─────────────────────────────────────────────────
+  vulnerabilityAlerts: {
+    enabled: true,
+    schedule: ["at any time"],
+    labels: ["dependencies", "security"]
+  },
+
+  // ─── GitHub Actions ───────────────────────────────────────────────────────
+  // Covers .github/workflows/*.yml — checkout, setup-python, cache,
+  // upload-artifact, download-artifact, etc.
+  github-actions: {
+    enabled: true
+  },
+  packageRules: [
+    {
+      description: "Group all GitHub Actions bumps into one PR",
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+      labels: ["dependencies", "github-actions"]
+    },
+    {
+      description: "Auto-merge patch and pin updates after CI passes",
+      matchUpdateTypes: ["patch", "pin"],
+      automerge: true,
+      automergeStrategy: "squash",
+      platformAutomerge: true
+    }
+  ],
+
+  // ─── CPM (CMake Package Manager) ──────────────────────────────────────────
+  // CPM deps live in cmake/cpm/*.cmake via cpmaddpackage() calls.
+  // Renovate has no native CPM manager, so we use regex customManagers.
+  //
+  // Tracked dependencies:
+  //   cpm          cpm-cmake/CPM.cmake              v0.42.3    (version var)
+  //   spdlog       gabime/spdlog                    v1.17.0    (GIT_TAG)
+  //   imgui        ocornut/imgui                    v1.92.8    (VERSION)
+  //   safetyhook   cursey/safetyhook                v0.7.0     (GIT_TAG)
+  //   glm          g-truc/glm                       1.0.3      (GIT_TAG)
+  //   freetype     freetype/freetype                VER-2-14-3 (GIT_TAG)
+  //   lua          lua/lua                          v5.5.0     (VERSION)
+  //   luabridge3   kunitoki/LuaBridge3              3.0-rc12   (GIT_TAG)
+  //   min_dx8_sdk  TheSuperHackers/min-dx8-sdk      SHA-pinned (GIT_TAG commit)
+  customManagers: [
+    // ── CPM version variable (cpm-config.cmake) ─────────────────────────────
+    // Matches: set(cpm_version "0.42.3")
+    // followed by a FetchContent URL referencing cpm-cmake/CPM.cmake
+    {
+      customType: "regex",
+      description: "Update CPM.cmake version variable",
+      managerFilePatterns: ["/(^|/)cpm-config\\.cmake$/"],
+      matchStrings: [
+        "set\\(cpm_version\\s+\"(?<currentValue>[^\"]+)\"\\)"
+      ],
+      depNameTemplate: "cpm-cmake/CPM.cmake",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.+)$"
+    },
+
+    // ── CPM packages with GIT_TAG (version tags, not SHAs) ──────────────────
+    // Matches: GIT_TAG v1.17.0 / GIT_TAG 1.0.3 / GIT_TAG VER-2-14-3
+    // paired with: GIT_REPOSITORY https://github.com/owner/repo
+    //
+    // Handles both orderings (GIT_TAG before GIT_REPOSITORY and vice versa).
+    // Excludes pure hex SHAs (5-40 chars) — those are handled by the digest manager.
+    {
+      customType: "regex",
+      description: "Update CPM deps pinned by GIT_TAG (version tags)",
+      managerFilePatterns: ["/(^|/)cmake/cpm/[^/]+-config\\.cmake$/"],
+      matchStrings: [
+        // GIT_TAG before GIT_REPOSITORY
+        "GIT_TAG\\s+(?<currentValue>v?[A-Za-z]*\\d[^\\s\"]*?)\\s+GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s",
+        // GIT_REPOSITORY before GIT_TAG
+        "GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s+GIT_TAG\\s+(?<currentValue>v?[A-Za-z]*\\d[^\\s\"]*?)\\s"
+      ],
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^(?:v|VER-)?(?<version>.+)$"
+    },
+
+    // ── CPM packages with VERSION only (implies GIT_TAG v{VERSION}) ─────────
+    // Matches: VERSION 1.92.8  paired with GIT_REPOSITORY
+    // Used by: imgui, lua
+    {
+      customType: "regex",
+      description: "Update CPM deps pinned by VERSION field",
+      managerFilePatterns: ["/(^|/)cmake/cpm/[^/]+-config\\.cmake$/"],
+      matchStrings: [
+        // VERSION before GIT_REPOSITORY
+        "VERSION\\s+(?<currentValue>\\d[^\\s\"]*?)\\s+GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s",
+        // GIT_REPOSITORY before VERSION
+        "GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s+VERSION\\s+(?<currentValue>\\d[^\\s\"]*?)\\s"
+      ],
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.+)$"
+    },
+
+    // ── CPM packages pinned to commit SHA ───────────────────────────────────
+    // Matches: GIT_TAG 7bddff8c01f5fb931c3cb73d4aa8e66d303d97bc
+    // paired with: GIT_REPOSITORY https://github.com/owner/repo
+    // Uses git-refs datasource to track the default branch HEAD.
+    {
+      customType: "regex",
+      description: "Update CPM deps pinned to commit SHA",
+      managerFilePatterns: ["/(^|/)cmake/cpm/[^/]+-config\\.cmake$/"],
+      matchStrings: [
+        // GIT_TAG (SHA) before GIT_REPOSITORY
+        "GIT_TAG\\s+(?<currentDigest>[0-9a-f]{7,40})\\s+GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s",
+        // GIT_REPOSITORY before GIT_TAG (SHA)
+        "GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{7,40})\\s"
+      ],
+      datasourceTemplate: "git-refs",
+      depNameTemplate: "https://github.com/{{{depName}}}.git",
+      currentValueTemplate: "master"
+    }
+  ]
+}
