@@ -1,41 +1,4 @@
-# yaml-language-server: $schema=https://json.schemastore.org/dependabot-2.0.json
+# Renovate replaces Dependabot — see renovate.json
+# This file is intentionally left as a no-op to prevent Dependabot from activating.
 version: 2
-
-updates:
-  # ─── GitHub Actions ────────────────────────────────────────────────────────
-  # Keep CI/CD actions up to date (checkout, setup-python, cache, upload-artifact, etc.)
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "github-actions"
-    groups:
-      github-actions:
-        patterns:
-          - "*"
-
-  # ─── CPM (CMake Package Manager) dependencies ─────────────────────────────
-  # CPM deps are declared in cmake/cpm/*.cmake via cpmaddpackage() with GIT_TAG.
-  # Dependabot does not natively support CPM, so we use a custom regex-based
-  # approach via the "github-actions" ecosystem above for actions only.
-  # For CPM packages, we rely on manual updates or a custom script.
-  #
-  # Tracked CPM dependencies (cmake/cpm/):
-  #   - cpm        (cpm-cmake/CPM.cmake)         — v0.42.3
-  #   - spdlog     (gabime/spdlog)               — v1.17.0
-  #   - imgui      (ocornut/imgui)               — v1.92.8
-  #   - safetyhook (cursey/safetyhook)           — v0.7.0
-  #   - glm        (g-truc/glm)                  — 1.0.3
-  #   - freetype   (freetype/freetype)           — VER-2-14-3
-  #   - lua        (lua/lua)                     — v5.5.0
-  #   - luabridge3 (kunitoki/LuaBridge3)         — 3.0-rc12
-  #   - min_dx8_sdk (TheSuperHackers/min-dx8-sdk) — pinned commit
+updates: []
