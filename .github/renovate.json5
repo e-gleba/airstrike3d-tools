@@ -95,7 +95,7 @@
         // GIT_REPOSITORY before GIT_TAG
         "GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s+GIT_TAG\\s+(?<currentValue>v?[A-Za-z]*\\d[^\\s\"]*?)\\s"
       ],
-      datasourceTemplate: "github-releases",
+      datasourceTemplate: "github-tags",
       extractVersionTemplate: "^(?:v|VER-)?(?<version>.+)$"
     },
 
@@ -112,7 +112,7 @@
         // GIT_REPOSITORY before VERSION
         "GIT_REPOSITORY\\s+https://github\\.com/(?<depName>[^\\s\"]+?)(?:\\.git)?\\s+VERSION\\s+(?<currentValue>\\d[^\\s\"]*?)\\s"
       ],
-      datasourceTemplate: "github-releases",
+      datasourceTemplate: "github-tags",
       extractVersionTemplate: "^v?(?<version>.+)$"
     },
 
