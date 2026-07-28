@@ -1,0 +1,91 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticPrefixFixDepsChoreOthers",
+    "group:monorepos",
+    "helpers:pinGitHubActionDigests"
+  ],
+
+  "timezone": "UTC",
+  "schedule": ["before 8am on monday"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 3,
+
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newValue}}",
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
+
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "labels": ["dependencies", "github-actions"]
+    },
+    {
+      "description": "Auto-merge patch and minor GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group all CPM dependency updates",
+      "matchManagers": ["custom.regex"],
+      "groupName": "cpm-dependencies",
+      "labels": ["dependencies", "cpm"]
+    },
+    {
+      "description": "CPM major updates require manual review",
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "cpm", "major-update"]
+    }
+  ],
+
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "CPM dependencies with GIT_REPOSITORY + GIT_TAG (version tags)",
+      "managerFilePatterns": ["/(^|/)cmake/cpm/.*-config\\.cmake$/"],
+      "matchStrings": [
+        "cpmaddpackage\\s*\\([\\s\\S]*?GIT_REPOSITORY\\s+(?:https://github\\.com/)?(?<depName>[\\w.-]+/[\\w.-]+?)(?:\\.git)?\\s+[\\s\\S]*?GIT_TAG\\s+(?<currentValue>v?[\\w.\\-]+?)\\s"
+      ],
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?:v|VER-|release-)?(?<version>.+?)$"
+    },
+    {
+      "customType": "regex",
+      "description": "CPM dependencies with GIT_REPOSITORY + VERSION (no explicit GIT_TAG)",
+      "managerFilePatterns": ["/(^|/)cmake/cpm/.*-config\\.cmake$/"],
+      "matchStrings": [
+        "cpmaddpackage\\s*\\([\\s\\S]*?GIT_REPOSITORY\\s+(?:https://github\\.com/)?(?<depName>[\\w.-]+/[\\w.-]+?)(?:\\.git)?\\s+[\\s\\S]*?VERSION\\s+(?<currentValue>[\\d]+\\.[\\d]+\\.[\\d]+)\\s"
+      ],
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?:v|VER-|release-)?(?<version>.+?)$"
+    },
+    {
+      "customType": "regex",
+      "description": "CPM.cmake self-update (version variable in cpm-config.cmake)",
+      "managerFilePatterns": ["/(^|/)cmake/cpm-config\\.cmake$/"],
+      "matchStrings": [
+        "set\\s*\\(\\s*cpm_version\\s+\"(?<currentValue>[\\d.]+)\"\\s*\\)"
+      ],
+      "depNameTemplate": "cpm-cmake/CPM.cmake",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v?(?<version>.+?)$"
+    }
+  ]
+}
