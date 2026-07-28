@@ -30,7 +30,7 @@
   // ─── GitHub Actions ───────────────────────────────────────────────────────
   // Covers .github/workflows/*.yml — checkout, setup-python, cache,
   // upload-artifact, download-artifact, etc.
-  github-actions: {
+  "github-actions": {
     enabled: true
   },
   packageRules: [
