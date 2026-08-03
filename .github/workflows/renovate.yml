@@ -45,10 +45,10 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Self-hosted Renovate
-        uses: renovatebot/github-action@v40.3.6
+        uses: renovatebot/github-action@v46.2.0
         with:
           configurationFile: .github/renovate.json5
           token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
