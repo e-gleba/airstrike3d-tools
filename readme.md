@@ -9,50 +9,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/build_and_package.yml?style=flat-square&label=CI&logo=githubactions&logoColor=white&color=2088FF" alt="CI Status">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/publish_release.yml?style=flat-square&label=Release&logo=githubactions&logoColor=white&color=FF6F61" alt="Release Status">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license.md">
-    <img src="https://img.shields.io/badge/License-MIT-00C853?style=flat-square&logo=open-source-initiative&logoColor=white" alt="License MIT">
-  </a>
-  <a href="#build--development">
-    <img src="https://img.shields.io/badge/CMake-3.31+-064F8C?style=flat-square&logo=cmake&logoColor=white" alt="CMake 3.31+">
-  </a>
-  <a href="#engine-internals">
-    <img src="https://img.shields.io/badge/C++-26-00599C?style=flat-square&logo=c%2B%2B&logoColor=white" alt="C++26">
-  </a>
-  <a href="#toolkit">
-    <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.13">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/issues">
-    <img src="https://img.shields.io/github/issues/e-gleba/airstrike3d-tools?style=flat-square&logo=github&logoColor=white&color=F44336" alt="GitHub Issues">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/stargazers">
-    <img src="https://img.shields.io/github/stars/e-gleba/airstrike3d-tools?style=flat-square&logo=github&logoColor=white&color=FFB300" alt="GitHub Stars">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/commits/main/">
-    <img src="https://img.shields.io/github/last-commit/e-gleba/airstrike3d-tools/main?style=flat-square&logo=git&logoColor=white&color=7E57C2" alt="Last Commit">
-  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml"><img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/build_and_package.yml?style=flat-square&label=CI&logo=githubactions&logoColor=white&color=2088FF" alt="CI Status"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml"><img src="https://img.shields.io/github/actions/workflow/status/e-gleba/airstrike3d-tools/publish_release.yml?style=flat-square&label=Release&logo=githubactions&logoColor=white&color=FF6F61" alt="Release Status"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/blob/main/license.md"><img src="https://img.shields.io/badge/License-MIT-00C853?style=flat-square&logo=open-source-initiative&logoColor=white" alt="License MIT"></a>
+  <a href="#graphics-api-evolution"><img src="https://img.shields.io/badge/OpenGL_1.1-engine_v2.06-5586A4?style=flat-square&logo=opengl&logoColor=white" alt="OpenGL 1.1 — engine v2.06"></a>
+  <a href="#graphics-api-evolution"><img src="https://img.shields.io/badge/Direct3D_8-engine_v2.51_%2F_v2.71-0078D6?style=flat-square" alt="Direct3D 8 — engine v2.51 / v2.71"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/issues"><img src="https://img.shields.io/github/issues/e-gleba/airstrike3d-tools?style=flat-square&logo=github&logoColor=white&color=F44336" alt="GitHub Issues"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/commits/main/"><img src="https://img.shields.io/github/last-commit/e-gleba/airstrike3d-tools/main?style=flat-square&logo=git&logoColor=white&color=7E57C2" alt="Last Commit"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml">
-    <img src="https://img.shields.io/badge/%E2%96%B6_run-release-2ea44f?style=flat-square" alt="Run release">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml">
-    <img src="https://img.shields.io/badge/%E2%96%B6_run-ci-2ea44f?style=flat-square" alt="Run CI">
-  </a>
-  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/renovate.yml">
-    <img src="https://img.shields.io/badge/%E2%96%B6_run-renovate-2ea44f?style=flat-square" alt="Run Renovate">
-  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml"><img src="https://img.shields.io/badge/%E2%96%B6_run-release-2ea44f?style=flat-square" alt="Run release"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml"><img src="https://img.shields.io/badge/%E2%96%B6_run-ci-2ea44f?style=flat-square" alt="Run CI"></a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/renovate.yml"><img src="https://img.shields.io/badge/%E2%96%B6_run-renovate-2ea44f?style=flat-square" alt="Run Renovate"></a>
 </p>
 
 <p align="center">
   <a href="https://www.pcgamingwiki.com/wiki/AirStrike_2">PCGamingWiki</a> ·
-  <a href="https://en.wikipedia.org/wiki/AirStrike_3D">Original Game</a> ·
+  <a href="https://www.mobygames.com/game/8959/airstrike-3d-operation-wat/">MobyGames</a> ·
   <a href="https://www.reddit.com/r/airstrike3d/">Community (Reddit)</a>
 </p>
 
@@ -80,7 +54,8 @@
 - [Toolkit](#toolkit)
   - [APK Archive Extraction](#apk-archive-extraction)
   - [MDL ↔ OBJ Converter](#mdl--obj-converter)
-  - [Save Previewer](#save-previewer)
+  - [Level Viewer](#level-viewer)
+  - [Save Editor](#save-editor)
   - [Audio Conversion](#audio-conversion)
   - [Graphics Viewing](#graphics-viewing)
   - [Linux Compatibility](#linux-compatibility)
@@ -147,7 +122,7 @@ airstrike3d-tools/
 │   ├── save_editor.py
 │   └── static_exe_unpacker.py
 └── src/                  # C++ source code
-    ├── game/             # Decompiled/reconstructed game logic (C)
+    ├── decompiled_game/  # Decompiled game logic per engine version (C)
     └── proxy/            # BASS proxy DLL for runtime injection & overlay
 ```
 
@@ -155,7 +130,7 @@ airstrike3d-tools/
 
 ## About the Game
 
-[AirStrike 3D](https://en.wikipedia.org/wiki/AirStrike_3D) is a helicopter shoot-em-up series developed by **[DivoGames](https://web.archive.org/web/2006/http://divogames.com/)** (Nizhny Novgorod, Russia) and published through **[Alawar Entertainment](https://en.wikipedia.org/wiki/Alawar)**. The engine and all three franchise titles were built by a two-person team.
+[AirStrike 3D](https://www.mobygames.com/game/8959/airstrike-3d-operation-wat/) is a helicopter shoot-em-up series developed by **[DivoGames](https://web.archive.org/web/2006/http://divogames.com/)** (Nizhny Novgorod, Russia) and published through **[Alawar Entertainment](https://en.wikipedia.org/wiki/Alawar)**. The engine and all three franchise titles were built by a two-person team.
 
 ### Developers
 
@@ -363,7 +338,7 @@ MSVC RTTI type descriptors found in the Gulf binary (e.g. `.?AVIntroPageDivoGame
 
 ## ASProtect 1.0 Analysis
 
-The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.0](http://asprotect.net)** by Alexey Solodovnikov.
+The v2.06 executable (`as3d2.exe`, 199,680 bytes) is packed with **[ASProtect 1.0](https://web.archive.org/web/20050128104532/http://asprotect.net/)** by Alexey Solodovnikov (link archived in 2005 — the original domain has expired).
 
 ### Identification
 
@@ -417,10 +392,23 @@ python scripts/mdl_obj_converter.py some_file.mdl
 python scripts/mdl_obj_converter.py some_file.obj
 ```
 
-### Save Previewer
+### Level Viewer
+
+Interactive 3D viewer for extracted levels (HMAP terrain), built on Panda3D:
 
 ```bash
-python scripts/save_editor.py decrypt game.bin -o decrypted.bin
+pip install panda3d
+python scripts/level_viewer.py level.hsc
+```
+
+### Save Editor
+
+View and edit save files — high scores, mission unlocks, player profiles:
+
+```bash
+python scripts/save_editor.py info game.bin                      # Show save details
+python scripts/save_editor.py decrypt game.bin -o decrypted.bin  # Extract decrypted payload
+python scripts/save_editor.py missions game.bin --unlock-all     # Unlock all missions
 ```
 
 ### Audio Conversion
@@ -453,7 +441,7 @@ Add this to the game's launch options in Steam.
 ### Technical Notes
 
 - **Archive Format:** Custom encrypted APK containers (not Android APK)
-- **Executable:** ASProtect v1.0 packed (detected via YARA rules)
+- **Executable:** v2.06 is ASProtect 1.0 packed (detected via YARA rules); v2.51 and v2.71 ship unprotected
 - **Assets:** TGA textures, MDL 3D models, MO3 audio modules
 - **Encryption:** XOR cipher with 1024-byte key table
 
@@ -464,9 +452,9 @@ Add this to the game's launch options in Steam.
 ### Prerequisites
 
 - **CMake** 3.31 or newer
-- **Python** 3.13
+- **Python** 3.14+ (for the `scripts/` tooling)
 - **Ninja** (used by non-MSVC presets)
-- **Clang** (for native Windows builds) or **LLVM-MinGW** (for Linux → Windows cross-compilation)
+- **Clang** (for native Windows builds) or **LLVM-MinGW** (for Linux → Windows cross-compilation — auto-downloaded, see below)
 - **Visual Studio 2022** (optional, for local MSVC builds)
 
 ### Quick Start
@@ -480,18 +468,14 @@ Add this to the game's launch options in Steam.
 
 #### Linux → Windows (cross-compile via LLVM-MinGW)
 
-1. Download **llvm-mingw** from [mstorsjo/llvm-mingw releases](https://github.com/mstorsjo/llvm-mingw/releases):
-   - `llvm-mingw-YYYYMMDD-ucrt-ubuntu-20.04-x86_64.tar.xz` for Windows 10+ (UCRT)
-   - `llvm-mingw-YYYYMMDD-msvcrt-ubuntu-20.04-x86_64.tar.xz` for Windows 7+ (legacy CRT)
-
-2. Extract to repository root in directory `llvm-mingw`
-
-3. Run:
+The LLVM-MinGW toolchain **auto-downloads on first configure** (`llvm_mingw_auto_download=ON`, release tag pinned via `llvm_mingw_version` in [`CMakePresets.json`](CMakePresets.json)) — no manual setup required:
 
 ```bash
 cmake --preset llvm-mingw-i686
 cmake --workflow --preset llvm-mingw-i686-release
 ```
+
+> **Manual fallback:** download `llvm-mingw-YYYYMMDD-ucrt-ubuntu-22.04-x86_64.tar.xz` from [mstorsjo/llvm-mingw releases](https://github.com/mstorsjo/llvm-mingw/releases) and extract it to `llvm_mingw/` in the repository root.
 
 > **Note:** The preset uses `jobs=1` due to an LLD linker deadlock on parallel linking in the MinGW context.
 
@@ -745,8 +729,9 @@ To that old PC that could barely run the game but somehow made it magical anyway
 ## Related Resources
 
 - [r/airstrike3d](https://www.reddit.com/r/airstrike3d/) — community research & modding
+- [MobyGames: AirStrike 3D — Operation W.A.T.](https://www.mobygames.com/game/8959/airstrike-3d-operation-wat/) — release data, credits & trivia
 - [Ithamar's APK scripts](https://gist.github.com/Ithamar/85f1f71d179c354fad483a8c48767daf) — updated extraction with text decryption
-- [QindieGL](https://github.com/nicedrak/QindieGL) — OpenGL-to-D3D wrapper for running on modern Windows
+- [QindieGL](https://github.com/crystice-softworks/QindieGL) — OpenGL-to-Direct3D 9 wrapper for running v2.06 on modern Windows (maintained fork; the original nicedrak project page is gone)
 - [PCGamingWiki: AirStrike 2](https://www.pcgamingwiki.com/wiki/AirStrike_2) — compatibility fixes
 - [xakep.ru: ASProtect taming](https://xakep.ru/2003/07/10/19112/) — technical packer analysis (Russian)
-- [ASProtect homepage](http://asprotect.net) — Alexey Solodovnikov's official site
+- [ASProtect homepage (archived)](https://web.archive.org/web/20050128104532/http://asprotect.net/) — Alexey Solodovnikov's official site (original domain expired)
