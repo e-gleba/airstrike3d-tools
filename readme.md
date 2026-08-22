@@ -39,6 +39,18 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml">
+    <img src="https://img.shields.io/badge/%E2%96%B6_run-release-2ea44f?style=flat-square" alt="Run release">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/build_and_package.yml">
+    <img src="https://img.shields.io/badge/%E2%96%B6_run-ci-2ea44f?style=flat-square" alt="Run CI">
+  </a>
+  <a href="https://github.com/e-gleba/airstrike3d-tools/actions/workflows/renovate.yml">
+    <img src="https://img.shields.io/badge/%E2%96%B6_run-renovate-2ea44f?style=flat-square" alt="Run Renovate">
+  </a>
+</p>
+
+<p align="center">
   <a href="https://www.pcgamingwiki.com/wiki/AirStrike_2">PCGamingWiki</a> ·
   <a href="https://en.wikipedia.org/wiki/AirStrike_3D">Original Game</a> ·
   <a href="https://www.reddit.com/r/airstrike3d/">Community (Reddit)</a>
@@ -77,6 +89,7 @@
   - [Prerequisites](#prerequisites)
   - [Quick Start](#quick-start)
   - [Building C++ Components](#building-c-components)
+  - [Releasing](#releasing-maintainers)
   - [Game Configuration](#game-configuration)
   - [Testing with CTest](#testing-with-ctest)
 - [Ghidra Project](#ghidra-project)
@@ -499,6 +512,10 @@ cmake --workflow --preset msvc-release
 ```
 
 Available for local development when Visual Studio 2022 is preferred. Not used in CI.
+
+### Releasing (maintainers)
+
+Click [▶ run release](https://github.com/e-gleba/airstrike3d-tools/actions/workflows/publish_release.yml), type the tag (`v1.10.0`) and the next CMake version (`1.10.1`). Builds both packages, tags, publishes the GitHub Release with artifacts, then opens and merges a PR bumping `project(VERSION)` on `main`.
 
 ### Game Configuration
 

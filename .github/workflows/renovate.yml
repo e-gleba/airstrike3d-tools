@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Renovate
 
 on:
@@ -48,9 +49,17 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Self-hosted Renovate
-        uses: renovatebot/github-action@v46.2.1
+        uses: renovatebot/github-action@v46.2.2
         with:
           configurationFile: .github/renovate.json5
+          # Token pushes branches AND opens PRs. If branches appear but PRs
+          # never do, check BOTH:
+          # - RENOVATE_TOKEN (if set): PAT needs Contents: RW +
+          #   Pull requests: RW on this repo.
+          # - Fallback GITHUB_TOKEN: repo setting Settings → Actions →
+          #   General → "Allow GitHub Actions to create and approve pull
+          #   requests" must be checked. Its PRs don't trigger CI
+          #   workflows (GitHub recursion guard).
           token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
         env:
           RENOVATE_DRY_RUN: ${{ github.event.inputs.dryRun || 'false' }}
