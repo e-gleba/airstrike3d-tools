@@ -1,6 +1,6 @@
 include(FetchContent)
 
-set(cpm_version "0.42.3")
+set(cpm_version "0.43.1")
 
 fetchcontent_declare(
     get_cpm

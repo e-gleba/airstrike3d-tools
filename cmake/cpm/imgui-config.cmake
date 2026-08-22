@@ -2,7 +2,7 @@ cpmaddpackage(
     NAME
     imgui
     VERSION
-    1.92.8
+    1.92.9
     GIT_REPOSITORY
     https://github.com/ocornut/imgui
     EXCLUDE_FROM_ALL
