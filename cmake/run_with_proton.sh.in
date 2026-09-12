@@ -10,7 +10,7 @@
 #   STEAM_COMPAT_APP_ID / --appid=<id>     default 0 (non-Steam game)
 #   PROTON_FORCE_LARGE_ADDRESS_AWARE=0 / --no-laa  disable LAA workaround
 #   PROTON_FSR4_UPGRADE=1 / --fsr4  re-enable Proton 11 FSR4 DLL copy (default 0)
-#   MESA_EXTENSION_MAX_YEAR          default 2003 (era-appropriate GL extensions)
+#   MESA_EXTENSION_MAX_YEAR / --mesa-year=<year> / --no-mesa-limit
 
 set -Eeuo pipefail
 set -o errtrace
@@ -20,6 +20,7 @@ shopt -s nullglob
 readonly EXE="@game_exe@"
 readonly DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 readonly STARTED_AT="$(date +%Y%m%d-%H%M%S)"
+readonly START_EPOCH="$(date +%s)"
 readonly LOG_DIR="$DIR/logs"
 readonly LOG_FILE="$LOG_DIR/$STARTED_AT.log"
 mkdir -p "$LOG_DIR"
@@ -131,6 +132,14 @@ pipe_log() { # pipe_log DEFAULT_LEVEL TAG
 
 trap 's=$?; TAG=launcher log E "trap ERR  line=$LINENO  cmd=${BASH_COMMAND}  status=$s"' ERR
 
+# 0 = fresh (modified at/after launcher start), 1 = stale (predates this run).
+is_fresh() {
+    local f="$1" mtime
+    [[ -e "$f" ]] || return 1
+    mtime="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+    ((mtime >= START_EPOCH))
+}
+
 # ─── Flags ────────────────────────────────────────────────────────────────────
 DEBUG=0
 TRACE=0
@@ -142,6 +151,8 @@ NO_NTSYNC=0
 NO_ESYNC=0
 NO_FSYNC=0
 SINGLE_CORE=0
+NO_MESA_LIMIT=0
+CUSTOM_MESA_YEAR="${MESA_EXTENSION_MAX_YEAR:-}"
 APP_ID="${STEAM_COMPAT_APP_ID:-0}"
 CUSTOM_PROTON="${PROTON_PATH:-}"
 CUSTOM_RUNTIME="${STEAM_RUNTIME_PATH:-}"
@@ -162,6 +173,8 @@ for a in "$@"; do
     --no-esync) NO_ESYNC=1 ;;
     --no-fsync) NO_FSYNC=1 ;;
     --single-core) SINGLE_CORE=1 ;;
+    --mesa-year=*) CUSTOM_MESA_YEAR="${a#--mesa-year=}" ;;
+    --no-mesa-limit) NO_MESA_LIMIT=1 ;;
     --appid=*) APP_ID="${a#--appid=}" ;;
     --proton=*) CUSTOM_PROTON="${a#--proton=}" ;;
     --runtime=*) CUSTOM_RUNTIME="${a#--runtime=}" ;;
@@ -170,6 +183,7 @@ for a in "$@"; do
         cat <<EOF
 Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa]
                   [--fsr4] [--no-ntsync] [--no-esync] [--no-fsync] [--single-core]
+                  [--mesa-year=YEAR] [--no-mesa-limit]
                   [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
                   [-- game args...]
   --debug        Enable Proton/Wine debug logs
@@ -182,6 +196,8 @@ Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa
   --no-esync     Set PROTON_NO_ESYNC=1 (legacy sync fallback)
   --no-fsync     Set PROTON_NO_FSYNC=1 (legacy sync fallback)
   --single-core  Pin game to CPU 0 via taskset (2003-era SMP race fallback)
+  --mesa-year=Y  Set MESA_EXTENSION_MAX_YEAR (default: 2003)
+  --no-mesa-limit  Unset MESA_EXTENSION_MAX_YEAR (true-unset test)
   --appid=ID     Steam compat AppID (default: 0, non-Steam game)
   --proton=DIR   Proton toolkit dir (or PROTON_PATH env)
   --runtime=DIR  Steam Linux Runtime dir (or STEAM_RUNTIME_PATH env)
@@ -384,11 +400,20 @@ if ((NO_FSYNC == 1)); then
     export PROTON_NO_FSYNC=1
     log I "sync      : PROTON_NO_FSYNC=1"
 fi
-# Era-appropriate GL extensions for a 2003 engine; override if a driver needs more.
-export MESA_EXTENSION_MAX_YEAR="${MESA_EXTENSION_MAX_YEAR:-2003}"
+# GL extension-year cap for a 2003 engine. Only affects the OpenGL path
+# (relevant with --wined3d); the default DXVK→Vulkan path never reads it.
+if ((NO_MESA_LIMIT == 1)); then
+    unset MESA_EXTENSION_MAX_YEAR
+    log I "mesa      : MESA_EXTENSION_MAX_YEAR unset (--no-mesa-limit)"
+else
+    export MESA_EXTENSION_MAX_YEAR="${CUSTOM_MESA_YEAR:-2003}"
+    log I "mesa      : MESA_EXTENSION_MAX_YEAR=$MESA_EXTENSION_MAX_YEAR"
+fi
 if ((USE_WINED3D)); then
     export PROTON_USE_WINED3D=1
-    log I "renderer  : WineD3D (fallback)"
+    log I "renderer  : WineD3D (fallback, PROTON_USE_WINED3D=1)"
+else
+    log I "renderer  : DXVK (default)"
 fi
 
 # ─── Bundle ───────────────────────────────────────────────────────────────────
@@ -440,23 +465,31 @@ cleanup() {
     else
         TAG=launcher log E "──── exited: $(human_signal "$rc")  (log: $LOG_FILE) ────"
         # Failure context: engine log first (the real fatal), then Proton log.
-        # Nullglob-safe: ls with no matches must not fall back to `ls -t`
-        # with no args (that lists CWD and produced the bogus "tail of
-        # game.log" via the steam-*.log branch).
+        # Freshness-tagged: files predating this run are labelled STALE so a
+        # leftover xalia_dxgi.log from a DXVK run cannot masquerade as proof
+        # that --wined3d failed to switch renderers.
         TAG=diag log I "recent logs in $LOG_DIR:"
         while IFS= read -r line; do TAG=diag log I "$line"; done < <(ls -lt "$LOG_DIR" 2>/dev/null | head -n 12)
         for engine_log in "$DIR"/game.log "$DIR"/xalia*.log "$LOG_DIR"/xalia*.log "$LOG_DIR"/sdk_*.log; do
             [[ -f "$engine_log" ]] || continue
-            TAG=diag log I "tail of $engine_log:"
+            if is_fresh "$engine_log"; then
+                TAG=diag log I "tail of $engine_log (fresh):"
+            else
+                TAG=diag log I "tail of $engine_log (STALE, predates this run):"
+            fi
             while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 60 "$engine_log" 2>/dev/null)
         done
         proton_logs=("$LOG_DIR"/steam-*.log)
         if ((${#proton_logs[@]})); then
             newest_proton="$(ls -t "${proton_logs[@]}" 2>/dev/null | head -n1)"
-            TAG=diag log I "tail of $newest_proton:"
+            if is_fresh "$newest_proton"; then
+                TAG=diag log I "tail of $newest_proton (fresh):"
+            else
+                TAG=diag log I "tail of $newest_proton (STALE, predates this run):"
+            fi
             while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 40 "$newest_proton" 2>/dev/null)
         else
-            TAG=diag log I "no steam-*.log — rerun with --debug to capture PROTON_LOG + DXVK logs"
+            TAG=diag log I "no steam-*.log in $LOG_DIR — with appid 0 Proton may write ~/steam-0.log instead; check 'ls -lt ~ | head'"
         fi
     fi
     exec 9>&-
