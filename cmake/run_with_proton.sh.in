@@ -401,6 +401,7 @@ for dll in bass.dll original.dll _original.dll "$EXE"; do
     fi
 done
 
+TAG=env
 if ((DEBUG)); then
     export PROTON_LOG=1
     export PROTON_LOG_DIR="$LOG_DIR"
@@ -438,12 +439,20 @@ cleanup() {
         TAG=launcher log S "──── exited cleanly  (log: $LOG_FILE) ────"
     else
         TAG=launcher log E "──── exited: $(human_signal "$rc")  (log: $LOG_FILE) ────"
-        # Failure context: list fresh logs + tail the newest Proton log so the
-        # actual game fatal is visible without hunting through LOG_DIR.
+        # Failure context: engine log first (the real fatal), then Proton log.
+        # Nullglob-safe: ls with no matches must not fall back to `ls -t`
+        # with no args (that lists CWD and produced the bogus "tail of
+        # game.log" via the steam-*.log branch).
         TAG=diag log I "recent logs in $LOG_DIR:"
         while IFS= read -r line; do TAG=diag log I "$line"; done < <(ls -lt "$LOG_DIR" 2>/dev/null | head -n 12)
-        newest_proton="$(ls -t "$LOG_DIR"/steam-*.log 2>/dev/null | head -n1 || true)"
-        if [[ -n "${newest_proton:-}" ]]; then
+        for engine_log in "$DIR"/game.log "$DIR"/xalia*.log "$LOG_DIR"/xalia*.log "$LOG_DIR"/sdk_*.log; do
+            [[ -f "$engine_log" ]] || continue
+            TAG=diag log I "tail of $engine_log:"
+            while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 60 "$engine_log" 2>/dev/null)
+        done
+        proton_logs=("$LOG_DIR"/steam-*.log)
+        if ((${#proton_logs[@]})); then
+            newest_proton="$(ls -t "${proton_logs[@]}" 2>/dev/null | head -n1)"
             TAG=diag log I "tail of $newest_proton:"
             while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 40 "$newest_proton" 2>/dev/null)
         else
