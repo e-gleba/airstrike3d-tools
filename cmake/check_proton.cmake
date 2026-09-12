@@ -34,10 +34,6 @@ if(NOT steam_root)
 endif()
 
 set(common "${steam_root}/steamapps/common")
-set(compat_dirs
-    "${steam_root}/compatibilitytools.d"
-    "$ENV{HOME}/.local/share/Steam/compatibilitytools.d"
-    "$ENV{HOME}/.steam/root/compatibilitytools.d")
 
 # Find any Proton toolkit (env override wins, same as the launcher)
 set(found "")
@@ -52,7 +48,7 @@ else()
         "${steam_root}/compatibilitytools.d/Proton - Experimental"
         "${steam_root}/compatibilitytools.d/GE-Proton*"
         "${steam_root}/compatibilitytools.d/Proton *")
-    foreach(p IN LISTS proton_dirs compat_dirs)
+    foreach(p IN LISTS proton_dirs)
         if(IS_DIRECTORY "${p}" AND EXISTS "${p}/proton")
             set(found "${p}")
             break()
