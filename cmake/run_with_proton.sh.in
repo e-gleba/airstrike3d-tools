@@ -9,6 +9,7 @@
 #   STEAM_ROOT                      Steam root override (default auto-detect)
 #   STEAM_COMPAT_APP_ID / --appid=<id>     default 0 (non-Steam game)
 #   PROTON_FORCE_LARGE_ADDRESS_AWARE=0 / --no-laa  disable LAA workaround
+#   PROTON_FSR4_UPGRADE=1 / --fsr4  re-enable Proton 11 FSR4 DLL copy (default 0)
 #   MESA_EXTENSION_MAX_YEAR          default 2003 (era-appropriate GL extensions)
 
 set -Eeuo pipefail
@@ -107,6 +108,9 @@ die() {
 _strip_prefix='^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]+\] \[[A-Z ]+\] \[[^]]+\] *'
 
 # Reads stdin line-by-line and emits with auto-promoted severity.
+# Known-benign Proton 11 noise is demoted BEFORE error promotion so the real
+# fatal line stands out: amdxcffx64.dll optional FSR4 copy, OpenVR/OpenXR
+# init failures on a 2003 engine with no VR headset.
 pipe_log() { # pipe_log DEFAULT_LEVEL TAG
     local lvl="$1" tag="$2" line lc
     while IFS= read -r line; do
@@ -114,6 +118,9 @@ pipe_log() { # pipe_log DEFAULT_LEVEL TAG
         [[ -z "$line" ]] && continue
         lc=${line,,}
         case "$lc" in
+        *amdxcffx64.dll*) _emit W "$tag" "$line (benign: Proton 11 optional FSR4 copy)" ;;
+        *openvr* | *openxr*) _emit W "$tag" "$line" ;;
+        *ntsync:\ up\ and\ running*) _emit I "$tag" "$line" ;;
         *fatal* | *segfault* | *panic* | *assertion* | *abort*) _emit E "$tag" "$line" ;;
         *error* | *err:* | *failed* | *failure* | *exception*) _emit E "$tag" "$line" ;;
         *warn* | *warning* | *deprecat*) _emit W "$tag" "$line" ;;
@@ -130,6 +137,7 @@ TRACE=0
 CLEAR_PRELOAD=0
 USE_WINED3D=0
 NO_LAA=0
+USE_FSR4=0
 APP_ID="${STEAM_COMPAT_APP_ID:-0}"
 CUSTOM_PROTON="${PROTON_PATH:-}"
 CUSTOM_RUNTIME="${STEAM_RUNTIME_PATH:-}"
@@ -145,6 +153,7 @@ for a in "$@"; do
     --no-preload) CLEAR_PRELOAD=1 ;;
     --wined3d) USE_WINED3D=1 ;;
     --no-laa) NO_LAA=1 ;;
+    --fsr4) USE_FSR4=1 ;;
     --appid=*) APP_ID="${a#--appid=}" ;;
     --proton=*) CUSTOM_PROTON="${a#--proton=}" ;;
     --runtime=*) CUSTOM_RUNTIME="${a#--runtime=}" ;;
@@ -152,13 +161,14 @@ for a in "$@"; do
     -h | --help)
         cat <<EOF
 Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa]
-                  [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
+                  [--fsr4] [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
                   [-- game args...]
   --debug        Enable Proton/Wine debug logs
   --trace        Enable shell xtrace (implies --debug)
   --no-preload   Unset LD_PRELOAD before launching
   --wined3d      Use WineD3D instead of DXVK (legacy DirectX fallback)
   --no-laa       Disable PROTON_FORCE_LARGE_ADDRESS_AWARE workaround
+  --fsr4         Re-enable Proton 11 FSR4 DLL copy (default: off)
   --appid=ID     Steam compat AppID (default: 0, non-Steam game)
   --proton=DIR   Proton toolkit dir (or PROTON_PATH env)
   --runtime=DIR  Steam Linux Runtime dir (or STEAM_RUNTIME_PATH env)
@@ -340,6 +350,13 @@ if ((NO_LAA == 0)); then
     export PROTON_FORCE_LARGE_ADDRESS_AWARE="${PROTON_FORCE_LARGE_ADDRESS_AWARE:-1}"
     log I "LAA       : PROTON_FORCE_LARGE_ADDRESS_AWARE=$PROTON_FORCE_LARGE_ADDRESS_AWARE"
 fi
+# Proton 11 tries an optional FSR4 driver-DLL copy (amdxcffx64.dll) that fails
+# noisily on prefixes without it. A 2003 engine has no FSR, so keep it off
+# unless explicitly re-enabled with --fsr4.
+if ((USE_FSR4 == 0)); then
+    export PROTON_FSR4_UPGRADE="${PROTON_FSR4_UPGRADE:-0}"
+    log I "FSR4      : PROTON_FSR4_UPGRADE=$PROTON_FSR4_UPGRADE (off; --fsr4 to re-enable)"
+fi
 # Era-appropriate GL extensions for a 2003 engine; override if a driver needs more.
 export MESA_EXTENSION_MAX_YEAR="${MESA_EXTENSION_MAX_YEAR:-2003}"
 if ((USE_WINED3D)); then
@@ -384,6 +401,17 @@ cleanup() {
         TAG=launcher log S "──── exited cleanly  (log: $LOG_FILE) ────"
     else
         TAG=launcher log E "──── exited: $(human_signal "$rc")  (log: $LOG_FILE) ────"
+        # Failure context: list fresh logs + tail the newest Proton log so the
+        # actual game fatal is visible without hunting through LOG_DIR.
+        TAG=diag log I "recent logs in $LOG_DIR:"
+        while IFS= read -r line; do TAG=diag log I "$line"; done < <(ls -lt "$LOG_DIR" 2>/dev/null | head -n 12)
+        newest_proton="$(ls -t "$LOG_DIR"/steam-*.log 2>/dev/null | head -n1 || true)"
+        if [[ -n "${newest_proton:-}" ]]; then
+            TAG=diag log I "tail of $newest_proton:"
+            while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 40 "$newest_proton" 2>/dev/null)
+        else
+            TAG=diag log I "no steam-*.log — rerun with --debug to capture PROTON_LOG + DXVK logs"
+        fi
     fi
     exec 9>&-
     exec 8>&-
