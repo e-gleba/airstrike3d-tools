@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # run_with_proton.sh.in — launch a Windows game via Proton (logcat-style diagnostics)
-# CMake substitutes @game_exe_name@ at configure time.
+# CMake substitutes @game_exe@ at configure time.
+#
+# Env overrides:
+#   PROTON_PATH / --proton=<dir>   Proton toolkit directory (contains ./proton)
+#   STEAM_RUNTIME_PATH / --runtime=<dir>  Steam Linux Runtime dir (contains _v2-entry-point)
+#   PROTON_PREFIX / --prefix=<dir>  compat-data dir (contains pfx/); default ~/.proton_prefixes/<exe>
+#   STEAM_ROOT                      Steam root override (default auto-detect)
+#   STEAM_COMPAT_APP_ID / --appid=<id>     default 0 (non-Steam game)
+#   PROTON_FORCE_LARGE_ADDRESS_AWARE=0 / --no-laa  disable LAA workaround
+#   PROTON_FSR4_UPGRADE=1 / --fsr4  re-enable Proton 11 FSR4 DLL copy (default 0)
+#   MESA_EXTENSION_MAX_YEAR / --mesa-year=<year> / --no-mesa-limit
 
 set -Eeuo pipefail
 set -o errtrace
@@ -10,6 +20,7 @@ shopt -s nullglob
 readonly EXE="@game_exe@"
 readonly DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 readonly STARTED_AT="$(date +%Y%m%d-%H%M%S)"
+readonly START_EPOCH="$(date +%s)"
 readonly LOG_DIR="$DIR/logs"
 readonly LOG_FILE="$LOG_DIR/$STARTED_AT.log"
 mkdir -p "$LOG_DIR"
@@ -98,6 +109,9 @@ die() {
 _strip_prefix='^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]+\] \[[A-Z ]+\] \[[^]]+\] *'
 
 # Reads stdin line-by-line and emits with auto-promoted severity.
+# Known-benign Proton 11 noise is demoted BEFORE error promotion so the real
+# fatal line stands out: amdxcffx64.dll optional FSR4 copy, OpenVR/OpenXR
+# init failures on a 2003 engine with no VR headset.
 pipe_log() { # pipe_log DEFAULT_LEVEL TAG
     local lvl="$1" tag="$2" line lc
     while IFS= read -r line; do
@@ -105,6 +119,9 @@ pipe_log() { # pipe_log DEFAULT_LEVEL TAG
         [[ -z "$line" ]] && continue
         lc=${line,,}
         case "$lc" in
+        *amdxcffx64.dll*) _emit W "$tag" "$line (benign: Proton 11 optional FSR4 copy)" ;;
+        *openvr* | *openxr*) _emit W "$tag" "$line" ;;
+        *ntsync:\ up\ and\ running*) _emit I "$tag" "$line" ;;
         *fatal* | *segfault* | *panic* | *assertion* | *abort*) _emit E "$tag" "$line" ;;
         *error* | *err:* | *failed* | *failure* | *exception*) _emit E "$tag" "$line" ;;
         *warn* | *warning* | *deprecat*) _emit W "$tag" "$line" ;;
@@ -115,10 +132,31 @@ pipe_log() { # pipe_log DEFAULT_LEVEL TAG
 
 trap 's=$?; TAG=launcher log E "trap ERR  line=$LINENO  cmd=${BASH_COMMAND}  status=$s"' ERR
 
+# 0 = fresh (modified at/after launcher start), 1 = stale (predates this run).
+is_fresh() {
+    local f="$1" mtime
+    [[ -e "$f" ]] || return 1
+    mtime="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+    ((mtime >= START_EPOCH))
+}
+
 # ─── Flags ────────────────────────────────────────────────────────────────────
 DEBUG=0
 TRACE=0
 CLEAR_PRELOAD=0
+USE_WINED3D=0
+NO_LAA=0
+USE_FSR4=0
+NO_NTSYNC=0
+NO_ESYNC=0
+NO_FSYNC=0
+SINGLE_CORE=0
+NO_MESA_LIMIT=0
+CUSTOM_MESA_YEAR="${MESA_EXTENSION_MAX_YEAR:-}"
+APP_ID="${STEAM_COMPAT_APP_ID:-0}"
+CUSTOM_PROTON="${PROTON_PATH:-}"
+CUSTOM_RUNTIME="${STEAM_RUNTIME_PATH:-}"
+CUSTOM_PREFIX="${PROTON_PREFIX:-}"
 ARGS=()
 for a in "$@"; do
     case "$a" in
@@ -128,12 +166,42 @@ for a in "$@"; do
         DEBUG=1
         ;;
     --no-preload) CLEAR_PRELOAD=1 ;;
+    --wined3d) USE_WINED3D=1 ;;
+    --no-laa) NO_LAA=1 ;;
+    --fsr4) USE_FSR4=1 ;;
+    --no-ntsync) NO_NTSYNC=1 ;;
+    --no-esync) NO_ESYNC=1 ;;
+    --no-fsync) NO_FSYNC=1 ;;
+    --single-core) SINGLE_CORE=1 ;;
+    --mesa-year=*) CUSTOM_MESA_YEAR="${a#--mesa-year=}" ;;
+    --no-mesa-limit) NO_MESA_LIMIT=1 ;;
+    --appid=*) APP_ID="${a#--appid=}" ;;
+    --proton=*) CUSTOM_PROTON="${a#--proton=}" ;;
+    --runtime=*) CUSTOM_RUNTIME="${a#--runtime=}" ;;
+    --prefix=*) CUSTOM_PREFIX="${a#--prefix=}" ;;
     -h | --help)
         cat <<EOF
-Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [-- game args...]
+Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa]
+                  [--fsr4] [--no-ntsync] [--no-esync] [--no-fsync] [--single-core]
+                  [--mesa-year=YEAR] [--no-mesa-limit]
+                  [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
+                  [-- game args...]
   --debug        Enable Proton/Wine debug logs
   --trace        Enable shell xtrace (implies --debug)
   --no-preload   Unset LD_PRELOAD before launching
+  --wined3d      Use WineD3D instead of DXVK (legacy DirectX fallback)
+  --no-laa       Disable PROTON_FORCE_LARGE_ADDRESS_AWARE workaround
+  --fsr4         Re-enable Proton 11 FSR4 DLL copy (default: off)
+  --no-ntsync    Set PROTON_NO_NTSYNC=1 (legacy threading fallback)
+  --no-esync     Set PROTON_NO_ESYNC=1 (legacy sync fallback)
+  --no-fsync     Set PROTON_NO_FSYNC=1 (legacy sync fallback)
+  --single-core  Pin game to CPU 0 via taskset (2003-era SMP race fallback)
+  --mesa-year=Y  Set MESA_EXTENSION_MAX_YEAR (default: 2003)
+  --no-mesa-limit  Unset MESA_EXTENSION_MAX_YEAR (true-unset test)
+  --appid=ID     Steam compat AppID (default: 0, non-Steam game)
+  --proton=DIR   Proton toolkit dir (or PROTON_PATH env)
+  --runtime=DIR  Steam Linux Runtime dir (or STEAM_RUNTIME_PATH env)
+  --prefix=DIR   Compat-data dir holding pfx/ (or PROTON_PREFIX env)
 Logs:            $LOG_DIR
 EOF
         exit 0
@@ -170,6 +238,7 @@ human_signal() {
     137) echo "SIGKILL (137)" ;;
     139) echo "SIGSEGV / segfault (139)" ;;
     134) echo "SIGABRT (134)" ;;
+    3) echo "exit code 3 (legacy engine fatal — see game log, try --wined3d / --no-laa)" ;;
     *) echo "exit code $1" ;;
     esac
 }
@@ -218,24 +287,51 @@ fi
 # ─── Steam ────────────────────────────────────────────────────────────────────
 TAG=steam
 steam=""
-for p in \
-    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam" \
-    "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam" \
-    "$HOME/.steam/root" \
-    "$HOME/.local/share/Steam"; do
-    [[ -d "$p" ]] && {
-        steam=$p
-        break
-    }
-done
-[[ -n "$steam" ]] || die "Steam installation not found"
+if [[ -n "${STEAM_ROOT:-}" && -d "$STEAM_ROOT" ]]; then
+    steam="$STEAM_ROOT"
+else
+    for p in \
+        "$HOME/.var/app/com.valvesoftware.Steam/data/Steam" \
+        "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam" \
+        "$HOME/.steam/root" \
+        "$HOME/.steam/steam" \
+        "$HOME/.local/share/Steam"; do
+        [[ -d "$p" ]] && {
+            steam=$p
+            break
+        }
+    done
+fi
+[[ -n "$steam" ]] || die "Steam installation not found (set STEAM_ROOT=...)"
 log S "root      : $steam"
 readonly COMMON="$steam/steamapps/common"
 
 # ─── Proton ───────────────────────────────────────────────────────────────────
 TAG=proton
-proton=$(pick "$COMMON" proton \
-    "Proton - Experimental" "GE-Proton*" "Proton *") || die "Proton not found in $COMMON"
+proton=""
+if [[ -n "$CUSTOM_PROTON" ]]; then
+    [[ -x "$CUSTOM_PROTON/proton" ]] || die "PROTON_PATH invalid: $CUSTOM_PROTON/proton missing or not executable"
+    proton="$CUSTOM_PROTON"
+else
+    for base in "$COMMON" \
+        "$steam/compatibilitytools.d" \
+        "$HOME/.local/share/Steam/compatibilitytools.d" \
+        "$HOME/.steam/root/compatibilitytools.d"; do
+        [[ -d "$base" ]] || continue
+        if p=$(pick "$base" proton \
+            "Proton - Experimental" "GE-Proton*" "Proton *"); then
+            proton="$p"
+            break
+        fi
+    done
+    if [[ -z "$proton" ]]; then
+        if [[ -d "$COMMON" ]]; then
+            log E "contents of $COMMON:"
+            while IFS= read -r line; do log E "  $line"; done < <(ls -1 "$COMMON" 2>/dev/null | head -n 30)
+        fi
+        die "Proton not found in $COMMON (Steam > Settings > Compatibility > install Proton; or pass --proton=DIR / PROTON_PATH=DIR; GE-Proton belongs in $steam/compatibilitytools.d)"
+    fi
+fi
 log S "version   : ${proton##*/}"
 log I "path      : $proton"
 [[ -x "$proton/proton" ]] || die "proton binary missing or not executable"
@@ -243,23 +339,94 @@ log I "path      : $proton"
 # ─── Runtime ──────────────────────────────────────────────────────────────────
 TAG=runtime
 runtime=()
-if rt=$(pick "$COMMON" _v2-entry-point \
-    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier "SteamLinuxRuntime*"); then
+if [[ -n "$CUSTOM_RUNTIME" ]]; then
+    [[ -x "$CUSTOM_RUNTIME/_v2-entry-point" ]] || die "STEAM_RUNTIME_PATH invalid: $CUSTOM_RUNTIME/_v2-entry-point missing"
+    runtime=("$CUSTOM_RUNTIME/_v2-entry-point" --verb=run --)
+    log S "version   : ${CUSTOM_RUNTIME##*/} (override)"
+elif rt=$(pick "$COMMON" _v2-entry-point \
+    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier SteamLinuxRuntime_scout "SteamLinuxRuntime*"); then
     runtime=("$rt/_v2-entry-point" --verb=run --)
     log S "version   : ${rt##*/}"
 else
     log W "no Steam Linux Runtime found — launching directly (libc mismatches possible)"
+    log W "install via Steam > Library > Tools > 'Steam Linux Runtime 3.0 (sniper)'; late-game crashes / garbled text / exit 3 are typical without it"
 fi
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 TAG=env
-readonly PFX_ROOT="$HOME/.proton_prefixes/$EXE"
-mkdir -p "$PFX_ROOT/pfx"
+if [[ -n "$CUSTOM_PREFIX" ]]; then
+    PFX_ROOT="$CUSTOM_PREFIX"
+else
+    PFX_ROOT="$HOME/.proton_prefixes/$EXE"
+fi
+readonly PFX_ROOT
+mkdir -p "$PFX_ROOT"
+# A pre-created but uninitialised pfx/ (no drive_c) makes Proton fail copying
+# files such as amdxcffx64.dll with "No such file or directory". Drop the
+# stale shell so Proton re-initialises the prefix itself.
+if [[ -d "$PFX_ROOT/pfx" && ! -d "$PFX_ROOT/pfx/drive_c" ]]; then
+    log W "removing stale empty prefix $PFX_ROOT/pfx (no drive_c) — Proton will recreate it"
+    rm -rf "$PFX_ROOT/pfx"
+fi
 
 export STEAM_COMPAT_DATA_PATH="$PFX_ROOT"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam"
-export MESA_EXTENSION_MAX_YEAR=2003
+export STEAM_COMPAT_APP_ID="$APP_ID"
+export WINEPREFIX="$PFX_ROOT/pfx"
+# 32-bit era engine: lift the 2 GB address ceiling. Late-mission crashes and
+# garbled text are the classic exhaustion symptoms. Opt out with --no-laa.
+if ((NO_LAA == 0)); then
+    export PROTON_FORCE_LARGE_ADDRESS_AWARE="${PROTON_FORCE_LARGE_ADDRESS_AWARE:-1}"
+    log I "LAA       : PROTON_FORCE_LARGE_ADDRESS_AWARE=$PROTON_FORCE_LARGE_ADDRESS_AWARE"
+fi
+# Proton 11 tries an optional FSR4 driver-DLL copy (amdxcffx64.dll) that fails
+# noisily on prefixes without it. A 2003 engine has no FSR, so keep it off
+# unless explicitly re-enabled with --fsr4.
+if ((USE_FSR4 == 0)); then
+    export PROTON_FSR4_UPGRADE="${PROTON_FSR4_UPGRADE:-0}"
+    log I "FSR4      : PROTON_FSR4_UPGRADE=$PROTON_FSR4_UPGRADE (off; --fsr4 to re-enable)"
+fi
+# Sync fallbacks for 2003-era threading: ntsync/esync/fsync can expose races
+# in old engines. Defaults stay on (fast path); opt out per flag.
+if ((NO_NTSYNC == 1)); then
+    export PROTON_NO_NTSYNC=1
+    log I "sync      : PROTON_NO_NTSYNC=1"
+fi
+if ((NO_ESYNC == 1)); then
+    export PROTON_NO_ESYNC=1
+    log I "sync      : PROTON_NO_ESYNC=1"
+fi
+if ((NO_FSYNC == 1)); then
+    export PROTON_NO_FSYNC=1
+    log I "sync      : PROTON_NO_FSYNC=1"
+fi
+# GL extension-year cap for a 2003 engine. Only affects the OpenGL path
+# (relevant with --wined3d); the default DXVK→Vulkan path never reads it.
+if ((NO_MESA_LIMIT == 1)); then
+    unset MESA_EXTENSION_MAX_YEAR
+    log I "mesa      : MESA_EXTENSION_MAX_YEAR unset (--no-mesa-limit)"
+else
+    export MESA_EXTENSION_MAX_YEAR="${CUSTOM_MESA_YEAR:-2003}"
+    log I "mesa      : MESA_EXTENSION_MAX_YEAR=$MESA_EXTENSION_MAX_YEAR"
+fi
+if ((USE_WINED3D)); then
+    export PROTON_USE_WINED3D=1
+    log I "renderer  : WineD3D (fallback, PROTON_USE_WINED3D=1)"
+else
+    log I "renderer  : DXVK (default)"
+fi
 
+# ─── Bundle ───────────────────────────────────────────────────────────────────
+TAG=bundle
+for dll in bass.dll original.dll _original.dll "$EXE"; do
+    if [[ -f "$DIR/$dll" ]]; then
+        log I "$(ls -l "$DIR/$dll" | awk '{print $5, $9}')"
+    else
+        log W "missing in deploy dir: $dll"
+    fi
+done
+
+TAG=env
 if ((DEBUG)); then
     export PROTON_LOG=1
     export PROTON_LOG_DIR="$LOG_DIR"
@@ -271,6 +438,7 @@ if ((DEBUG)); then
     log I "WINEDEBUG = $WINEDEBUG"
 fi
 log I "prefix    : $PFX_ROOT/pfx"
+log I "appid     : $APP_ID"
 
 if ((DEBUG)); then
     while IFS= read -r line; do log D "$line"; done < <(
@@ -296,6 +464,33 @@ cleanup() {
         TAG=launcher log S "──── exited cleanly  (log: $LOG_FILE) ────"
     else
         TAG=launcher log E "──── exited: $(human_signal "$rc")  (log: $LOG_FILE) ────"
+        # Failure context: engine log first (the real fatal), then Proton log.
+        # Freshness-tagged: files predating this run are labelled STALE so a
+        # leftover xalia_dxgi.log from a DXVK run cannot masquerade as proof
+        # that --wined3d failed to switch renderers.
+        TAG=diag log I "recent logs in $LOG_DIR:"
+        while IFS= read -r line; do TAG=diag log I "$line"; done < <(ls -lt "$LOG_DIR" 2>/dev/null | head -n 12)
+        for engine_log in "$DIR"/game.log "$DIR"/xalia*.log "$LOG_DIR"/xalia*.log "$LOG_DIR"/sdk_*.log; do
+            [[ -f "$engine_log" ]] || continue
+            if is_fresh "$engine_log"; then
+                TAG=diag log I "tail of $engine_log (fresh):"
+            else
+                TAG=diag log I "tail of $engine_log (STALE, predates this run):"
+            fi
+            while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 60 "$engine_log" 2>/dev/null)
+        done
+        proton_logs=("$LOG_DIR"/steam-*.log)
+        if ((${#proton_logs[@]})); then
+            newest_proton="$(ls -t "${proton_logs[@]}" 2>/dev/null | head -n1)"
+            if is_fresh "$newest_proton"; then
+                TAG=diag log I "tail of $newest_proton (fresh):"
+            else
+                TAG=diag log I "tail of $newest_proton (STALE, predates this run):"
+            fi
+            while IFS= read -r line; do TAG=diag log I "$line"; done < <(tail -n 40 "$newest_proton" 2>/dev/null)
+        else
+            TAG=diag log I "no steam-*.log in $LOG_DIR — with appid 0 Proton may write ~/steam-0.log instead; check 'ls -lt ~ | head'"
+        fi
     fi
     exec 9>&-
     exec 8>&-
@@ -321,13 +516,32 @@ TAG=launcher
 cd "$DIR"
 log S "executing: $EXE ${*:-}"
 
+# 2003-era SMP races: optionally pin the whole Proton tree to CPU 0.
+launch_prefix=()
+if ((SINGLE_CORE == 1)); then
+    if command -v taskset >/dev/null; then
+        launch_prefix=(taskset -c 0)
+        log I "cpu       : pinned to CPU 0 via taskset"
+    else
+        log W "--single-core ignored: taskset not found"
+    fi
+fi
+
 # Pipe child stdout/stderr through pipe_log. Because _emit writes to FD 8/9
 # only — never to FD 1/2 — these two process substitutions can't possibly
 # feed each other anymore.
-setsid "${runtime[@]}" "$proton/proton" run "$EXE" "$@" \
+setsid "${launch_prefix[@]}" "${runtime[@]}" "$proton/proton" run "$EXE" "$@" \
     > >(pipe_log I game/out) \
     2> >(pipe_log W game/err) &
 child=$!
 log I "pid       : $child"
 
+# A non-zero game exit is data, not a script bug: suspend errexit/ERR trap
+# around wait so exit 3 etc. flow to cleanup() without a spurious trap ERR line.
+set +e
+trap - ERR
 wait "$child"
+rc=$?
+trap 's=$?; TAG=launcher log E "trap ERR  line=$LINENO  cmd=${BASH_COMMAND}  status=$s"' ERR
+set -e
+exit "$rc"
