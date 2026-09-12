@@ -1,0 +1,44 @@
+
+---- Initializing file system ----
+
+  pak1.apk - 208 files
+  pak2.apk - 30 files
+F_Init: 
+2 data files found.
+
+--- Enumerating display modes ---
+
+    320x240 with frequences: 60 75
+    400x300 with frequences: 60 75
+    512x384 with frequences: 60
+    640x480 with frequences: 60 72 75 85 90 100
+    800x600 with frequences: 56 60 70 72 75 85 90 100
+    1024x768 with frequences: 60 70 72 75 85 90 100
+    1152x864 with frequences: 60 70 75 85
+    1280x960 with frequences: 60 70 72 75 85
+    1600x1200 with frequences: 60 70 75
+
+---- Initializing main window ----
+
+...registered window class.
+Window changed: 0 1238900...window creation: succeeded.
+...getting DC: succeeded.
+Joy_Init: No valid joysticks (a5)
+
+---- Initializing sound system ----
+  BASS_Init: Succeeded.
+
+------ Direct3D Initializing ------
+
+...creating Direct3D object: succeeded.
+  renderer   : RADEON 9800 XT 
+  driver     : ati2dvag.dll
+
+  multitexture    : enabled
+
+File 'scripts\air_units\air_big_01\air_big_01.scr' not found.
+File 'scripts\player\weapons\p_plasma_proj.scr' not found.
+File 'scripts\nature\storm_spice.scr' not found.
+G_LoadObjects:  356 objects parsed succefully.
+
+Shutting down sound system.

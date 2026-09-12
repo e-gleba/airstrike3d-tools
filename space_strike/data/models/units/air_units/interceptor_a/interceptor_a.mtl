@@ -1,0 +1,11 @@
+shader
+{
+	{
+		texture "gfx\envmap.tga"
+		tcgen envmap
+	}
+	{
+		texture "models\units..."
+		colorop alpha
+	}
+}

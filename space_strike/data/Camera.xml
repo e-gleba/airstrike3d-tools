@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<Camera>
+  <TopDown   fov="70" pitch="-15" height="370" offset="100" />
+  <LowPitch  fov="70" pitch="-22" height="340" offset="60"  />
+  <HighPitch fov="60" pitch="-35" height="300" offset="0"   />
+</Camera>

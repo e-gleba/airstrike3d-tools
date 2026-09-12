@@ -134,6 +134,7 @@ __pycache__
 !2_06/**
 !2_51/**
 !2_71/**
+!space_strike/**
 !ghidra/dumps/**
 !src/overlay/*.dll
 llvm_mingw/
