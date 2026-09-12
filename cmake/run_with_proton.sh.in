@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # run_with_proton.sh.in — launch a Windows game via Proton (logcat-style diagnostics)
-# CMake substitutes @game_exe_name@ at configure time.
+# CMake substitutes @game_exe@ at configure time.
+#
+# Env overrides:
+#   PROTON_PATH / --proton=<dir>   Proton toolkit directory (contains ./proton)
+#   STEAM_RUNTIME_PATH / --runtime=<dir>  Steam Linux Runtime dir (contains _v2-entry-point)
+#   PROTON_PREFIX / --prefix=<dir>  compat-data dir (contains pfx/); default ~/.proton_prefixes/<exe>
+#   STEAM_ROOT                      Steam root override (default auto-detect)
+#   STEAM_COMPAT_APP_ID / --appid=<id>     default 0 (non-Steam game)
+#   PROTON_FORCE_LARGE_ADDRESS_AWARE=0 / --no-laa  disable LAA workaround
+#   MESA_EXTENSION_MAX_YEAR          default 2003 (era-appropriate GL extensions)
 
 set -Eeuo pipefail
 set -o errtrace
@@ -119,6 +128,12 @@ trap 's=$?; TAG=launcher log E "trap ERR  line=$LINENO  cmd=${BASH_COMMAND}  sta
 DEBUG=0
 TRACE=0
 CLEAR_PRELOAD=0
+USE_WINED3D=0
+NO_LAA=0
+APP_ID="${STEAM_COMPAT_APP_ID:-0}"
+CUSTOM_PROTON="${PROTON_PATH:-}"
+CUSTOM_RUNTIME="${STEAM_RUNTIME_PATH:-}"
+CUSTOM_PREFIX="${PROTON_PREFIX:-}"
 ARGS=()
 for a in "$@"; do
     case "$a" in
@@ -128,12 +143,26 @@ for a in "$@"; do
         DEBUG=1
         ;;
     --no-preload) CLEAR_PRELOAD=1 ;;
+    --wined3d) USE_WINED3D=1 ;;
+    --no-laa) NO_LAA=1 ;;
+    --appid=*) APP_ID="${a#--appid=}" ;;
+    --proton=*) CUSTOM_PROTON="${a#--proton=}" ;;
+    --runtime=*) CUSTOM_RUNTIME="${a#--runtime=}" ;;
+    --prefix=*) CUSTOM_PREFIX="${a#--prefix=}" ;;
     -h | --help)
         cat <<EOF
-Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [-- game args...]
+Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa]
+                  [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
+                  [-- game args...]
   --debug        Enable Proton/Wine debug logs
   --trace        Enable shell xtrace (implies --debug)
   --no-preload   Unset LD_PRELOAD before launching
+  --wined3d      Use WineD3D instead of DXVK (legacy DirectX fallback)
+  --no-laa       Disable PROTON_FORCE_LARGE_ADDRESS_AWARE workaround
+  --appid=ID     Steam compat AppID (default: 0, non-Steam game)
+  --proton=DIR   Proton toolkit dir (or PROTON_PATH env)
+  --runtime=DIR  Steam Linux Runtime dir (or STEAM_RUNTIME_PATH env)
+  --prefix=DIR   Compat-data dir holding pfx/ (or PROTON_PREFIX env)
 Logs:            $LOG_DIR
 EOF
         exit 0
@@ -170,6 +199,7 @@ human_signal() {
     137) echo "SIGKILL (137)" ;;
     139) echo "SIGSEGV / segfault (139)" ;;
     134) echo "SIGABRT (134)" ;;
+    3) echo "exit code 3 (legacy engine fatal — see game log, try --wined3d / --no-laa)" ;;
     *) echo "exit code $1" ;;
     esac
 }
@@ -218,24 +248,51 @@ fi
 # ─── Steam ────────────────────────────────────────────────────────────────────
 TAG=steam
 steam=""
-for p in \
-    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam" \
-    "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam" \
-    "$HOME/.steam/root" \
-    "$HOME/.local/share/Steam"; do
-    [[ -d "$p" ]] && {
-        steam=$p
-        break
-    }
-done
-[[ -n "$steam" ]] || die "Steam installation not found"
+if [[ -n "${STEAM_ROOT:-}" && -d "$STEAM_ROOT" ]]; then
+    steam="$STEAM_ROOT"
+else
+    for p in \
+        "$HOME/.var/app/com.valvesoftware.Steam/data/Steam" \
+        "$HOME/.var/app/com.valvesoftware.Steam/.steam/steam" \
+        "$HOME/.steam/root" \
+        "$HOME/.steam/steam" \
+        "$HOME/.local/share/Steam"; do
+        [[ -d "$p" ]] && {
+            steam=$p
+            break
+        }
+    done
+fi
+[[ -n "$steam" ]] || die "Steam installation not found (set STEAM_ROOT=...)"
 log S "root      : $steam"
 readonly COMMON="$steam/steamapps/common"
 
 # ─── Proton ───────────────────────────────────────────────────────────────────
 TAG=proton
-proton=$(pick "$COMMON" proton \
-    "Proton - Experimental" "GE-Proton*" "Proton *") || die "Proton not found in $COMMON"
+proton=""
+if [[ -n "$CUSTOM_PROTON" ]]; then
+    [[ -x "$CUSTOM_PROTON/proton" ]] || die "PROTON_PATH invalid: $CUSTOM_PROTON/proton missing or not executable"
+    proton="$CUSTOM_PROTON"
+else
+    for base in "$COMMON" \
+        "$steam/compatibilitytools.d" \
+        "$HOME/.local/share/Steam/compatibilitytools.d" \
+        "$HOME/.steam/root/compatibilitytools.d"; do
+        [[ -d "$base" ]] || continue
+        if p=$(pick "$base" proton \
+            "Proton - Experimental" "GE-Proton*" "Proton *"); then
+            proton="$p"
+            break
+        fi
+    done
+    if [[ -z "$proton" ]]; then
+        if [[ -d "$COMMON" ]]; then
+            log E "contents of $COMMON:"
+            while IFS= read -r line; do log E "  $line"; done < <(ls -1 "$COMMON" 2>/dev/null | head -n 30)
+        fi
+        die "Proton not found in $COMMON (Steam > Settings > Compatibility > install Proton; or pass --proton=DIR / PROTON_PATH=DIR; GE-Proton belongs in $steam/compatibilitytools.d)"
+    fi
+fi
 log S "version   : ${proton##*/}"
 log I "path      : $proton"
 [[ -x "$proton/proton" ]] || die "proton binary missing or not executable"
@@ -243,22 +300,52 @@ log I "path      : $proton"
 # ─── Runtime ──────────────────────────────────────────────────────────────────
 TAG=runtime
 runtime=()
-if rt=$(pick "$COMMON" _v2-entry-point \
-    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier "SteamLinuxRuntime*"); then
+if [[ -n "$CUSTOM_RUNTIME" ]]; then
+    [[ -x "$CUSTOM_RUNTIME/_v2-entry-point" ]] || die "STEAM_RUNTIME_PATH invalid: $CUSTOM_RUNTIME/_v2-entry-point missing"
+    runtime=("$CUSTOM_RUNTIME/_v2-entry-point" --verb=run --)
+    log S "version   : ${CUSTOM_RUNTIME##*/} (override)"
+elif rt=$(pick "$COMMON" _v2-entry-point \
+    SteamLinuxRuntime_sniper SteamLinuxRuntime_soldier SteamLinuxRuntime_scout "SteamLinuxRuntime*"); then
     runtime=("$rt/_v2-entry-point" --verb=run --)
     log S "version   : ${rt##*/}"
 else
     log W "no Steam Linux Runtime found — launching directly (libc mismatches possible)"
+    log W "install via Steam > Library > Tools > 'Steam Linux Runtime 3.0 (sniper)'; late-game crashes / garbled text / exit 3 are typical without it"
 fi
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 TAG=env
-readonly PFX_ROOT="$HOME/.proton_prefixes/$EXE"
-mkdir -p "$PFX_ROOT/pfx"
+if [[ -n "$CUSTOM_PREFIX" ]]; then
+    PFX_ROOT="$CUSTOM_PREFIX"
+else
+    PFX_ROOT="$HOME/.proton_prefixes/$EXE"
+fi
+readonly PFX_ROOT
+mkdir -p "$PFX_ROOT"
+# A pre-created but uninitialised pfx/ (no drive_c) makes Proton fail copying
+# files such as amdxcffx64.dll with "No such file or directory". Drop the
+# stale shell so Proton re-initialises the prefix itself.
+if [[ -d "$PFX_ROOT/pfx" && ! -d "$PFX_ROOT/pfx/drive_c" ]]; then
+    log W "removing stale empty prefix $PFX_ROOT/pfx (no drive_c) — Proton will recreate it"
+    rm -rf "$PFX_ROOT/pfx"
+fi
 
 export STEAM_COMPAT_DATA_PATH="$PFX_ROOT"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam"
-export MESA_EXTENSION_MAX_YEAR=2003
+export STEAM_COMPAT_APP_ID="$APP_ID"
+export WINEPREFIX="$PFX_ROOT/pfx"
+# 32-bit era engine: lift the 2 GB address ceiling. Late-mission crashes and
+# garbled text are the classic exhaustion symptoms. Opt out with --no-laa.
+if ((NO_LAA == 0)); then
+    export PROTON_FORCE_LARGE_ADDRESS_AWARE="${PROTON_FORCE_LARGE_ADDRESS_AWARE:-1}"
+    log I "LAA       : PROTON_FORCE_LARGE_ADDRESS_AWARE=$PROTON_FORCE_LARGE_ADDRESS_AWARE"
+fi
+# Era-appropriate GL extensions for a 2003 engine; override if a driver needs more.
+export MESA_EXTENSION_MAX_YEAR="${MESA_EXTENSION_MAX_YEAR:-2003}"
+if ((USE_WINED3D)); then
+    export PROTON_USE_WINED3D=1
+    log I "renderer  : WineD3D (fallback)"
+fi
 
 if ((DEBUG)); then
     export PROTON_LOG=1
@@ -271,6 +358,7 @@ if ((DEBUG)); then
     log I "WINEDEBUG = $WINEDEBUG"
 fi
 log I "prefix    : $PFX_ROOT/pfx"
+log I "appid     : $APP_ID"
 
 if ((DEBUG)); then
     while IFS= read -r line; do log D "$line"; done < <(
@@ -330,4 +418,12 @@ setsid "${runtime[@]}" "$proton/proton" run "$EXE" "$@" \
 child=$!
 log I "pid       : $child"
 
+# A non-zero game exit is data, not a script bug: suspend errexit/ERR trap
+# around wait so exit 3 etc. flow to cleanup() without a spurious trap ERR line.
+set +e
+trap - ERR
 wait "$child"
+rc=$?
+trap 's=$?; TAG=launcher log E "trap ERR  line=$LINENO  cmd=${BASH_COMMAND}  status=$s"' ERR
+set -e
+exit "$rc"
