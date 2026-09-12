@@ -138,6 +138,10 @@ CLEAR_PRELOAD=0
 USE_WINED3D=0
 NO_LAA=0
 USE_FSR4=0
+NO_NTSYNC=0
+NO_ESYNC=0
+NO_FSYNC=0
+SINGLE_CORE=0
 APP_ID="${STEAM_COMPAT_APP_ID:-0}"
 CUSTOM_PROTON="${PROTON_PATH:-}"
 CUSTOM_RUNTIME="${STEAM_RUNTIME_PATH:-}"
@@ -154,6 +158,10 @@ for a in "$@"; do
     --wined3d) USE_WINED3D=1 ;;
     --no-laa) NO_LAA=1 ;;
     --fsr4) USE_FSR4=1 ;;
+    --no-ntsync) NO_NTSYNC=1 ;;
+    --no-esync) NO_ESYNC=1 ;;
+    --no-fsync) NO_FSYNC=1 ;;
+    --single-core) SINGLE_CORE=1 ;;
     --appid=*) APP_ID="${a#--appid=}" ;;
     --proton=*) CUSTOM_PROTON="${a#--proton=}" ;;
     --runtime=*) CUSTOM_RUNTIME="${a#--runtime=}" ;;
@@ -161,7 +169,8 @@ for a in "$@"; do
     -h | --help)
         cat <<EOF
 Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa]
-                  [--fsr4] [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
+                  [--fsr4] [--no-ntsync] [--no-esync] [--no-fsync] [--single-core]
+                  [--appid=ID] [--proton=DIR] [--runtime=DIR] [--prefix=DIR]
                   [-- game args...]
   --debug        Enable Proton/Wine debug logs
   --trace        Enable shell xtrace (implies --debug)
@@ -169,6 +178,10 @@ Usage: $(basename "$0") [--debug] [--trace] [--no-preload] [--wined3d] [--no-laa
   --wined3d      Use WineD3D instead of DXVK (legacy DirectX fallback)
   --no-laa       Disable PROTON_FORCE_LARGE_ADDRESS_AWARE workaround
   --fsr4         Re-enable Proton 11 FSR4 DLL copy (default: off)
+  --no-ntsync    Set PROTON_NO_NTSYNC=1 (legacy threading fallback)
+  --no-esync     Set PROTON_NO_ESYNC=1 (legacy sync fallback)
+  --no-fsync     Set PROTON_NO_FSYNC=1 (legacy sync fallback)
+  --single-core  Pin game to CPU 0 via taskset (2003-era SMP race fallback)
   --appid=ID     Steam compat AppID (default: 0, non-Steam game)
   --proton=DIR   Proton toolkit dir (or PROTON_PATH env)
   --runtime=DIR  Steam Linux Runtime dir (or STEAM_RUNTIME_PATH env)
@@ -357,12 +370,36 @@ if ((USE_FSR4 == 0)); then
     export PROTON_FSR4_UPGRADE="${PROTON_FSR4_UPGRADE:-0}"
     log I "FSR4      : PROTON_FSR4_UPGRADE=$PROTON_FSR4_UPGRADE (off; --fsr4 to re-enable)"
 fi
+# Sync fallbacks for 2003-era threading: ntsync/esync/fsync can expose races
+# in old engines. Defaults stay on (fast path); opt out per flag.
+if ((NO_NTSYNC == 1)); then
+    export PROTON_NO_NTSYNC=1
+    log I "sync      : PROTON_NO_NTSYNC=1"
+fi
+if ((NO_ESYNC == 1)); then
+    export PROTON_NO_ESYNC=1
+    log I "sync      : PROTON_NO_ESYNC=1"
+fi
+if ((NO_FSYNC == 1)); then
+    export PROTON_NO_FSYNC=1
+    log I "sync      : PROTON_NO_FSYNC=1"
+fi
 # Era-appropriate GL extensions for a 2003 engine; override if a driver needs more.
 export MESA_EXTENSION_MAX_YEAR="${MESA_EXTENSION_MAX_YEAR:-2003}"
 if ((USE_WINED3D)); then
     export PROTON_USE_WINED3D=1
     log I "renderer  : WineD3D (fallback)"
 fi
+
+# ─── Bundle ───────────────────────────────────────────────────────────────────
+TAG=bundle
+for dll in bass.dll original.dll _original.dll "$EXE"; do
+    if [[ -f "$DIR/$dll" ]]; then
+        log I "$(ls -l "$DIR/$dll" | awk '{print $5, $9}')"
+    else
+        log W "missing in deploy dir: $dll"
+    fi
+done
 
 if ((DEBUG)); then
     export PROTON_LOG=1
@@ -437,10 +474,21 @@ TAG=launcher
 cd "$DIR"
 log S "executing: $EXE ${*:-}"
 
+# 2003-era SMP races: optionally pin the whole Proton tree to CPU 0.
+launch_prefix=()
+if ((SINGLE_CORE == 1)); then
+    if command -v taskset >/dev/null; then
+        launch_prefix=(taskset -c 0)
+        log I "cpu       : pinned to CPU 0 via taskset"
+    else
+        log W "--single-core ignored: taskset not found"
+    fi
+fi
+
 # Pipe child stdout/stderr through pipe_log. Because _emit writes to FD 8/9
 # only — never to FD 1/2 — these two process substitutions can't possibly
 # feed each other anymore.
-setsid "${runtime[@]}" "$proton/proton" run "$EXE" "$@" \
+setsid "${launch_prefix[@]}" "${runtime[@]}" "$proton/proton" run "$EXE" "$@" \
     > >(pipe_log I game/out) \
     2> >(pipe_log W game/err) &
 child=$!
