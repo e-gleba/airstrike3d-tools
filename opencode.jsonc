@@ -11,11 +11,6 @@
             "url": "https://qt-docs-mcp.qt.io/mcp",
             "enabled": true
         },
-        "google-dev": {
-            "type": "remote",
-            "url": "https://developerknowledge.googleapis.com/mcp",
-            "enabled": true
-        },
         "githubcopilot": {
             "type": "remote",
             "url": "https://api.githubcopilot.com/mcp/",
