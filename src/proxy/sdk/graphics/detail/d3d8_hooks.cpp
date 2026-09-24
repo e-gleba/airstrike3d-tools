@@ -180,6 +180,80 @@ template <typename function> void guarded(function&& fn) noexcept
     return device == g_hooks.device.load(std::memory_order::acquire);
 }
 
+[[nodiscard]] bool is_identity_view(const D3DMATRIX& matrix) noexcept
+{
+    // HUD / UI passes typically use an identity VIEW (pretransformed XYZRHW
+    // vertices or screen-space quads). Treating those as the 3D scene would
+    // hijack the HUD with the freecam matrix (morphing UI) and pollute the
+    // observed camera pose with a degenerate origin sample.
+    constexpr float k_epsilon = 1.0e-4F;
+    if (!std::isfinite(matrix._14) || !std::isfinite(matrix._24) ||
+        !std::isfinite(matrix._34) || !std::isfinite(matrix._41) ||
+        !std::isfinite(matrix._42) || !std::isfinite(matrix._43) ||
+        !std::isfinite(matrix._44))
+    {
+        return false;
+    }
+    if (std::abs(matrix._14) > k_epsilon || std::abs(matrix._24) > k_epsilon ||
+        std::abs(matrix._34) > k_epsilon || std::abs(matrix._41) > k_epsilon ||
+        std::abs(matrix._42) > k_epsilon || std::abs(matrix._43) > k_epsilon ||
+        std::abs(matrix._44 - 1.0F) > k_epsilon)
+    {
+        return false;
+    }
+    return std::abs(matrix._11 - 1.0F) < k_epsilon &&
+           std::abs(matrix._22 - 1.0F) < k_epsilon &&
+           std::abs(matrix._33 - 1.0F) < k_epsilon &&
+           std::abs(matrix._12) < k_epsilon &&
+           std::abs(matrix._13) < k_epsilon &&
+           std::abs(matrix._21) < k_epsilon &&
+           std::abs(matrix._23) < k_epsilon &&
+           std::abs(matrix._31) < k_epsilon && std::abs(matrix._32) < k_epsilon;
+}
+
+[[nodiscard]] bool uses_pretransformed_vertices(
+    IDirect3DDevice8* device) noexcept
+{
+    // Screen-space HUD (XYZRHW) ignores VIEW/PROJECTION entirely. Forcing
+    // wireframe/TFACTOR onto it only wireframes menus and text.
+    // The 2.51/2.71 engine is fixed-function, so GetVertexShader returns an
+    // FVF code; a programmable-shader title would return a handle instead,
+    // in which case we conservatively keep the override.
+    DWORD shader{};
+    if (device == nullptr || FAILED(device->GetVertexShader(&shader)) ||
+        shader == 0U)
+    {
+        return false;
+    }
+    constexpr DWORD k_fvf_position_mask = 0x000FU;
+    constexpr DWORD k_fvf_xyzr_hw       = D3DFVF_XYZRHW;
+    // FVF codes always carry position bits; a bare shader handle that merely
+    // collides numerically should not trigger the skip.
+    if ((shader & k_fvf_position_mask) == 0U)
+    {
+        return false;
+    }
+    return (shader & k_fvf_xyzr_hw) != 0U;
+}
+
+[[nodiscard]] bool should_skip_visual_override(IDirect3DDevice8* device,
+                                               D3DPRIMITIVETYPE  type) noexcept
+{
+    // Points/lines (particles, beams, debug lines): FILLMODE is meaningless
+    // and flat-shading them destroys their textured/alpha look. Under
+    // DXVK/Proton the leaked state is also far more visible (spikes, orphs).
+    switch (type)
+    {
+        case D3DPT_POINTLIST:
+        case D3DPT_LINELIST:
+        case D3DPT_LINESTRIP:
+            return true;
+        default:
+            break;
+    }
+    return uses_pretransformed_vertices(device);
+}
+
 class internal_render_scope final
 {
 public:
@@ -301,6 +375,7 @@ void draw_world_lines(IDirect3DDevice8* device)
 
 template <typename draw_call>
 [[nodiscard]] HRESULT with_visual_override(IDirect3DDevice8* device,
+                                           D3DPRIMITIVETYPE  type,
                                            draw_call&&       call) noexcept
 {
     if (g_internal_render)
@@ -309,7 +384,8 @@ template <typename draw_call>
     }
 
     const auto settings = graphics::get_visual_settings();
-    if (settings.mode == graphics::visual_mode::disabled)
+    if (settings.mode == graphics::visual_mode::disabled ||
+        should_skip_visual_override(device, type))
     {
         return std::forward<draw_call>(call)();
     }
@@ -321,6 +397,7 @@ template <typename draw_call>
     };
     struct saved_stage_state final
     {
+        DWORD                      stage{};
         D3DTEXTURESTAGESTATETYPE type{};
         DWORD                    value{};
     };
@@ -328,34 +405,45 @@ template <typename draw_call>
     internal_render_scope            scope;
     std::array<saved_state, 7>       saved{};
     std::size_t                      saved_count{};
-    std::array<saved_stage_state, 4> saved_stage{};
+    // Stage 0 (4 states) + stage 1 disable (2 states) so multitextured
+    // geometry renders as a clean flat wireframe instead of bleeding the
+    // second texture stage through TFACTOR (visible as texture artifacts
+    // under DXVK/Proton).
+    std::array<saved_stage_state, 6> saved_stage{};
     std::size_t                      saved_stage_count{};
     const auto set_temporary = [&](D3DRENDERSTATETYPE type, DWORD value)
     {
         DWORD original_value{};
-        if (SUCCEEDED(device->GetRenderState(type, &original_value)))
+        if (saved_count < saved.size() &&
+            SUCCEEDED(device->GetRenderState(type, &original_value)))
         {
             saved[saved_count++] = { type, original_value };
             static_cast<void>(device->SetRenderState(type, value));
         }
     };
     const auto set_temporary_stage =
-        [&](D3DTEXTURESTAGESTATETYPE type, DWORD value)
+        [&](DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value)
     {
         DWORD original_value{};
-        if (SUCCEEDED(device->GetTextureStageState(0, type, &original_value)))
+        if (saved_stage_count < saved_stage.size() &&
+            SUCCEEDED(
+                device->GetTextureStageState(stage, type, &original_value)))
         {
-            saved_stage[saved_stage_count++] = { type, original_value };
-            static_cast<void>(device->SetTextureStageState(0, type, value));
+            saved_stage[saved_stage_count++] = { stage, type, original_value };
+            static_cast<void>(device->SetTextureStageState(stage, type, value));
         }
     };
     const auto set_temporary_color = [&](DWORD factor)
     {
         set_temporary(D3DRS_TEXTUREFACTOR, factor);
-        set_temporary_stage(D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-        set_temporary_stage(D3DTSS_COLORARG1, D3DTA_TFACTOR);
-        set_temporary_stage(D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-        set_temporary_stage(D3DTSS_ALPHAARG1, D3DTA_TFACTOR);
+        set_temporary_stage(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+        set_temporary_stage(0, D3DTSS_COLORARG1, D3DTA_TFACTOR);
+        set_temporary_stage(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+        set_temporary_stage(0, D3DTSS_ALPHAARG1, D3DTA_TFACTOR);
+        // Kill the second texture stage while flat-shading; otherwise stage 1
+        // MODULATEs the wire color with its texture (mottled wires).
+        set_temporary_stage(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+        set_temporary_stage(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
     };
 
     switch (settings.mode)
@@ -395,10 +483,9 @@ template <typename draw_call>
     while (saved_stage_count > 0)
     {
         --saved_stage_count;
+        const auto& entry = saved_stage[saved_stage_count];
         static_cast<void>(
-            device->SetTextureStageState(0,
-                                         saved_stage[saved_stage_count].type,
-                                         saved_stage[saved_stage_count].value));
+            device->SetTextureStageState(entry.stage, entry.type, entry.value));
     }
     while (saved_count > 0)
     {
@@ -511,6 +598,17 @@ HRESULT STDMETHODCALLTYPE hk_set_transform(IDirect3DDevice8*     device,
         }
         else if (state == D3DTS_VIEW)
         {
+            // Identity VIEW = HUD/screen-space pass. Passing it through
+            // untouched keeps menus, text and HUD stable and stops a
+            // degenerate origin sample from polluting the observed camera
+            // (which the freecam would otherwise adopt, causing whole-scene
+            // morphs / spikes, especially visible under Proton/DXVK).
+            if (is_identity_view(*matrix))
+            {
+                return original<set_transform_fn>(g_hooks.set_transform)(
+                    device, state, matrix);
+            }
+
             bool main_perspective{};
             {
                 std::lock_guard lock{ g_hooks.transform_mutex };
@@ -561,6 +659,7 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive(IDirect3DDevice8* device,
             device, type, start, count);
     }
     return with_visual_override(device,
+                                type,
                                 [&]
                                 {
                                     return original<draw_primitive_fn>(
@@ -587,6 +686,7 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive(IDirect3DDevice8* device,
                                             primitive_count);
     }
     return with_visual_override(device,
+                                type,
                                 [&]
                                 {
                                     return original<draw_indexed_primitive_fn>(
@@ -613,6 +713,7 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive_up(IDirect3DDevice8* device,
     }
     return with_visual_override(
         device,
+        type,
         [&]
         {
             return original<draw_primitive_up_fn>(g_hooks.draw_primitive_up)(
@@ -645,6 +746,7 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive_up(IDirect3DDevice8* device,
     }
     return with_visual_override(
         device,
+        type,
         [&]
         {
             return original<draw_indexed_primitive_up_fn>(
