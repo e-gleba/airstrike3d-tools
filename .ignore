@@ -1,0 +1,6 @@
+# Agent search/indexing ignore (honored by ripgrep and agent file tools)
+external/
+build/
+llvm-mingw/
+ghidra/
+compile_commands.json

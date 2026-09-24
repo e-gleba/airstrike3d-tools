@@ -14,7 +14,7 @@ on:
       - "scripts/**"
       - "ghidra/**"
       - ".editorconfig"
-      - ".cursorignore"
+      - ".ignore"
       - ".gitignore"
       - ".cmake-format.py"
       - ".github/workflows/publish_release.yml"
