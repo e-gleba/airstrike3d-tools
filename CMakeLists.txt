@@ -45,9 +45,9 @@ endif()
 
 # ─── CTest (must be enabled BEFORE add_subdirectory for version dirs) ─────────
 # include(CTest) calls enable_testing() in the current scope. Test
-# registration happens inside subdirectories (2_06, 2_51, 2_71, space_strike)
-# via deploy_game.cmake, CTest must already be active or add_test() silently
-# does nothing and CTest reports "No tests were found!!!".
+# registration happens inside subdirectories (src/2_06, src/2_51, src/2_71,
+# src/space_strike) via deploy_game.cmake, CTest must already be active or
+# add_test() silently does nothing and CTest reports "No tests were found!!!".
 if(PROJECT_IS_TOP_LEVEL AND AS3D_ENABLE_TESTS)
     include(CTest)
     add_subdirectory(tests/proxy)
@@ -64,13 +64,13 @@ add_subdirectory(src)
 # bass_proxy_<version> target (linking bass_proxy_sdk) via add_bass_proxy().
 # Outputs land in build/<version>/ — no collisions.
 
-add_subdirectory(2_06)
+add_subdirectory(src/2_06)
 
-add_subdirectory(2_51)
+add_subdirectory(src/2_51)
 
-add_subdirectory(2_71)
+add_subdirectory(src/2_71)
 
-add_subdirectory(space_strike)
+add_subdirectory(src/space_strike)
 
 # CTest and CPack rules should only run when this project owns the build.
 # If another project pulls us in via add_subdirectory() or FetchContent,

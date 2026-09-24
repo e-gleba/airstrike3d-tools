@@ -1,4 +1,4 @@
-# 2_71/CMakeLists.txt — Airstrike3D II Gulf v2.71 deployment
+# src/2_71/CMakeLists.txt — Airstrike3D II Gulf v2.71 deployment
 
 include("${AS3D_PROJECT_ROOT}/cmake/deploy_game.cmake")
 

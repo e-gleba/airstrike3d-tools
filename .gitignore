@@ -131,10 +131,10 @@ __pycache__
 *.out
 *.app
 
-!2_06/**
-!2_51/**
-!2_71/**
-!space_strike/**
+!src/2_06/**
+!src/2_51/**
+!src/2_71/**
+!src/space_strike/**
 !ghidra/dumps/**
 !src/overlay/*.dll
 llvm_mingw/

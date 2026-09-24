@@ -42,7 +42,7 @@ function(add_proton_emulator_tests)
     set(tgt ${arg_DEPLOY_TARGET})
 
     # CMAKE_CURRENT_FUNCTION_LIST_DIR = directory where this function was
-    # defined (cmake/), regardless of where it's called from (2_06/, etc.)
+    # defined (cmake/), regardless of where it's called from (src/2_06/, etc.)
     set(test_scripts_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}")
 
     # ── Tier 1: Deployment validation ────────────────────────────────────────

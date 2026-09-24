@@ -1,4 +1,4 @@
-# space_strike/CMakeLists.txt — Space Strike deployment
+# src/space_strike/CMakeLists.txt — Space Strike deployment
 
 include("${AS3D_PROJECT_ROOT}/cmake/deploy_game.cmake")
 

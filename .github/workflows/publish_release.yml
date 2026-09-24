@@ -247,7 +247,7 @@ jobs:
           | world_grid | Shared world-line batch API |
           | cheats / UI framework | Unchanged Lua surface |
 
-          Per-version `config.ini.in` templates kept local to `2_06` / `2_51` / `2_71`.
+          Per-version `config.ini.in` templates kept local to `src/2_06` / `src/2_51` / `src/2_71`.
 
           ---
 

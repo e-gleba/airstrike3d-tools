@@ -109,9 +109,6 @@ My nostalgic journey into reverse engineering AirStrike 3D — the first PC game
 ```
 airstrike3d-tools/
 ├── .github/              # Branding assets & templates
-├── 2_06/                 # AirStrike 2 (engine v2.06) binaries & data
-├── 2_51/                 # AirStrike 2 D3D8 (engine v2.51) binaries & data
-├── 2_71/                 # Gulf Thunder (engine v2.71) binaries & data
 ├── cmake/                # CMake modules, toolchains & code-quality configs
 ├── external/             # Vendored dependencies (GLAD, etc.)
 ├── ghidra/               # Ghidra project files for both game versions
@@ -121,7 +118,11 @@ airstrike3d-tools/
 │   ├── paktool.py
 │   ├── save_editor.py
 │   └── static_exe_unpacker.py
-└── src/                  # C++ source code
+└── src/                  # C++ source code & game deployments
+    ├── 2_06/             # AirStrike 2 (engine v2.06) binaries & data
+    ├── 2_51/             # AirStrike 2 D3D8 (engine v2.51) binaries & data
+    ├── 2_71/             # Gulf Thunder (engine v2.71) binaries & data
+    ├── space_strike/     # Space Strike binaries & data
     ├── decompiled_game/  # Decompiled game logic per engine version (C)
     └── proxy/            # BASS proxy DLL for runtime injection & overlay
 ```
@@ -511,9 +512,9 @@ Each game version owns its template:
 
 | Version | Template | Notes |
 |---------|----------|-------|
-| 2.06 | [`2_06/config.ini.in`](2_06/config.ini.in) | OpenGL defaults |
-| 2.51 | [`2_51/config.ini.in`](2_51/config.ini.in) | Direct3D 8 defaults |
-| 2.71 | [`2_71/config.ini.in`](2_71/config.ini.in) | Operation Gulf / Direct3D 8 |
+| 2.06 | [`src/2_06/config.ini.in`](src/2_06/config.ini.in) | OpenGL defaults |
+| 2.51 | [`src/2_51/config.ini.in`](src/2_51/config.ini.in) | Direct3D 8 defaults |
+| 2.71 | [`src/2_71/config.ini.in`](src/2_71/config.ini.in) | Operation Gulf / Direct3D 8 |
 
 Shared Lua plugins live in [`lua/`](lua/) and are copied into each deploy tree as runtime `plugins/`.
 
@@ -522,7 +523,7 @@ Shared Lua plugins live in [`lua/`](lua/) and are copied into each deploy tree a
 Edit the version template, then rebuild/deploy:
 
 ```ini
-# 2_51/config.ini.in
+# src/2_51/config.ini.in
 [Display]
 VideoMode=10
 Fullscreen=0
@@ -643,14 +644,14 @@ cmake --workflow --preset llvm-mingw-i686-release-with-tests
 ctest --test-dir build/llvm-mingw-i686 -R "emulator_launch_2_71" --verbose --stop-on-failure
 
 # Inspect deployment directory manually
-ls -la build/llvm-mingw-i686/2_71/
+ls -la build/llvm-mingw-i686/src/2_71/
 
 # Check DLL specifically
-file build/llvm-mingw-i686/2_71/bass.dll
-objdump -p build/llvm-mingw-i686/2_71/bass.dll | grep -A5 "DLL Name"
+file build/llvm-mingw-i686/src/2_71/bass.dll
+objdump -p build/llvm-mingw-i686/src/2_71/bass.dll | grep -A5 "DLL Name"
 
 # Run emulator directly (bypass CTest)
-./build/llvm-mingw-i686/2_71/run_game.sh --debug
+./build/llvm-mingw-i686/src/2_71/run_game.sh --debug
 ```
 
 #### Test Output
