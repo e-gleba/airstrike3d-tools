@@ -1,3 +1,5 @@
+# For more skills browse: https://www.skills.sh/
+# For more mcps browse: https://mcpservers.org/
 cmake_minimum_required(VERSION 4.3)
 
 find_program(node_executable NAMES node nodejs REQUIRED)
@@ -62,6 +64,34 @@ function(install_agent_skills)
             NO_COLOR=1 TERM=dumb PYTHONUTF8=1 PYTHONIOENCODING=utf-8
             ${npx_invoke} --yes skills add ${arg_URL} -a opencode -y
             ${skill_flags}
+        WORKING_DIRECTORY "${git_root}"
+        TIMEOUT 600
+                COMMAND_ECHO
+                STDOUT
+                COMMAND_ERROR_IS_FATAL
+                ANY)
+endfunction()
+
+function(install_agent_mcp)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        0
+        arg
+        ""
+        "URL;NAME"
+        "")
+    if(NOT arg_URL)
+        message(FATAL_ERROR "install_agent_mcp: URL missing")
+    endif()
+    set(name_flag "")
+    if(arg_NAME)
+        set(name_flag --name ${arg_NAME})
+    endif()
+    execute_process(
+        COMMAND
+            ${CMAKE_COMMAND} -E env npm_config_package_lock=false CI=true
+            NO_COLOR=1 TERM=dumb PYTHONUTF8=1 PYTHONIOENCODING=utf-8
+            ${npx_invoke} --yes add-mcp ${arg_URL} -a opencode -y ${name_flag}
         WORKING_DIRECTORY "${git_root}"
         TIMEOUT 600
                 COMMAND_ECHO
@@ -190,3 +220,34 @@ install_agent_skills(
     apple-silicon
     wasm-emscripten
     wasm-wasmtime)
+
+install_agent_mcp(
+    URL
+    https://api.githubcopilot.com/mcp/
+    NAME
+    githubcopilot)
+install_agent_mcp(
+    URL
+    https://xdocs.dev/mcp
+    NAME
+    xdocs)
+install_agent_mcp(
+    URL
+    https://qt-docs-mcp.qt.io/mcp
+    NAME
+    qt-docs)
+install_agent_mcp(
+    URL
+    https://learn.microsoft.com/api/mcp
+    NAME
+    ms-learn)
+install_agent_mcp(
+    URL
+    https://godbolt.org/mcp
+    NAME
+    godbolt)
+install_agent_mcp(
+    URL
+    https://developerknowledge.googleapis.com/mcp
+    NAME
+    google-dev)
