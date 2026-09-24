@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "libmcp-project": {
+        "type": "local",
+        "command": [
+          "python3",
+          "scripts/libmcp_project_mcp.py"
+        ]
+      },
+      "xdocs": {
+        "type": "remote",
+        "url": "https://xdocs.dev/mcp",
+        "oauth": false,
+        "disabled": true
+      },
+      "qt-docs": {
+        "type": "remote",
+        "url": "https://qt-docs-mcp.qt.io/mcp",
+        "oauth": false,
+        "disabled": true
+      },
+      "ms-learn": {
+        "type": "remote",
+        "url": "https://learn.microsoft.com/api/mcp",
+        "oauth": false,
+        "disabled": true
+      },
+      "godbolt": {
+        "type": "remote",
+        "url": "https://godbolt.org/mcp",
+        "oauth": false,
+        "disabled": true
+      },
+      "google-dev": {
+        "type": "remote",
+        "url": "https://developerknowledge.googleapis.com/mcp",
+        "disabled": true
+      }
+    }
+  }
+}
