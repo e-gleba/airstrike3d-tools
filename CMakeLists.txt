@@ -13,6 +13,9 @@ set(AS3D_PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 
 option(USE_BASS_PROXY_LIB "Build the BASS proxy DLL" ON)
 option(AS3D_ENABLE_TESTS "Build and register CTest emulator tests" ON)
+option(AS3D_INSTALL_CONFIG_INI
+    "Ship preconfigured config.ini in install/CPack packages (ON for CI/test packages, OFF for vanilla end-user releases that generate settings on first run)"
+    OFF)
 set(AS3D_EMULATOR_TEST_TIMEOUT
     "5"
     CACHE STRING "Timeout (seconds) for emulator smoke-launch tests")

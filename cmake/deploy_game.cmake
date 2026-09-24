@@ -204,12 +204,28 @@ execute_process(
     add_dependencies(run_game_${version} deploy_game_${version})
 
     # ─── Install ─────────────────────────────────────────────────────────────
+    # config.ini is ALWAYS generated into the build/deploy dir (CTest needs it
+    # for headless launches), but it is only installed/packaged when
+    # AS3D_INSTALL_CONFIG_INI=ON. Vanilla releases (OFF, the default) ship
+    # without it so the game shows its first-run settings dialog and writes a
+    # valid, machine-specific config.ini itself. Shipping our preset
+    # VideoMode/RefreshRate causes native-Windows startup failures
+    # (e.g. Error #17) on displays that do not support that mode, while Proton
+    # happens to tolerate it — hence the "works on Proton, fails on Windows"
+    # symptom. A reference copy is always installed as config.ini.example.
 
     set(install_dest "${CMAKE_INSTALL_BINDIR}/${version}")
 
     install(FILES "${deploy_dir}/${game_exe}" "${deploy_dir}/run_game.sh"
-                  "${deploy_dir}/bass.dll" "${deploy_dir}/config.ini"
+                  "${deploy_dir}/bass.dll"
             DESTINATION "${install_dest}")
+    install(FILES "${version_config_in}"
+            DESTINATION "${install_dest}"
+            RENAME "config.ini.example")
+    if(AS3D_INSTALL_CONFIG_INI)
+        install(FILES "${deploy_dir}/config.ini"
+                DESTINATION "${install_dest}")
+    endif()
 
     if(USE_BASS_PROXY_LIB)
         install(FILES "${deploy_dir}/original.dll" "${deploy_dir}/_original.dll"

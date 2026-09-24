@@ -504,7 +504,10 @@ Click [▶ run release](https://github.com/e-gleba/airstrike3d-tools/actions/wor
 
 ### Game Configuration
 
-The build system automatically generates `config.ini` for each game version during deployment. This ensures the game starts directly with sensible defaults instead of showing the launcher configuration window.
+The build system always generates `config.ini` into each version's build/deploy
+dir from its template. CTest needs this for headless launches (no human to click
+through the first-run settings dialog). Packages (CPack ZIP/TXZ) are a separate
+question — see `AS3D_INSTALL_CONFIG_INI` below.
 
 #### Default Settings
 
@@ -518,6 +521,32 @@ Each game version owns its template:
 
 Shared Lua plugins live in [`lua/`](lua/) and are copied into each deploy tree as runtime `plugins/`.
 
+#### Shipping vs. Testing: `AS3D_INSTALL_CONFIG_INI`
+
+| Mode | CMake flag | Package contains | Use for |
+|------|------------|------------------|---------|
+| Vanilla release (default) | `-DAS3D_INSTALL_CONFIG_INI=OFF` (default) | **no** `config.ini`, only `config.ini.example` as reference | End-user releases for native Windows. Game shows its first-run dialog and writes a valid machine-specific `config.ini` itself. |
+| Test package | `-DAS3D_INSTALL_CONFIG_INI=ON` | `config.ini` + `config.ini.example` | CI / Proton automation where no one can click through the settings dialog. |
+
+Why two modes? A preset `VideoMode`/`RefreshRate` that works on one machine
+(and happens to work under Proton) can fail on another native-Windows display
+with a startup error such as **Error #17**. The vanilla originals shipped
+without `config.ini` for exactly this reason — first run always configures.
+
+```bash
+# Release-style local package (no config.ini inside, game self-configures):
+cmake --preset llvm-mingw-i686 -DAS3D_INSTALL_CONFIG_INI=OFF
+cmake --build build/llvm-mingw-i686 --config Release
+cpack --preset llvm-mingw-i686-package  # or: cmake --workflow --preset llvm-mingw-i686-release
+
+# Test-style package (preconfigured config.ini inside, for automation):
+cmake --preset llvm-mingw-i686 -DAS3D_INSTALL_CONFIG_INI=ON
+cmake --build build/llvm-mingw-i686 --config Release
+```
+
+> CTest is unaffected by this flag — the build tree always has `config.ini`,
+> only the installed/packaged tree differs.
+
 #### Customizing Configuration
 
 Edit the version template, then rebuild/deploy:
@@ -530,14 +559,17 @@ Fullscreen=0
 WaitVSync=1
 ```
 
-#### Why Auto-Generate?
+#### Why Auto-Generate (for tests)?
 
-The original games shipped without `config.ini` and required users to configure settings via a launcher dialog on first run. This automated approach:
+The original games shipped without `config.ini` and required users to configure settings via a launcher dialog on first run. Generating it in the build tree:
 
 - **Eliminates manual setup** — games start immediately with tested defaults
 - **Keeps version-specific settings** — OpenGL and D3D8 configs stay separate
 - **Supports automation** — CTest can launch games without human intervention
 - **Preserves defaults** — templates track optimal settings for modern systems
+
+For end-user packages, keep the default `OFF` so the game generates its own
+settings instead of inheriting a stale `VideoMode` from the packager's machine.
 
 ### Testing with CTest
 
@@ -594,6 +626,7 @@ cmake --workflow --preset llvm-mingw-i686-debug-with-tests
 |----------|---------|-------------|
 | `AS3D_ENABLE_TESTS` | `ON` | Build and register CTest emulator tests |
 | `AS3D_EMULATOR_TEST_TIMEOUT` | `5` | Timeout (seconds) for emulator launch tests |
+| `AS3D_INSTALL_CONFIG_INI` | `OFF` | Ship preconfigured `config.ini` in CPack packages (`ON` = test packages, `OFF` = vanilla releases that self-configure on first run) |
 
 Adjust timeout for slow CI runners or fast local iteration:
 
