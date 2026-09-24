@@ -246,8 +246,3 @@ install_agent_mcp(
     https://godbolt.org/mcp
     NAME
     godbolt)
-install_agent_mcp(
-    URL
-    https://developerknowledge.googleapis.com/mcp
-    NAME
-    google-dev)
