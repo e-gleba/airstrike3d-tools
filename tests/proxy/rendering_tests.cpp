@@ -101,6 +101,17 @@ int main()
         return EXIT_FAILURE;
     }
 
+    set_ui_hidden(true);
+    if (!ui_hidden())
+    {
+        return EXIT_FAILURE;
+    }
+    set_ui_hidden(false);
+    if (ui_hidden())
+    {
+        return EXIT_FAILURE;
+    }
+
     const camera_pose source{
         .position      = { .x = 12.0, .y = 34.0, .z = -56.0 },
         .yaw_degrees   = -90.0,

@@ -236,6 +236,46 @@ template <typename function> void guarded(function&& fn) noexcept
     return (shader & k_fvf_xyzr_hw) != 0U;
 }
 
+[[nodiscard]] bool ui_draw_hidden(IDirect3DDevice8* device) noexcept
+{
+    // Opt-in "hide game UI" (freecam clean-screenshot mode). Drops
+    // screen-space draws only; the 3D scene and our own overlay (internal
+    // renders) are unaffected. Checked after the primary-device gate in each
+    // draw hook; the ui_hidden() atomic is read first so the state queries
+    // below run only while hiding. Three UI signatures, in cheap-first order:
+    //   1. XYZRHW pretransformed vertices (sprite/font HUD) — FVF check.
+    //   2. Orthographic projection (XYZ menu quads) — the 3D scene is always
+    //      perspective, so ortho means UI or shadow-map fills (both safe to
+    //      drop for screenshots).
+    //   3. Identity VIEW (screen-space passes reusing the 3D projection).
+    // Gates 2-3 require an observed 3D scene so boot frames before the first
+    // perspective projection never eat real geometry.
+    if (g_internal_render || !graphics::ui_hidden())
+    {
+        return false;
+    }
+    if (uses_pretransformed_vertices(device))
+    {
+        return true;
+    }
+    {
+        std::lock_guard lock{ g_hooks.transform_mutex };
+        if (!g_hooks.has_main_scene)
+        {
+            return false;
+        }
+    }
+    D3DMATRIX projection{};
+    if (SUCCEEDED(device->GetTransform(D3DTS_PROJECTION, &projection)) &&
+        !is_right_handed_perspective(projection))
+    {
+        return true;
+    }
+    D3DMATRIX view{};
+    return SUCCEEDED(device->GetTransform(D3DTS_VIEW, &view)) &&
+           is_identity_view(view);
+}
+
 [[nodiscard]] bool should_skip_visual_override(IDirect3DDevice8* device,
                                                D3DPRIMITIVETYPE  type) noexcept
 {
@@ -658,6 +698,10 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive(IDirect3DDevice8* device,
         return original<draw_primitive_fn>(g_hooks.draw_primitive)(
             device, type, start, count);
     }
+    if (ui_draw_hidden(device))
+    {
+        return D3D_OK;
+    }
     return with_visual_override(device,
                                 type,
                                 [&]
@@ -685,6 +729,10 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive(IDirect3DDevice8* device,
                                             start_index,
                                             primitive_count);
     }
+    if (ui_draw_hidden(device))
+    {
+        return D3D_OK;
+    }
     return with_visual_override(device,
                                 type,
                                 [&]
@@ -710,6 +758,10 @@ HRESULT STDMETHODCALLTYPE hk_draw_primitive_up(IDirect3DDevice8* device,
     {
         return original<draw_primitive_up_fn>(g_hooks.draw_primitive_up)(
             device, type, primitive_count, data, stride);
+    }
+    if (ui_draw_hidden(device))
+    {
+        return D3D_OK;
     }
     return with_visual_override(
         device,
@@ -743,6 +795,10 @@ HRESULT STDMETHODCALLTYPE hk_draw_indexed_primitive_up(IDirect3DDevice8* device,
                                                index_format,
                                                data,
                                                stride);
+    }
+    if (ui_draw_hidden(device))
+    {
+        return D3D_OK;
     }
     return with_visual_override(
         device,

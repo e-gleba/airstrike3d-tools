@@ -15,6 +15,7 @@ local M = {}
 ---@class CameraState
 ---@field enabled boolean
 ---@field mouse_look boolean
+---@field hide_ui boolean
 ---@field base_speed number
 ---@field sprint_mult number
 ---@field sensitivity number
@@ -29,6 +30,7 @@ local M = {}
 local DEFAULT <const> = {
     enabled = true,
     mouse_look = false,
+    hide_ui = false,
     base_speed = 20.0,
     sprint_mult = 4.0,
     sensitivity = 0.15,
@@ -45,6 +47,7 @@ local DEFAULT <const> = {
 local cam = {
     enabled = DEFAULT.enabled,
     mouse_look = DEFAULT.mouse_look,
+    hide_ui = DEFAULT.hide_ui,
     base_speed = DEFAULT.base_speed,
     sprint_mult = DEFAULT.sprint_mult,
     sensitivity = DEFAULT.sensitivity,
@@ -77,6 +80,7 @@ local VK_SPACE, VK_CONTROL, VK_SHIFT, VK_RBUTTON =
 
 local was_rbutton_down = false
 local live_seeded = false
+local hide_ui_logged = false
 
 local function sync_pose_from_sdk()
     cam.pos_x, cam.pos_y, cam.pos_z, cam.yaw, cam.pitch = sdk.camera_get_pose()
@@ -122,6 +126,24 @@ end
 
 sdk.on_frame(function()
     sdk.camera_enable(cam.enabled)
+    -- Hide-UI is standalone (works without freecam). Guarded: old DLLs
+    -- without the binding warn once instead of erroring every frame.
+    if sdk.set_ui_hidden then
+        sdk.set_ui_hidden(cam.hide_ui)
+        if cam.hide_ui ~= hide_ui_logged then
+            hide_ui_logged = cam.hide_ui
+            local backend = sdk.get_render_backend()
+            sdk.log_info(("Hide game UI: %s (backend=%s)"):format(
+                cam.hide_ui and "ON" or "OFF", backend
+            ))
+            if cam.hide_ui and backend ~= "direct3d8" then
+                sdk.log_warn("Hide game UI is Direct3D 8 only; this backend ignores it")
+            end
+        end
+    elseif cam.hide_ui and not hide_ui_logged then
+        hide_ui_logged = true
+        sdk.log_warn("Hide game UI needs a rebuilt bass.dll (sdk.set_ui_hidden missing)")
+    end
     if not cam.enabled then
         live_seeded = false
         if cam.mouse_look then
@@ -193,6 +215,10 @@ local function draw_panel()
         "Enable Freecam", cam, "enabled",
         "Override the game camera with custom WASD + mouse look"
     )
+    TOOLS_UI.checkbox(
+        "Hide game UI", cam, "hide_ui",
+        "Hide HUD, menus and text (Direct3D 8 only) for clean screenshots"
+    )
     if not cam.enabled then
         return
     end
@@ -259,6 +285,9 @@ end)
 
 sdk.on_unload(function()
     sdk.camera_enable(false)
+    if sdk.set_ui_hidden then
+        sdk.set_ui_hidden(false)
+    end
     if cam.mouse_look then
         disable_mouse_look()
     end

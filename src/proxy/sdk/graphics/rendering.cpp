@@ -34,6 +34,7 @@ bool                                            g_has_observed_camera{};
 bool                                            g_adopted_live_camera{};
 std::mutex                                      g_visual_mutex;
 visual_settings                                 g_visual_settings;
+std::atomic<bool>                               g_ui_hidden{ false };
 std::atomic<std::uint64_t> g_line_generation{};
 #if defined(__cpp_lib_atomic_shared_ptr) && \
     __cpp_lib_atomic_shared_ptr >= 201711L
@@ -230,6 +231,16 @@ visual_settings get_visual_settings() noexcept
 {
     std::lock_guard lock{ g_visual_mutex };
     return g_visual_settings;
+}
+
+void set_ui_hidden(bool hidden) noexcept
+{
+    g_ui_hidden.store(hidden, std::memory_order::release);
+}
+
+bool ui_hidden() noexcept
+{
+    return g_ui_hidden.load(std::memory_order::acquire);
 }
 
 namespace detail

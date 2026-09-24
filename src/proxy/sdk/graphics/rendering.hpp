@@ -85,6 +85,12 @@ void clear_world_lines() noexcept;
 void set_visual_settings(visual_settings settings) noexcept;
 [[nodiscard]] visual_settings get_visual_settings() noexcept;
 
+// Hides the game's screen-space UI layer (HUD, menus, text) while keeping
+// the 3D scene and the tools overlay. Backends that cannot identify UI draws
+// (OpenGL: no draw-call hooks) ignore the flag. Disabled by default.
+void               set_ui_hidden(bool hidden) noexcept;
+[[nodiscard]] bool ui_hidden() noexcept;
+
 namespace detail
 {
 

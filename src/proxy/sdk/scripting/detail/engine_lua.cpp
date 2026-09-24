@@ -571,6 +571,8 @@ struct engine::impl final
                 [](const std::vector<double>& packed, bool depth_test)
                 { submit_world_lines(std::span{ packed }, depth_test); })
             .addFunction("clear_world_lines", &clear_world_lines)
+            .addFunction("set_ui_hidden", &set_ui_hidden)
+            .addFunction("is_ui_hidden", &ui_hidden)
             .addFunction(
                 "set_visual_mode",
                 [](std::int32_t mode, double alpha, double bias, double argb)
@@ -859,6 +861,7 @@ void engine::unload_plugins()
     graphics::set_camera_enabled(false);
     graphics::clear_world_lines();
     graphics::set_visual_settings({});
+    graphics::set_ui_hidden(false);
 
     g_ctx.cb.on_frame.clear();
     g_ctx.cb.on_overlay.clear();
