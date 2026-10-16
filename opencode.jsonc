@@ -1,6 +1,149 @@
 {
     "$schema": "https://opencode.ai/config.json",
+    // Dual V1+V2: V1 shapes throughout; V2 normalizes them quietly.
+    // Privacy: sessions never upload.
+    "share": "disabled",
+    // V1 update pin; V2 reads it as update:disable.
+    "autoupdate": false,
+    // Built-ins stay on (object form enables them); house-rules reports
+    // banned patterns after AI write/edit. Nonzero only logs, never
+    // blocks. CMakeLists.txt has no extension so no formatter matches it.
+    "formatter": {
+        "house-rules": {
+            "command": [
+                "python3",
+                ".agents/scripts/rules/hook.py",
+                "--file",
+                "$FILE"
+            ],
+            "extensions": [
+                ".cmake",
+                ".cpp",
+                ".h",
+                ".hpp",
+                ".cppm",
+                ".cxx"
+            ]
+        }
+    },
+    // Watcher is perf-only: ignored trees stay readable via read/grep/glob.
+    "watcher": {
+        "ignore": [
+            "build/**",
+            "cmake-build-*/**",
+            "_deps/**",
+            ".emsdk/**",
+            "llvm_mingw/**",
+            "llvm-mingw/**",
+            "vcpkg_installed/**",
+            "android_project/.gradle/**",
+            ".cache/**",
+            "Testing/**"
+        ]
+    },
+    // V1 loads these; V2 ignores the field (uses root AGENTS.md instead).
+    "instructions": [
+        ".opencode/AGENTS.md",
+        ".opencode/REVIEW.md"
+    ],
+    // Weak-model efficiency probe: dry-runs any skill/command (e.g. ct-auth)
+    // on a weak model to test the project AI setup. Swap `model` for any other
+    // small model from `opencode models` if this one stops working.
+    "agent": {
+        "ct_weak_model_probe": {
+            "description": "Weak-model efficiency probe: dry-runs a given skill or command on a weak model and reports the result plus ambiguities. Read-only.",
+            "mode": "subagent",
+            "model": "opencode/longcat-2.5-preview-free",
+            "temperature": 0,
+            "permission": {
+                "edit": "deny"
+            }
+        }
+    },
+    // Docs are header/public auth; search is public; OAuth needs /mcps sign-in.
     "mcp": {
+        "ct_github": {
+            "type": "remote",
+            "url": "https://api.githubcopilot.com/mcp/",
+            "enabled": true,
+            "oauth": false,
+            "headers": {
+                "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+            }
+        },
+        "ct_xdocs": {
+            "type": "remote",
+            "url": "https://xdocs.dev/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_qt_docs": {
+            "type": "remote",
+            "url": "https://qt-docs-mcp.qt.io/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_ms_learn": {
+            "type": "remote",
+            "url": "https://learn.microsoft.com/api/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_godbolt": {
+            "type": "remote",
+            "url": "https://godbolt.org/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_google_dev": {
+            "type": "remote",
+            "url": "https://developerknowledge.googleapis.com/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_context7": {
+            "type": "remote",
+            "url": "https://mcp.context7.com/mcp/oauth",
+            "enabled": true
+        },
+        "ct_deepwiki": {
+            "type": "remote",
+            "url": "https://mcp.deepwiki.com/mcp",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_gitmcp": {
+            "type": "remote",
+            "url": "https://gitmcp.io/docs",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_grep": {
+            "type": "remote",
+            "url": "https://mcp.grep.app",
+            "enabled": true,
+            "oauth": false
+        },
+        "ct_exa": {
+            "type": "remote",
+            "url": "https://mcp.exa.ai/mcp",
+            "enabled": true
+        },
+        "ct_sentry": {
+            "type": "remote",
+            "url": "https://mcp.sentry.dev/mcp",
+            "enabled": false
+        },
+        "ct_linear": {
+            "type": "remote",
+            "url": "https://mcp.linear.app/mcp",
+            "enabled": false
+        },
+        "ct_vercel": {
+            "type": "remote",
+            "url": "https://mcp.vercel.com",
+            "enabled": false
+        },
         "xdocs": {
             "type": "remote",
             "url": "https://xdocs.dev/mcp",
@@ -9,11 +152,6 @@
         "qt-docs": {
             "type": "remote",
             "url": "https://qt-docs-mcp.qt.io/mcp",
-            "enabled": true
-        },
-        "githubcopilot": {
-            "type": "remote",
-            "url": "https://api.githubcopilot.com/mcp/",
             "enabled": true
         },
         "ms-learn": {
@@ -25,6 +163,79 @@
             "type": "remote",
             "url": "https://godbolt.org/mcp",
             "enabled": true
+        },
+        "google-dev": {
+            "type": "remote",
+            "url": "https://developerknowledge.googleapis.com/mcp",
+            "enabled": true
+        }
+    },
+    // Git checkouts for context; description says when to use each.
+    "references": {
+        "ct_boost": {
+            "repository": "boostorg/boost",
+            "branch": "master",
+            "description": "Use for Boost C++ Libraries API, headers in libs/, and CMake usage patterns"
+        },
+        "ct_cmake": {
+            "repository": "Kitware/CMake",
+            "description": "Use for official CMake implementation, Help/ documentation, modules, and command behavior"
+        },
+        "ct_cpp_best_practices": {
+            "repository": "lefticus/cppbestpractices",
+            "description": "Use for Jason Turner's C++ best practices: glossaries, style, and pitfalls to cite in reviews"
+        },
+        "ct_cpp_core_guidelines": {
+            "repository": "isocpp/CppCoreGuidelines",
+            "description": "Use for the canonical C++ Core Guidelines (R/Rules, lifetime, bounds safety) when .opencode/AGENTS.md is silent"
+        },
+        "ct_cppreference": {
+            "repository": "PeterFeicht/cppreference-doc",
+            "description": "Use for C++ standard library reference source used to build the cppreference offline archive"
+        },
+        "ct_doctest": {
+            "repository": "onqtam/doctest",
+            "description": "Use for doctest macros and registration used by tests/ (TEST_CASE, doctest_discover_tests)"
+        },
+        "ct_emscripten": {
+            "repository": "emscripten-core/emscripten",
+            "description": "Use for Emscripten toolchain behavior behind the web_emscripten_wasm32 preset"
+        },
+        "ct_gsl": {
+            "repository": "microsoft/GSL",
+            "description": "Use for GSL contracts and vocabulary types used in this template (Expects, Ensures, span, not_null)"
+        },
+        "ct_imgui": {
+            "repository": "ocornut/imgui",
+            "description": "Use for Dear ImGui immediate-mode API used by the SDL3 demo app"
+        },
+        "ct_llvm": {
+            "repository": "llvm/llvm-project",
+            "branch": "main",
+            "description": "Use for Clang diagnostics, AST/tooling, LLVM IR, libc++, compiler flags, and sanitizers"
+        },
+        "ct_modern_cmake": {
+            "repository": "gitlab.com/CLIUtils/modern-cmake",
+            "branch": "master",
+            "description": "Use for free Modern CMake book patterns: target-based design, presets, dependencies, and install rules"
+        },
+        "ct_sdl3": {
+            "repository": "libsdl-org/SDL",
+            "branch": "main",
+            "description": "Use for SDL3 windowing, rendering, audio, input, main-loop, and platform behavior"
+        },
+        "ct_taskflow": {
+            "repository": "taskflow/taskflow",
+            "description": "Use for C++ task graphs, parallel algorithms, executors, scheduling, and C++20 task-parallel patterns"
+        },
+        "ct_tdesktop": {
+            "repository": "telegramdesktop/tdesktop",
+            "branch": "dev",
+            "description": "Use for Telegram Desktop source, build instructions, Qt/C++ patterns, and patch structure"
+        },
+        "ct_tracy": {
+            "repository": "wolfpld/tracy",
+            "description": "Use for Tracy profiler zones and fixtures used by the 04_tracy_profiler example"
         }
     }
 }

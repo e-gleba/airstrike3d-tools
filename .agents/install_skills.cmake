@@ -110,13 +110,13 @@ install_agent_skills(
     https://github.com/mattpocock/skills
     SKILLS
     code-review
-    caveman
-    diagnose
-    qa
-    to-spec
-    research
-    to-tickets
-    resolving-merge-conflicts)
+    research)
+install_agent_skills(
+    URL
+    https://github.com/github/awesome-copilot
+    SKILLS
+    create-github-action-workflow-specification
+    git-commit)
 install_agent_skills(
     URL
     https://github.com/mohitmishra786/low-level-dev-skills
@@ -132,13 +132,10 @@ install_agent_skills(
     cmake
     make
     ninja
-    meson
     conan-vcpkg
     static-analysis
     build-acceleration
-    bazel
     include-what-you-use
-    linker-scripts
     gdb
     lldb
     core-dumps
@@ -159,73 +156,13 @@ install_agent_skills(
     linkers-lto
     binutils
     dynamic-linking
-    assembly-x86
-    assembly-arm
-    assembly-riscv
-    interpreters
     simd-intrinsics
     memory-model
     cpu-cache-opt
     custom-allocators
-    numa-programming
-    compiler-frontend
-    llvm-passes
-    llvm-ir-and-passes
-    compiler-optimizations-deep
-    code-generation-and-backends
-    mlir
-    jit-compilation
-    linux-kernel-architecture
-    kernel-memory-management
-    kernel-concurrency
-    device-tree
-    platform-device-model
-    writing-char-drivers
-    bus-drivers-i2c-spi
-    kernel-debugging-advanced
-    qemu-for-kernel-development
-    kernel-internals
-    device-drivers
-    kernel-debugging
-    kernel-testing
-    os-dev-scratch
-    linux-kernel-modules
-    io-uring
-    dpdk
-    af-xdp
-    ebpf
-    cuda
-    cuda-profiling
-    cuda-debugging
-    triton-lang
-    hip-rocm
-    gpu-memory-model
-    openmp
-    mpi
-    rdma-verbs
-    qemu-kvm
-    hypervisor-internals
-    containers-internals
-    qemu-embedded-simulation
-    resource-optimization-lowend
-    cpu-pipelines-and-hazards
-    memory-hierarchy-and-caches
-    virtual-memory-paging-and-tlb
-    abi-and-calling-conventions
-    branch-prediction-and-speculation
-    reverse-engineering
-    kernel-security
-    arm-sve
-    riscv-privileged
-    apple-silicon
     wasm-emscripten
     wasm-wasmtime)
 
-install_agent_mcp(
-    URL
-    https://api.githubcopilot.com/mcp/
-    NAME
-    githubcopilot)
 install_agent_mcp(
     URL
     https://xdocs.dev/mcp
@@ -246,3 +183,15 @@ install_agent_mcp(
     https://godbolt.org/mcp
     NAME
     godbolt)
+install_agent_mcp(
+    URL
+    https://developerknowledge.googleapis.com/mcp
+    NAME
+    google-dev)
+
+# HACK: move skills-lock.json to the .agents/ to avoid root trash of files
+file(MAKE_DIRECTORY "${git_root}/.agents")
+if(EXISTS "${git_root}/skills-lock.json")
+    file(RENAME "${git_root}/skills-lock.json"
+         "${git_root}/.agents/skills-lock.json")
+endif()
