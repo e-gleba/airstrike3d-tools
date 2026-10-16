@@ -1,0 +1,160 @@
+{
+  "$schema": "https://cmake.org/cmake/help/latest/_downloads/3e2d73bff478d88a7de0de736ba5e361/schema.json",
+  "version": 10,
+  "include": [
+    "base.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "llvm-mingw-base",
+      "displayName": "LLVM-MinGW Base",
+      "description": "Cross-compilation from Linux to Windows via llvm-mingw toolchain",
+      "hidden": true,
+      "inherits": "ninja-base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/llvm_mingw.cmake",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "llvm_mingw_version": "20260908",
+        "llvm_mingw_host_os": "ubuntu-22.04",
+        "llvm_mingw_auto_download": true
+      }
+    },
+    {
+      "name": "llvm-mingw-i686",
+      "displayName": "LLVM-MinGW Win32 (i686)",
+      "description": "Cross-compile for Windows 32-bit x86 (legacy game targets)",
+      "inherits": "llvm-mingw-base",
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "Windows",
+        "CMAKE_SYSTEM_PROCESSOR": "i686"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "llvm-mingw-i686-build-release",
+      "displayName": "LLVM-MinGW Win32 Release Build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "build-release"
+    },
+    {
+      "name": "llvm-mingw-i686-build-debug",
+      "displayName": "LLVM-MinGW Win32 Debug Build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "build-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "llvm-mingw-i686-test-release",
+      "displayName": "LLVM-MinGW Win32 Test (Release)",
+      "description": "Run CTest emulator tests after cross-compiled Release build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "test-base",
+      "configuration": "Release"
+    },
+    {
+      "name": "llvm-mingw-i686-test-debug",
+      "displayName": "LLVM-MinGW Win32 Test (Debug)",
+      "description": "Run CTest emulator tests after cross-compiled Debug build",
+      "configurePreset": "llvm-mingw-i686",
+      "inherits": "test-base",
+      "configuration": "Debug"
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "llvm-mingw-i686-package",
+      "displayName": "LLVM-MinGW Win32 Package",
+      "configurePreset": "llvm-mingw-i686",
+      "configurations": [
+        "Release"
+      ],
+      "generators": [
+        "TXZ"
+      ]
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "llvm-mingw-i686-release",
+      "displayName": "LLVM-MinGW Win32 Release",
+      "description": "Configure, build, and package for Windows 32-bit (jobs=1 due to LLD deadlock)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-release"
+        },
+        {
+          "type": "package",
+          "name": "llvm-mingw-i686-package"
+        }
+      ]
+    },
+    {
+      "name": "llvm-mingw-i686-release-with-tests",
+      "displayName": "LLVM-MinGW Win32 Release (with CTest)",
+      "description": "Configure, build, test, and package for Windows 32-bit (requires Steam + Proton, jobs=1 due to LLD deadlock)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-release"
+        },
+        {
+          "type": "test",
+          "name": "llvm-mingw-i686-test-release"
+        },
+        {
+          "type": "package",
+          "name": "llvm-mingw-i686-package"
+        }
+      ]
+    },
+    {
+      "name": "llvm-mingw-i686-debug",
+      "displayName": "LLVM-MinGW Win32 Debug",
+      "description": "Configure and build for Windows 32-bit (jobs=1 due to LLD deadlock)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-debug"
+        }
+      ]
+    },
+    {
+      "name": "llvm-mingw-i686-debug-with-tests",
+      "displayName": "LLVM-MinGW Win32 Debug (with CTest, no package)",
+      "description": "Configure, build, and test for Windows 32-bit Debug for fast iteration (no packaging, jobs=1)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-mingw-i686"
+        },
+        {
+          "type": "build",
+          "name": "llvm-mingw-i686-build-debug"
+        },
+        {
+          "type": "test",
+          "name": "llvm-mingw-i686-test-debug"
+        }
+      ]
+    }
+  ]
+}

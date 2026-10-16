@@ -469,7 +469,7 @@ Add this to the game's launch options in Steam.
 
 #### Linux → Windows (cross-compile via LLVM-MinGW)
 
-The LLVM-MinGW toolchain **auto-downloads on first configure** (`llvm_mingw_auto_download=ON`, release tag pinned via `llvm_mingw_version` in [`CMakePresets.json`](CMakePresets.json)) — no manual setup required:
+The LLVM-MinGW toolchain **auto-downloads on first configure** (`llvm_mingw_auto_download=ON`, release tag pinned via `llvm_mingw_version` in [`cmake/presets/llvm_mingw_linux.json`](cmake/presets/llvm_mingw_linux.json)) — no manual setup required:
 
 ```bash
 cmake --preset llvm-mingw-i686

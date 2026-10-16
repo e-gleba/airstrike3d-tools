@@ -1,0 +1,58 @@
+{
+  "$schema": "https://cmake.org/cmake/help/latest/_downloads/3e2d73bff478d88a7de0de736ba5e361/schema.json",
+  "version": 10,
+  "configurePresets": [
+    {
+      "name": "base",
+      "displayName": "Base Configuration",
+      "description": "Common cache variables shared by all presets",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_COLOR_DIAGNOSTICS": "ON",
+        "CMAKE_CXX_SCAN_FOR_MODULES": "OFF",
+        "FETCHCONTENT_QUIET": "OFF",
+        "USE_BASS_PROXY_LIB": "ON"
+      }
+    },
+    {
+      "name": "ninja-base",
+      "displayName": "Ninja Base",
+      "description": "Ninja Multi-Config generator base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja Multi-Config",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-release",
+      "hidden": true,
+      "configuration": "Release"
+    },
+    {
+      "name": "build-debug",
+      "hidden": true,
+      "configuration": "Debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true,
+        "shortProgress": true,
+        "verbosity": "default"
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false,
+        "timeout": 60
+      }
+    }
+  ]
+}
