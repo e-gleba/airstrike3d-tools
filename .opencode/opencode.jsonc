@@ -41,11 +41,7 @@
             "Testing/**"
         ]
     },
-    // V1 loads these; V2 ignores the field (uses root AGENTS.md instead).
-    "instructions": [
-        ".opencode/AGENTS.md",
-        ".opencode/REVIEW.md"
-    ],
+    // Sessions load root AGENTS.md + .opencode/REVIEW.md by convention.
     // Weak-model efficiency probe: dry-runs any skill/command (e.g. ct-auth)
     // on a weak model to test the project AI setup. Swap `model` for any other
     // small model from `opencode models` if this one stops working.
@@ -143,40 +139,10 @@
             "type": "remote",
             "url": "https://mcp.vercel.com",
             "enabled": false
-        },
-        "xdocs": {
-            "type": "remote",
-            "url": "https://xdocs.dev/mcp",
-            "enabled": true
-        },
-        "qt-docs": {
-            "type": "remote",
-            "url": "https://qt-docs-mcp.qt.io/mcp",
-            "enabled": true
-        },
-        "ms-learn": {
-            "type": "remote",
-            "url": "https://learn.microsoft.com/api/mcp",
-            "enabled": true
-        },
-        "godbolt": {
-            "type": "remote",
-            "url": "https://godbolt.org/mcp",
-            "enabled": true
-        },
-        "google-dev": {
-            "type": "remote",
-            "url": "https://developerknowledge.googleapis.com/mcp",
-            "enabled": true
         }
     },
     // Git checkouts for context; description says when to use each.
     "references": {
-        "ct_boost": {
-            "repository": "boostorg/boost",
-            "branch": "master",
-            "description": "Use for Boost C++ Libraries API, headers in libs/, and CMake usage patterns"
-        },
         "ct_cmake": {
             "repository": "Kitware/CMake",
             "description": "Use for official CMake implementation, Help/ documentation, modules, and command behavior"
@@ -187,55 +153,26 @@
         },
         "ct_cpp_core_guidelines": {
             "repository": "isocpp/CppCoreGuidelines",
-            "description": "Use for the canonical C++ Core Guidelines (R/Rules, lifetime, bounds safety) when .opencode/AGENTS.md is silent"
+            "description": "Use for the canonical C++ Core Guidelines (R/Rules, lifetime, bounds safety) when AGENTS.md is silent"
         },
         "ct_cppreference": {
             "repository": "PeterFeicht/cppreference-doc",
             "description": "Use for C++ standard library reference source used to build the cppreference offline archive"
         },
-        "ct_doctest": {
-            "repository": "onqtam/doctest",
-            "description": "Use for doctest macros and registration used by tests/ (TEST_CASE, doctest_discover_tests)"
-        },
-        "ct_emscripten": {
-            "repository": "emscripten-core/emscripten",
-            "description": "Use for Emscripten toolchain behavior behind the web_emscripten_wasm32 preset"
-        },
-        "ct_gsl": {
-            "repository": "microsoft/GSL",
-            "description": "Use for GSL contracts and vocabulary types used in this template (Expects, Ensures, span, not_null)"
-        },
         "ct_imgui": {
             "repository": "ocornut/imgui",
-            "description": "Use for Dear ImGui immediate-mode API used by the SDL3 demo app"
+            "branch": "master",
+            "description": "Use for Dear ImGui immediate-mode API used by the in-game overlay (incl. the in-tree custom D3D8 renderer)"
         },
         "ct_llvm": {
             "repository": "llvm/llvm-project",
             "branch": "main",
-            "description": "Use for Clang diagnostics, AST/tooling, LLVM IR, libc++, compiler flags, and sanitizers"
+            "description": "Use for Clang diagnostics, LLVM-MinGW cross toolchain behavior, compiler/linker flags, and lld-link"
         },
         "ct_modern_cmake": {
             "repository": "gitlab.com/CLIUtils/modern-cmake",
             "branch": "master",
             "description": "Use for free Modern CMake book patterns: target-based design, presets, dependencies, and install rules"
-        },
-        "ct_sdl3": {
-            "repository": "libsdl-org/SDL",
-            "branch": "main",
-            "description": "Use for SDL3 windowing, rendering, audio, input, main-loop, and platform behavior"
-        },
-        "ct_taskflow": {
-            "repository": "taskflow/taskflow",
-            "description": "Use for C++ task graphs, parallel algorithms, executors, scheduling, and C++20 task-parallel patterns"
-        },
-        "ct_tdesktop": {
-            "repository": "telegramdesktop/tdesktop",
-            "branch": "dev",
-            "description": "Use for Telegram Desktop source, build instructions, Qt/C++ patterns, and patch structure"
-        },
-        "ct_tracy": {
-            "repository": "wolfpld/tracy",
-            "description": "Use for Tracy profiler zones and fixtures used by the 04_tracy_profiler example"
         }
     }
 }
