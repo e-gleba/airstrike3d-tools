@@ -1,4 +1,0 @@
-# Renovate replaces Dependabot — see .github/renovate.json5
-# This file is intentionally left as a no-op to prevent Dependabot from activating.
-version: 2
-updates: []
