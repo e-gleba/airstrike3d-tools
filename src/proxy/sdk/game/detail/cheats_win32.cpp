@@ -4,7 +4,7 @@
 /// The locator is signature-based (no hard-coded VAs) so it survives the three
 /// engine variants shipped in `src/`:
 ///   - v2.51 `as3d2.exe`        — dispatcher `0x00407110`, prologue `83 EC 0C`
-///   - v2.71 `as3d_gulf.exe`    — dispatcher `0x0040706D`, prologue `83 EC 0C`
+///   - v2.71 `as3d_gulf.exe`    — dispatcher `0x00407070`, prologue `83 EC 0C`
 ///   - Space Strike `game.exe`  — dispatcher `0x0041C9D0`, prologue `83 EC 10`
 /// v2.06 is ASProtect-packed and carries no cheat strings, so the scan stays
 /// unresolved there and callers keep the `send_chars` fallback.
@@ -12,8 +12,8 @@
 /// Discovery shape per `docs/re/cheats.md`:
 ///   1. cheat literals form one `C`-string cluster in `.rdata`;
 ///   2. each literal has a `push imm32` xref inside `.text`;
-///   3. walking back from the earliest xref over a `C3 CC` padding boundary
-///      lands on a `83 EC 0C|10` prologue — the dispatcher entry;
+///   3. walking back from the earliest xref over the `C3` boundary and its
+///      `CC` padding run lands on a `83 EC 0C|10` prologue — the entry;
 ///   4. all xrefs walk back to the same entry.
 
 #include "sdk/game/cheats.hpp"
@@ -43,7 +43,9 @@ namespace
 using cheat_char_fn = void(__cdecl*)(std::int32_t);
 
 /// Backtrack limit when searching for the `ret; int3` function boundary.
-constexpr std::size_t k_max_prologue_backtrack = 0x400;
+/// Must cover the whole dispatcher body: cheat xrefs cluster up to
+/// `k_max_xref_spread` bytes deep inside it (measured spread 0x5a2).
+constexpr std::size_t k_max_prologue_backtrack = 0x800;
 /// Max spread between the earliest and latest `push` xref (one function body).
 constexpr std::size_t k_max_xref_spread = 0x1000;
 /// Minimum resolved cheat literals required before trusting the entry point.
@@ -70,17 +72,26 @@ std::mutex        g_scan_mutex;
 std::atomic<bool> g_scanned{ false };
 scan_state        g_state; // guarded by g_scan_mutex after first resolve
 
+struct image_span final
+{
+    const std::byte* data{};
+    std::size_t      size{};
+};
+
 struct image_sections final
 {
-    const std::byte* text{};
-    std::size_t      text_size{};
-    const std::byte* data{};
-    std::size_t      data_size{};
+    const std::byte*        text{};
+    std::size_t             text_size{};
+    std::vector<image_span> initialized;
 };
 
 /// Map the executable image sections that host code and cheat literals.
 ///
 /// Uses the base of the main module: the proxy runs in-process with the game.
+/// Cheat literals land wherever the linker parks their constants — in v2.71
+/// `.rdata` (vsize 0x17060) is *smaller* than `.data` (vsize 0x1d825a4), so
+/// no largest-section heuristic can be trusted; every initialized-data
+/// section is scanned.
 [[nodiscard]] image_sections read_sections() noexcept
 {
     const HMODULE base = GetModuleHandleW(nullptr);
@@ -127,39 +138,38 @@ struct image_sections final
         else if ((header.Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) !=
                  0U)
         {
-            if (sections.data != nullptr && sections.data_size >= size)
-            {
-                continue; // keep the largest initialized section
-            }
-            sections.data      = start;
-            sections.data_size = size;
+            sections.initialized.push_back({ start, size });
         }
     }
     return sections;
 }
 
-/// Find a literal inside the initialized-data section and return its VA.
+/// Find a literal inside any initialized-data section and return its VA.
 [[nodiscard]] bool resolve_literal_stage(const image_sections& sections,
                                          std::string_view      literal,
                                          std::uintptr_t&       out_va) noexcept
 {
-    if (sections.data == nullptr)
+    for (const auto& span : sections.initialized)
     {
-        return false;
+        if (span.data == nullptr)
+        {
+            continue;
+        }
+        const std::span<const std::byte> haystack{ span.data, span.size };
+        const std::span<const std::byte> needle{
+            reinterpret_cast<const std::byte*>(literal.data()),
+            literal.size() + 1U
+        };
+        const auto match = std::ranges::search(haystack, needle);
+        if (match.empty())
+        {
+            continue;
+        }
+        out_va = reinterpret_cast<std::uintptr_t>(span.data) +
+                 static_cast<std::uintptr_t>(match.begin() - haystack.begin());
+        return true;
     }
-    const std::span<const std::byte> haystack{ sections.data,
-                                               sections.data_size };
-    const std::span<const std::byte> needle{
-        reinterpret_cast<const std::byte*>(literal.data()), literal.size() + 1U
-    };
-    const auto match = std::ranges::search(haystack, needle);
-    if (match.empty())
-    {
-        return false;
-    }
-    out_va = reinterpret_cast<std::uintptr_t>(sections.data) +
-             static_cast<std::uintptr_t>(match.begin() - haystack.begin());
-    return true;
+    return false;
 }
 
 /// Find the first `push imm32` in .text whose immediate equals @p target_va.
@@ -205,14 +215,19 @@ struct image_sections final
          ++back)
     {
         const std::size_t index = offset - back;
-        if (base[index] != 0xC3U || base[index + 1U] != 0xCCU)
+        if (base[index] != 0xC3U)
         {
             continue;
         }
-        const std::size_t prologue = index + 2U;
-        if (base[prologue] != 0x83U || base[prologue + 1U] != 0xECU)
+        std::size_t prologue = index + 1U;
+        while (prologue < offset && base[prologue] == 0xCCU)
         {
-            continue; // keep searching: inlined `ret` before other int3 runs
+            ++prologue;
+        }
+        if (prologue + 2U >= limit || base[prologue] != 0x83U ||
+            base[prologue + 1U] != 0xECU)
+        {
+            continue; // keep searching: inlined `ret` before other padding
         }
         const BYTE stack_delta = base[prologue + 2U];
         if (stack_delta != 0x0CU && stack_delta != 0x10U)
@@ -229,7 +244,7 @@ struct image_sections final
     scan_state state{};
 
     const auto sections = read_sections();
-    if (sections.text == nullptr || sections.data == nullptr)
+    if (sections.text == nullptr || sections.initialized.empty())
     {
         return state;
     }

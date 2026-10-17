@@ -16,13 +16,14 @@ engine variants shipped under `src/`.
 Locates the native per-character cheat dispatcher (see `docs/re/cheats.md`
 for the radare2/r2ghidra analysis):
 
-1. resolve ≥5 of 7 cheat literals as full C strings in the largest
-   initialized-data section (`.rdata` in the shipped builds; discardable
-   sections are skipped);
+1. resolve ≥5 of 7 cheat literals as full C strings by scanning every
+   initialized data section (v2.71's `.rdata` is smaller than `.data`;
+   discardable sections are skipped);
 2. find `push imm32` xrefs of each literal inside the executable section;
 3. require the xref spread to fit one function body;
-4. walk back from the earliest xref over a `C3 CC` boundary to a
-   `83 EC 0C|10` prologue (v2.51/2.71/Space Strike stack sizes);
+4. walk back from the earliest xref over the `C3` boundary and its int3
+   (`CC`) padding run to a `83 EC 0C|10` prologue (v2.51/2.71/Space
+   Strike stack sizes);
 5. require every xref to walk back to the same entry.
 
 The scan runs once, guarded by a mutex; on failure
@@ -41,6 +42,10 @@ ASProtect-packed exe has no cheat literals at all). Coverage is therefore:
   note the legacy launches occasionally assert engine-internal exit 3 on
   this hardware/Proton combo (already documented by `run_with_proton.sh.in`
   with its `--wined3d` / `--no-laa` flags) — an immediate retry passes;
+- runtime scan (Proton) — the launch logs confirm
+  `cheat dispatcher resolved at 0x… (7 literals)` for v2.51
+  (`0x00407110`), v2.71 (`0x00407070`) and Space Strike (`0x0041C9D0`);
+  v2.06 stays on the `send_chars` fallback (ASProtect);
 - end-to-end cheat triggering — manual play only (engine status text +
   `sounds\cheat.wav` at the moment the last character lands), as documented
   in `docs/re/cheats.md`.

@@ -67,7 +67,7 @@ the game itself resets the buffer.
 
 | Item | VA |
 |---|---|
-| dispatcher（`__cdecl(int)`） | `0x0040706D` |
+| dispatcher（`__cdecl(int)`） | `0x00407070` |
 | prologue | `83 EC 0C 80 3D 83 6F 21 02 00` (`sub esp,0xC; cmp byte [0x2216F83],0`) |
 | dispatcher end | `0x0040769C` (`ret`, `CC`-padded after) |
 | first cheat push site | `0x004070D9` (`push str.invulnerability`) |
@@ -124,10 +124,11 @@ Key steps:
 2. **find the reader** — `/r <string VA>` prints the push site(s) that
    reference the literal inside `.text`.
 3. **walk back to the function start** — from the *first* push site scan
-   backward for a `C3 CC` boundary (int 3 padding run) followed by
-   `83 EC imm8`; that byte is the dispatcher prologue. Verified start bytes:
+   backward for a `C3` boundary followed by an int3 (`CC`) padding run of
+   any length, then require `83 EC imm8`; that byte is the dispatcher
+   prologue. Verified start bytes:
    - v2.51 `0x407110` `83 EC 0C`
-   - v2.71 `0x40706D` `83 EC 0C`
+   - v2.71 `0x407070` `83 EC 0C`
    - Space Strike `0x41C9D0` `83 EC 10`
 4. **confirm calling convention** — calling site shape is
    `push <char>; call <dispatcher>; add esp, 4`, so the per-char arg is a
@@ -151,7 +152,7 @@ The scan is *pattern-based* (no hard-coded VAs):
 - resolve the seven cheat literals in `.rdata` by byte sequence;
 - find `push imm32` xrefs in `.text`;
 - walk back from the first xref to a `C3 CC...` boundary and require the
-  `83 EC 0x|0x10` prologue;
+  `83 EC 0C|10` prologue;
 - require at least five of seven strings to resolve to the *same* function —
   if fewer match, treat the image as "not supported" (v2.06 / future builds).
 
