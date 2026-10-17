@@ -25,7 +25,7 @@ local M = {}
 ---@field xray_alpha number
 
 local DEFAULT <const> = {
-    enabled = true,
+    enabled = false,
     mode = 1,
     wire_color = { 0.0, 1.0, 0.0, 0.7 },
     wire_width = 1.5,
