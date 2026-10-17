@@ -19,7 +19,8 @@ enum class capability : std::uint8_t
     free_camera,
     world_lines,
     visual_override,
-    texture_sampling
+    texture_sampling,
+    fullscreen_4k
 };
 
 struct camera_pose final
@@ -73,6 +74,9 @@ struct visual_settings final
     float            depth_bias{ -0.05F };
     std::uint32_t    argb{ 0xB200FF00U };
     texture_sampling sample{ texture_sampling::normal };
+    /// Experiment: force the next CreateDevice/Reset into fullscreen
+    /// 3840x2160 (Direct3D 8 only; applies at the next device reset).
+    bool fullscreen_4k{ false };
 };
 
 [[nodiscard]] render_api active_backend() noexcept;

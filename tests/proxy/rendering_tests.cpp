@@ -42,11 +42,16 @@ int main()
     // path, so texture_sampling is deliberately Direct3D-8-only.
     detail::set_active_backend(render_api::opengl);
     if (!supports(capability::visual_override) ||
-        supports(capability::texture_sampling))
+        supports(capability::texture_sampling) ||
+        supports(capability::fullscreen_4k))
     {
         return EXIT_FAILURE;
     }
     detail::set_active_backend(render_api::direct3d8);
+    if (!supports(capability::fullscreen_4k))
+    {
+        return EXIT_FAILURE;
+    }
 
     set_camera_enabled(true);
     set_camera_pose({
@@ -109,7 +114,26 @@ int main()
     });
     const auto visual = get_visual_settings();
     if (visual.mode != visual_mode::ghost || visual.alpha != 1.0F ||
-        visual.sample != texture_sampling::point)
+        visual.sample != texture_sampling::point || visual.fullscreen_4k)
+    {
+        return EXIT_FAILURE;
+    }
+
+    // The fullscreen_4k flag rides on the same settings object: the
+    // sampling setter must keep it (and vice versa).
+    auto with_4k          = get_visual_settings();
+    with_4k.fullscreen_4k = true;
+    set_visual_settings(with_4k);
+    if (!get_visual_settings().fullscreen_4k ||
+        get_visual_settings().sample != texture_sampling::point)
+    {
+        return EXIT_FAILURE;
+    }
+    auto keep_sample   = get_visual_settings();
+    keep_sample.sample = texture_sampling::anisotropic;
+    set_visual_settings(keep_sample);
+    if (!get_visual_settings().fullscreen_4k ||
+        get_visual_settings().sample != texture_sampling::anisotropic)
     {
         return EXIT_FAILURE;
     }

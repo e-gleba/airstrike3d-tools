@@ -20,6 +20,7 @@
 #include "sdk/graphics/graphics.hpp"
 #include "sdk/graphics/rendering.hpp"
 #include "sdk/math/math.hpp"
+#include "sdk/mcp/mcp.hpp"
 #include "sdk/platform/platform.hpp"
 #include "sdk/scripting/callback.hpp"
 #include "sdk/ui/ui.hpp"
@@ -66,6 +67,74 @@ namespace fs = std::filesystem;
 
 namespace sdk::scripting
 {
+
+namespace
+{
+
+/// lua_State of the single live scripting engine. The MCP transport module
+/// stays Lua-free; this pointer is its only Lua-adjacent seam. Set right
+/// after binding registration, cleared on shutdown.
+lua_State* g_bridge_state = nullptr;
+
+/// @brief Drains one queued MCP `run_lua` request on the render thread.
+///
+/// Outcome protocol toward `scripts/mcp/game_bridge.py`:
+/// `ok:<value>` when the snippet returned a convertible value (nil, number
+/// or string), a bare `ok` without one, and `error:<message>` on a Lua
+/// error. The Lua stack is only touched relatively — this runs mid-callback
+/// inside a plugin frame.
+void run_mcp_request(lua_State* state)
+{
+    if (state == nullptr)
+    {
+        return;
+    }
+
+    std::uint64_t request_id = 0U;
+    const auto    code       = sdk::mcp::take_request(request_id);
+    if (code.empty())
+    {
+        return;
+    }
+
+    if (luaL_loadbuffer(state, code.data(), code.size(), "=mcp_run") != LUA_OK)
+    {
+        const char* message = lua_tostring(state, -1);
+        lua_pop(state, 1);
+        sdk::mcp::complete_request(
+            request_id,
+            std::string{ "error:" }.append(
+                message != nullptr ? message : "unknown error"));
+        return;
+    }
+
+    if (lua_pcall(state, 0, 1, 0) != LUA_OK)
+    {
+        const char* message = lua_tostring(state, -1);
+        lua_pop(state, 1);
+        sdk::mcp::complete_request(
+            request_id,
+            std::string{ "error:" }.append(
+                message != nullptr ? message : "unknown error"));
+        return;
+    }
+
+    std::string outcome{ "ok" };
+    if (!lua_isnil(state, -1))
+    {
+        // lua_tostring converts strings and numbers in place; other return
+        // types stay unparsed (snippets serialize them themselves).
+        const char* text = lua_tostring(state, -1);
+        if (text != nullptr)
+        {
+            outcome.append(":").append(text);
+        }
+    }
+    lua_pop(state, 1);
+    sdk::mcp::complete_request(request_id, outcome);
+}
+
+} // namespace
 
 /// @brief Private implementation of the scripting engine (LuaBridge3 backend).
 ///
@@ -128,11 +197,14 @@ struct engine::impl final
         register_ui_bindings();
         register_callback_hooks();
 
+        g_bridge_state = lua;
+
         sdk::log_info("script engine initialized (LuaBridge3 backend)");
     }
 
     ~impl()
     {
+        g_bridge_state = nullptr;
         if (lua != nullptr)
         {
             lua_close(lua);
@@ -527,6 +599,10 @@ struct engine::impl final
                              {
                                  return supports(capability::texture_sampling);
                              }
+                             if (name == "fullscreen_4k")
+                             {
+                                 return supports(capability::fullscreen_4k);
+                             }
                              return false;
                          })
             .addFunction("camera_enable", &set_camera_enabled)
@@ -619,6 +695,18 @@ struct engine::impl final
                     settings.sample = static_cast<texture_sampling>(sampling);
                     set_visual_settings(std::move(settings));
                 })
+            // Fullscreen 4K experiment (Direct3D 8 only): applies at the
+            // next device creation or reset. Preserves all other settings.
+            .addFunction("set_fullscreen_4k",
+                         [](bool enabled)
+                         {
+                             auto settings          = get_visual_settings();
+                             settings.fullscreen_4k = enabled;
+                             set_visual_settings(std::move(settings));
+                         })
+            .addFunction("get_fullscreen_4k",
+                         []() -> bool
+                         { return get_visual_settings().fullscreen_4k; })
             // Game-native cheat dispatcher (signature-located; see
             // docs/re/cheats.md). Unavailable on the ASProtect-packed 2.06
             // build; call send_chars there.
@@ -627,6 +715,10 @@ struct engine::impl final
             .addFunction("cheat_trigger",
                          [](const std::string& code)
                          { return sdk::game::cheat::dispatch_cheat(code); })
+            // MCP transport pump (scripts/mcp/game_bridge.py). One queued
+            // request is drained on the render thread per call; the
+            // transport module never touches lua_State itself.
+            .addFunction("mcp_poll", []() { run_mcp_request(g_bridge_state); })
             // Input
             .addFunction("is_key_down", &is_key_down)
             .addFunction("get_cursor_pos",

@@ -118,8 +118,9 @@ return M
 - `sdk.cheat_trigger(code)` → `boolean` — feed a cheat code through the game's native per-character dispatcher (effects, `cheat.wav`, status text stay engine-native). Prefer it over `sdk.send_chars`; fall back when `sdk.cheats_available()` is false.
 
 ### Visual Experiments
-- `sdk.has_graphics_capability(name)` → `boolean` — `overlay`, `free_camera`, `world_lines`, `visual_override`, `texture_sampling`
+- `sdk.has_graphics_capability(name)` → `boolean` — `overlay`, `free_camera`, `world_lines`, `visual_override`, `texture_sampling`, `fullscreen_4k`
 - `sdk.set_texture_sampling(mode)` — `0..3` (`normal`, `point`, `linear`, `anisotropic`); Direct3D 8 only, applied to textured 3D geometry
+- `sdk.set_fullscreen_4k(enabled)` / `sdk.get_fullscreen_4k()` — fullscreen 3840x2160 experiment; Direct3D 8 only, applies at the next CreateDevice/Reset (F7 via `fullscreen_4k.lua`)
 
 ### Window
 - `sdk.get_window_rect()` → `left, top, right, bottom`
@@ -207,11 +208,13 @@ This plugin system leverages modern Lua features:
 
 See included plugins:
 - `_ui_framework.lua` — ImGui workspace framework
+- `_mcp_bridge.lua` — internal: pumps queued MCP transport requests each frame (`src/proxy/sdk/mcp/readme.md`)
 - `cheats.lua` — Cheat code system (native dispatcher with keystroke fallback)
 - `freecam.lua` — Free camera with WASD + mouse look
 - `wallhack.lua` — Visual overlay modes
 - `world_grid.lua` — 3D reference grid
 - `textures.lua` — Texture sampling experiments (Direct3D 8)
+- `fullscreen_4k.lua` — Fullscreen 3840x2160 experiment (Direct3D 8)
 
 ## Development
 
@@ -228,6 +231,8 @@ sdk.log_info(string.format("Debug: %s", tostring(value)))
 
 ### Hotkeys
 - `[INSERT]` — Toggle UI
+- `[F6]` — Cycle texture sampling modes (`textures.lua`)
+- `[F7]` — Toggle fullscreen 4K experiment (`fullscreen_4k.lua`)
 - Plugin-specific hotkeys defined in each plugin
 
 ## License

@@ -9,6 +9,7 @@ set(bass_proxy_sdk_sources
     sdk/graphics/detail/gl_hooks_opengl.cpp
     sdk/graphics/detail/graphics_opengl.cpp
     sdk/math/detail/math_glm.cpp
+    sdk/mcp/detail/mcp_transport_win32.cpp
     sdk/overlay/detail/overlay_imgui.cpp
     sdk/platform/detail/platform_win32.cpp
     sdk/scripting/detail/engine_lua.cpp
@@ -58,5 +59,6 @@ target_link_libraries(
             opengl32
             safetyhook
             spdlog::spdlog
+            ws2_32
             lua
             LuaBridge)

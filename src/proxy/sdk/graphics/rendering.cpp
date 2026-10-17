@@ -107,6 +107,8 @@ bool supports(capability value) noexcept
                    backend == render_api::direct3d8;
         case capability::texture_sampling:
             return backend == render_api::direct3d8;
+        case capability::fullscreen_4k:
+            return backend == render_api::direct3d8;
     }
 
     return false;

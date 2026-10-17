@@ -58,6 +58,20 @@
     },
     // Docs are header/public auth; search is public; OAuth needs /mcps sign-in.
     "mcp": {
+        // Local stdio bridge to the in-game MCP transport (src/proxy/sdk/mcp/).
+        // Tools fail cleanly when the game is not running. The cwd-relative
+        // game dir is the 2_71 Proton deploy tree; flip AS3D_MCP_PORT (game
+        // + here) when running a different version instead — see
+        // src/proxy/sdk/mcp/readme.md.
+        "servers": {
+            "as3d_bridge": {
+                "type": "local",
+                "command": ["python3", "scripts/mcp/game_bridge.py"],
+                "environment": {
+                    "AS3D_MCP_GAME_DIR": "build/llvm-mingw-i686/src/2_71"
+                }
+            }
+        },
         "ct_github": {
             "type": "remote",
             "url": "https://api.githubcopilot.com/mcp/",

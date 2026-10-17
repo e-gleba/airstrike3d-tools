@@ -9,6 +9,7 @@
 #include "sdk/graphics/detail/gl_hooks.hpp"
 #include "sdk/graphics/detail/opengl_state.hpp"
 #include "sdk/graphics/rendering.hpp"
+#include "sdk/mcp/mcp.hpp"
 #include "sdk/overlay/overlay.hpp"
 #include "sdk/scripting/engine.hpp"
 
@@ -285,6 +286,8 @@ void install_hooks()
             "script engine initialization failed: unknown exception");
         g_script_engine.reset();
     }
+
+    sdk::mcp::start();
 }
 
 void uninstall_hooks()

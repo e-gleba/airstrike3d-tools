@@ -95,11 +95,15 @@ struct hook_state final
     std::atomic<bool>              scene_active{};
     std::atomic<bool>              frame_callbacks_run{};
     std::atomic<DWORD>             max_anisotropy{};
-    D3DMATRIX                      main_view{};
-    D3DMATRIX                      main_projection{};
-    D3DVIEWPORT8                   main_viewport{};
-    bool                           main_perspective_active{};
-    bool                           has_main_scene{};
+    /// Captured from the last Direct3DCreate8/CreateDevice call so hk_reset
+    /// can validate the fullscreen 4K presentation name too.
+    std::atomic<IDirect3D8*> direct3d{};
+    std::atomic<D3DDEVTYPE>  device_type{};
+    D3DMATRIX                main_view{};
+    D3DMATRIX                main_projection{};
+    D3DVIEWPORT8             main_viewport{};
+    bool                     main_perspective_active{};
+    bool                     has_main_scene{};
 };
 
 hook_state        g_hooks;
@@ -571,6 +575,65 @@ template <typename draw_call>
     return result;
 }
 
+/// Fullscreen 4K experiment target values (`visual_settings.fullscreen_4k`).
+constexpr DWORD k_4k_width  = 3840;
+constexpr DWORD k_4k_height = 2160;
+
+/// @brief Rewrites the presentation parameters to fullscreen 4K on request.
+///
+/// Runs *before* the real CreateDevice/Reset: the device is born at the
+/// target resolution and the engine's own mode queries report it. The
+/// adapter must advertise the game's requested backbuffer format in
+/// fullscreen (CheckDeviceType) — otherwise the presentation is left alone
+/// (logged once). Applies at every device creation or reset, so toggling the
+/// setting mid-game picks up on the next resolution change.
+void apply_fullscreen_4k(IDirect3D8*            direct3d,
+                         UINT                   adapter,
+                         D3DDEVTYPE             device_type,
+                         D3DPRESENT_PARAMETERS* parameters)
+{
+    static std::atomic<bool> logged_unsupported{ false };
+
+    if (direct3d == nullptr || parameters == nullptr)
+    {
+        return;
+    }
+    if (!graphics::get_visual_settings().fullscreen_4k)
+    {
+        return;
+    }
+    if (parameters->Windowed == FALSE &&
+        parameters->BackBufferWidth == k_4k_width &&
+        parameters->BackBufferHeight == k_4k_height)
+    {
+        return; // already at the wanted presentation
+    }
+
+    const HRESULT format_check =
+        direct3d->CheckDeviceType(adapter,
+                                  device_type,
+                                  parameters->BackBufferFormat,
+                                  parameters->BackBufferFormat,
+                                  FALSE);
+    if (FAILED(format_check))
+    {
+        if (!logged_unsupported.exchange(true))
+        {
+            sdk::log_warn("fullscreen 4k requested, but the adapter rejects "
+                          "the requested backbuffer format in fullscreen; "
+                          "the game's presentation stays untouched");
+        }
+        return;
+    }
+
+    parameters->Windowed                   = FALSE;
+    parameters->BackBufferWidth            = k_4k_width;
+    parameters->BackBufferHeight           = k_4k_height;
+    parameters->FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+    sdk::log_info("D3D8 presentation forced to fullscreen 3840x2160 "
+                  "(visual_settings.fullscreen_4k)");
+}
+
 HRESULT STDMETHODCALLTYPE hk_reset(IDirect3DDevice8*      device,
                                    D3DPRESENT_PARAMETERS* parameters)
 {
@@ -578,6 +641,12 @@ HRESULT STDMETHODCALLTYPE hk_reset(IDirect3DDevice8*      device,
     {
         guarded([] { overlay::invalidate_device_objects(); });
     }
+
+    apply_fullscreen_4k(g_hooks.direct3d.load(std::memory_order_acquire),
+                        D3DADAPTER_DEFAULT,
+                        g_hooks.device_type.load(std::memory_order_acquire),
+                        parameters);
+
     return original<reset_fn>(g_hooks.reset)(device, parameters);
 }
 
@@ -921,6 +990,8 @@ HRESULT STDMETHODCALLTYPE hk_create_device(IDirect3D8* direct3d,
                                            D3DPRESENT_PARAMETERS* parameters,
                                            IDirect3DDevice8**     output)
 {
+    apply_fullscreen_4k(direct3d, adapter, device_type, parameters);
+
     const auto result =
         original<create_device_fn>(g_hooks.create_device)(direct3d,
                                                           adapter,
@@ -933,6 +1004,9 @@ HRESULT STDMETHODCALLTYPE hk_create_device(IDirect3D8* direct3d,
     {
         return result;
     }
+
+    g_hooks.direct3d.store(direct3d, std::memory_order_release);
+    g_hooks.device_type.store(device_type, std::memory_order_release);
 
     bool claimed{};
     try
@@ -1018,6 +1092,9 @@ IDirect3D8* WINAPI hk_direct3d_create8(UINT sdk_version)
     {
         return nullptr;
     }
+
+    g_hooks.direct3d.store(direct3d, std::memory_order_release);
+    g_hooks.device_type.store(D3DDEVTYPE_HAL, std::memory_order_release);
 
     try
     {
