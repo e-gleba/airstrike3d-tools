@@ -18,7 +18,8 @@ enum class capability : std::uint8_t
     overlay,
     free_camera,
     world_lines,
-    visual_override
+    visual_override,
+    texture_sampling
 };
 
 struct camera_pose final
@@ -50,12 +51,28 @@ enum class visual_mode : std::uint8_t
     depth_bias
 };
 
+/// Per-stage texture filter override applied to textured 3D geometry.
+/// Direct3D 8 only (fixed-function stage filters); OpenGL ignores it and
+/// `capability::texture_sampling` reports support accordingly.
+enum class texture_sampling : std::uint8_t
+{
+    normal,     ///< engine filter state untouched
+    point,      ///< D3DTEXF_POINT nearest-neighbour mag/min
+    linear,     ///< D3DTEXF_LINEAR bilinear mag/min
+    anisotropic ///< D3DTEXF_ANISOTROPIC min filter (max anisotropy
+                ///< renderstate) with linear magnification
+};
+
+/// Number of valid texture_sampling rows (mirrors the enum extent).
+inline constexpr std::size_t k_texture_sampling_mode_count = 4U;
+
 struct visual_settings final
 {
-    visual_mode   mode{ visual_mode::disabled };
-    float         alpha{ 0.3F };
-    float         depth_bias{ -0.05F };
-    std::uint32_t argb{ 0xB200FF00U };
+    visual_mode      mode{ visual_mode::disabled };
+    float            alpha{ 0.3F };
+    float            depth_bias{ -0.05F };
+    std::uint32_t    argb{ 0xB200FF00U };
+    texture_sampling sample{ texture_sampling::normal };
 };
 
 [[nodiscard]] render_api active_backend() noexcept;

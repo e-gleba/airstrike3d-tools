@@ -42,20 +42,20 @@ constexpr std::size_t k_draw_indexed_primitive_up_slot = 73;
 
 using direct3d_create8_fn = IDirect3D8*(WINAPI*)(UINT);
 using create_device_fn    = HRESULT(STDMETHODCALLTYPE*)(IDirect3D8*,
-                                                     UINT,
-                                                     D3DDEVTYPE,
-                                                     HWND,
-                                                     DWORD,
-                                                     D3DPRESENT_PARAMETERS*,
-                                                     IDirect3DDevice8**);
+                                                        UINT,
+                                                        D3DDEVTYPE,
+                                                        HWND,
+                                                        DWORD,
+                                                        D3DPRESENT_PARAMETERS*,
+                                                        IDirect3DDevice8**);
 using reset_fn            = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice8*,
-                                             D3DPRESENT_PARAMETERS*);
+                                                        D3DPRESENT_PARAMETERS*);
 using present_fn          = HRESULT(STDMETHODCALLTYPE*)(
     IDirect3DDevice8*, const RECT*, const RECT*, HWND, const RGNDATA*);
 using scene_fn          = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice8*);
 using set_transform_fn  = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice8*,
-                                                     D3DTRANSFORMSTATETYPE,
-                                                     const D3DMATRIX*);
+                                                      D3DTRANSFORMSTATETYPE,
+                                                      const D3DMATRIX*);
 using draw_primitive_fn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice8*,
                                                       D3DPRIMITIVETYPE,
                                                       UINT,
@@ -94,6 +94,7 @@ struct hook_state final
     std::atomic<HWND>              window{};
     std::atomic<bool>              scene_active{};
     std::atomic<bool>              frame_callbacks_run{};
+    std::atomic<DWORD>             max_anisotropy{};
     D3DMATRIX                      main_view{};
     D3DMATRIX                      main_projection{};
     D3DVIEWPORT8                   main_viewport{};
@@ -276,24 +277,6 @@ template <typename function> void guarded(function&& fn) noexcept
            is_identity_view(view);
 }
 
-[[nodiscard]] bool should_skip_visual_override(IDirect3DDevice8* device,
-                                               D3DPRIMITIVETYPE  type) noexcept
-{
-    // Points/lines (particles, beams, debug lines): FILLMODE is meaningless
-    // and flat-shading them destroys their textured/alpha look. Under
-    // DXVK/Proton the leaked state is also far more visible (spikes, orphs).
-    switch (type)
-    {
-        case D3DPT_POINTLIST:
-        case D3DPT_LINELIST:
-        case D3DPT_LINESTRIP:
-            return true;
-        default:
-            break;
-    }
-    return uses_pretransformed_vertices(device);
-}
-
 class internal_render_scope final
 {
 public:
@@ -424,8 +407,29 @@ template <typename draw_call>
     }
 
     const auto settings = graphics::get_visual_settings();
-    if (settings.mode == graphics::visual_mode::disabled ||
-        should_skip_visual_override(device, type))
+
+    // Points/lines (particles, beams, debug lines): FILLMODE is meaningless
+    // and flat-shading them destroys their textured/alpha look. Under
+    // DXVK/Proton the leaked state is also far more visible (spikes, orphs).
+    // The same exclude list applies to the sampling experiment below.
+    const bool polyline_draw = type == D3DPT_POINTLIST ||
+                               type == D3DPT_LINELIST ||
+                               type == D3DPT_LINESTRIP;
+    // One GetVertexShader probe shared by both experiments (screen-space
+    // HUD/FVF details under uses_pretransformed_vertices()).
+    const bool pretransformed = uses_pretransformed_vertices(device);
+
+    // Texture sampling is an independent experiment: textured triangle draws
+    // only (points/lines keep their alpha look, the screen-space HUD keeps
+    // its textures).
+    const bool apply_sampling =
+        settings.sample != graphics::texture_sampling::normal &&
+        !polyline_draw && !pretransformed;
+    if (settings.mode == graphics::visual_mode::disabled && !apply_sampling)
+    {
+        return std::forward<draw_call>(call)();
+    }
+    if (polyline_draw || pretransformed)
     {
         return std::forward<draw_call>(call)();
     }
@@ -437,20 +441,21 @@ template <typename draw_call>
     };
     struct saved_stage_state final
     {
-        DWORD                      stage{};
+        DWORD                    stage{};
         D3DTEXTURESTAGESTATETYPE type{};
         DWORD                    value{};
     };
 
-    internal_render_scope            scope;
-    std::array<saved_state, 7>       saved{};
-    std::size_t                      saved_count{};
-    // Stage 0 (4 states) + stage 1 disable (2 states) so multitextured
-    // geometry renders as a clean flat wireframe instead of bleeding the
-    // second texture stage through TFACTOR (visible as texture artifacts
-    // under DXVK/Proton).
-    std::array<saved_stage_state, 6> saved_stage{};
-    std::size_t                      saved_stage_count{};
+    internal_render_scope scope;
+    // Worst case is ghost (7 render states) + anisotropic sampling
+    // (MAXANISOTROPY).
+    std::array<saved_state, 8> saved{};
+    std::size_t                saved_count{};
+    // Sampling experiments set 3 filter states per stage (stages 0-1); flat
+    // wire shading adds stage 0 color/alpha (4) plus the stage 1 disable (2).
+    // Worst case both experiments overlap: 12 stage states.
+    std::array<saved_stage_state, 12> saved_stage{};
+    std::size_t                       saved_stage_count{};
     const auto set_temporary = [&](D3DRENDERSTATETYPE type, DWORD value)
     {
         DWORD original_value{};
@@ -485,6 +490,36 @@ template <typename draw_call>
         set_temporary_stage(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
         set_temporary_stage(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
     };
+
+    if (apply_sampling)
+    {
+        // Independent texture-filter experiment, stages 0-1 only. D3D8
+        // permits D3DTEXF_ANISOTROPIC as a minification filter only, so
+        // anisotropic keeps a linear magnification path.
+        const DWORD mag_filter =
+            settings.sample == graphics::texture_sampling::point
+                ? D3DTEXF_POINT
+                : D3DTEXF_LINEAR;
+        const bool anisotropic =
+            settings.sample == graphics::texture_sampling::anisotropic;
+        for (const DWORD stage : { 0U, 1U })
+        {
+            set_temporary_stage(stage, D3DTSS_MAGFILTER, mag_filter);
+            set_temporary_stage(stage,
+                                D3DTSS_MINFILTER,
+                                anisotropic ? D3DTEXF_ANISOTROPIC : mag_filter);
+            set_temporary_stage(stage, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
+        }
+        if (anisotropic)
+        {
+            const auto maximum = std::max<DWORD>(
+                1U, g_hooks.max_anisotropy.load(std::memory_order::acquire));
+            // Old-DX8 header quirk: MinGW's d3d8types.h lists render state
+            // 21 only as D3DTSS_MAXANISOTROPY; the DX8.1 SDK names the same
+            // id D3DRS_MAXANISOTROPY under D3DRENDERSTATETYPE.
+            set_temporary(D3DRENDERSTATETYPE(D3DTSS_MAXANISOTROPY), maximum);
+        }
+    }
 
     switch (settings.mode)
     {
@@ -936,6 +971,13 @@ HRESULT STDMETHODCALLTYPE hk_create_device(IDirect3D8* direct3d,
         }
 
         g_hooks.device.store(*output, std::memory_order_release);
+        D3DCAPS8 caps{};
+        if (SUCCEEDED((*output)->GetDeviceCaps(&caps)))
+        {
+            g_hooks.max_anisotropy.store(
+                std::max<DWORD>(1U, caps.MaxAnisotropy),
+                std::memory_order_release);
+        }
         const auto window =
             parameters != nullptr && parameters->hDeviceWindow != nullptr
                 ? parameters->hDeviceWindow

@@ -25,18 +25,18 @@ std::atomic<render_api> g_backend{ render_api::unknown };
 std::atomic<bool>       g_camera_enabled{ false };
 std::mutex              g_camera_mutex;
 camera_pose             g_camera_pose{
-                .position      = { 0.0, 10.0, 0.0 },
-                .yaw_degrees   = -90.0,
-                .pitch_degrees = 0.0,
+    .position      = { 0.0, 10.0, 0.0 },
+    .yaw_degrees   = -90.0,
+    .pitch_degrees = 0.0,
 };
-camera_pose                                     g_observed_camera;
-bool                                            g_has_observed_camera{};
-bool                                            g_adopted_live_camera{};
-std::mutex                                      g_visual_mutex;
-visual_settings                                 g_visual_settings;
-std::atomic<bool>                               g_ui_hidden{ false };
+camera_pose                g_observed_camera;
+bool                       g_has_observed_camera{};
+bool                       g_adopted_live_camera{};
+std::mutex                 g_visual_mutex;
+visual_settings            g_visual_settings;
+std::atomic<bool>          g_ui_hidden{ false };
 std::atomic<std::uint64_t> g_line_generation{};
-#if defined(__cpp_lib_atomic_shared_ptr) && \
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
     __cpp_lib_atomic_shared_ptr >= 201711L
 std::atomic<std::shared_ptr<const detail::world_line_batch>> g_world_lines{
     std::make_shared<const detail::world_line_batch>()
@@ -68,7 +68,7 @@ void adopt_live_camera_locked() noexcept
 void publish_world_lines(
     std::shared_ptr<const detail::world_line_batch> batch) noexcept
 {
-#if defined(__cpp_lib_atomic_shared_ptr) && \
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
     __cpp_lib_atomic_shared_ptr >= 201711L
     g_world_lines.store(std::move(batch), std::memory_order_release);
 #else
@@ -105,6 +105,8 @@ bool supports(capability value) noexcept
         case capability::visual_override:
             return backend == render_api::opengl ||
                    backend == render_api::direct3d8;
+        case capability::texture_sampling:
+            return backend == render_api::direct3d8;
     }
 
     return false;
@@ -267,7 +269,7 @@ void observe_camera(camera_pose pose)
 
 auto world_lines_snapshot() noexcept -> std::shared_ptr<const world_line_batch>
 {
-#if defined(__cpp_lib_atomic_shared_ptr) && \
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
     __cpp_lib_atomic_shared_ptr >= 201711L
     return g_world_lines.load(std::memory_order_acquire);
 #else

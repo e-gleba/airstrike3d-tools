@@ -2,10 +2,15 @@
 --- Airstrike 3D Tools — Cheat Codes Panel
 --- Professional cheat code system with validation and error handling.
 ---
+--- Delivery prefers the SDK's native cheat dispatch (feeds the game's own
+--- per-character dispatcher; effects/sounds/status text stay engine-native).
+--- Builds without it (2.06's ASProtect-packed exe, or an older proxy DLL)
+--- fall back to synthesizing keystrokes via sdk.send_chars.
+---
 --- @module cheats
 --- @author Airstrike 3D Tools Team
 --- @license MIT
---- @version 2.0.0
+--- @version 2.1.0
 
 local M = {}
 
@@ -65,6 +70,15 @@ local function validate_cheats()
     return true
 end
 
+-- ── Delivery Method ────────────────────────────────────────────────────────
+
+-- True when this build's proxy SDK exposed the native dispatcher bindings
+-- AND the running exe passed the cheat-dispatcher signature scan. False for
+-- the ASProtect-packed 2.06 build (no cheat system) and for older proxy
+-- DLLs (bindings missing), which keep the sdk.send_chars fallback.
+local native_bindings <const> = type(sdk.cheat_trigger) == "function"
+local using_native = native_bindings and sdk.cheats_available() or false
+
 -- ── Cheat Activation ────────────────────────────────────────────────────────
 
 ---Check if cheat is on cooldown
@@ -75,10 +89,14 @@ local function is_on_cooldown(cheat)
     if not cheat.cooldown or not cheat.last_used then
         return false, 0
     end
-    
-    local elapsed = os.clock() - cheat.last_used
+
+    -- os.time, not os.clock: the latter is CPU time on POSIX and only
+    -- wall-clock-like on Windows; wall-clock seconds keep cooldowns honest
+    -- under Proton and modern Lua alike (whole-second resolution is fine
+    -- for values of 1s and up).
+    local elapsed = os.time() - cheat.last_used
     if elapsed < cheat.cooldown then
-        return true, cheat.cooldown - elapsed
+        return true, math.max(0, cheat.cooldown - elapsed)
     end
     return false, 0
 end
@@ -94,26 +112,35 @@ local function activate_cheat(cheat)
             cheat.label, remaining))
         return false
     end
-    
-    -- Safe execution
-    local ok, err = TOOLS_UI.safe_call(function()
+
+    -- Safe execution: native dispatcher first, keystroke fallback second.
+    local ok, delivered = TOOLS_UI.safe_call(function()
+        if using_native then
+            return sdk.cheat_trigger(cheat.code)
+        end
         sdk.send_chars(cheat.code)
+        return true
     end)
-    
+
     if not ok then
         sdk.log_error(string.format("Failed to activate cheat '%s': %s",
-            cheat.label, tostring(err)))
+            cheat.label, tostring(delivered)))
         return false
     end
-    
+    if not delivered then
+        sdk.log_warn(string.format(
+            "Cheat dispatcher rejected '%s': engine has no cheat system", cheat.label))
+        return false
+    end
+
     -- Update state
-    cheat.last_used = os.clock()
+    cheat.last_used = os.time()
     state.activation_count = state.activation_count + 1
     state.last_activation = cheat.label
-    
+
     sdk.log_info(string.format("Cheat activated: %s (total: %d)",
         cheat.label, state.activation_count))
-    
+
     return true
 end
 
@@ -126,11 +153,19 @@ local ipairs = ipairs
 
 local function draw_panel()
     TOOLS_UI.header("Cheat Codes")
-    
-    ui.text_wrapped(
-        "Click any button to activate the cheat in Airstrike 2. " ..
-        "Codes are sent as keystrokes."
-    )
+
+    if using_native then
+        ui.text_wrapped(
+            "Click any button to activate the cheat. Codes feed the game's " ..
+            "native per-character dispatcher: effects, cheat.wav and status " ..
+            "text stay engine-native."
+        )
+    else
+        ui.text_wrapped(
+            "Click any button to activate the cheat. This build has no " ..
+            "native dispatcher; codes are sent as keystrokes instead."
+        )
+    end
     ui.spacing()
     ui.spacing()
     
@@ -184,8 +219,11 @@ sdk.on_load(function()
     if not validate_cheats() then
         sdk.log_error("Cheat validation failed, plugin may not work correctly")
     end
-    
-    sdk.log_info(format("Cheats plugin loaded (%d cheats configured)", #cheats))
+
+    sdk.log_info(format("Cheats plugin loaded (%d cheats, delivery: %s)",
+                        #cheats,
+                        using_native and "native dispatcher" or
+                            "keystroke fallback"))
 end)
 
 sdk.on_unload(function()

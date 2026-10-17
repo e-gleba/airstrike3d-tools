@@ -2,7 +2,7 @@
 --- World grid and axes overlay via the renderer-neutral world-lines API.
 ---
 --- @module world_grid
---- @version 3.1.0
+--- @version 3.1.1
 ---
 --- Hotkey: F7 — toggle
 
@@ -60,6 +60,18 @@ local state = {
     grid_lines = 0,
     activation_count = 0,
 }
+
+-- Cached publish inputs: skip SDK calls and rebuilds while the grid is idle.
+local grid_active = false
+local last_grid_size
+local last_grid_step
+local last_grid_y
+local last_axes
+local last_axes_len
+local last_cr
+local last_cg
+local last_cb
+local last_ca
 
 local function validate_config()
     if type(cfg.grid_size) ~= "number" or cfg.grid_size < 10 or cfg.grid_size > 1000 then
@@ -124,39 +136,63 @@ end
 
 local function publish_grid()
     if not cfg.enabled then
-        sdk.clear_world_lines()
+        if grid_active then
+            sdk.clear_world_lines()
+            grid_active = false
+        end
         return
     end
 
-    local vertices = {}
-    local half = cfg.grid_size * 0.5
-    local color = argb(table.unpack(cfg.grid_color))
-    local count = 0
+    -- Rebuild only when a grid-relevant value actually changed; the per-frame
+    -- rebuild allocated a large vertices table for the collector every frame.
+    if not grid_active
+        or cfg.grid_size ~= last_grid_size
+        or cfg.grid_step ~= last_grid_step
+        or cfg.grid_y ~= last_grid_y
+        or cfg.axes ~= last_axes
+        or cfg.axes_len ~= last_axes_len
+        or cfg.grid_color[1] ~= last_cr
+        or cfg.grid_color[2] ~= last_cg
+        or cfg.grid_color[3] ~= last_cb
+        or cfg.grid_color[4] ~= last_ca
+    then
+        grid_active = true
+        last_grid_size, last_grid_step = cfg.grid_size, cfg.grid_step
+        last_grid_y, last_axes, last_axes_len =
+            cfg.grid_y, cfg.axes, cfg.axes_len
+        last_cr, last_cg, last_cb, last_ca =
+            cfg.grid_color[1], cfg.grid_color[2], cfg.grid_color[3], cfg.grid_color[4]
 
-    for x = -half, half, cfg.grid_step do
-        append_line(vertices, x, cfg.grid_y, -half, x, cfg.grid_y, half, color)
-        count = count + 1
-    end
-    for z = -half, half, cfg.grid_step do
-        append_line(vertices, -half, cfg.grid_y, z, half, cfg.grid_y, z, color)
-        count = count + 1
-    end
-    if cfg.axes then
-        for _, axis in ipairs(AXIS_DEFS) do
-            append_line(
-                vertices,
-                0, cfg.grid_y, 0,
-                axis.dx * cfg.axes_len,
-                cfg.grid_y + axis.dy * cfg.axes_len,
-                axis.dz * cfg.axes_len,
-                argb(axis.r, axis.g, axis.b, axis.a)
-            )
+        local vertices = {}
+        local half = cfg.grid_size * 0.5
+        local color = argb(table.unpack(cfg.grid_color))
+        local count = 0
+
+        for x = -half, half, cfg.grid_step do
+            append_line(vertices, x, cfg.grid_y, -half, x, cfg.grid_y, half, color)
+            count = count + 1
         end
-    end
+        for z = -half, half, cfg.grid_step do
+            append_line(vertices, -half, cfg.grid_y, z, half, cfg.grid_y, z, color)
+            count = count + 1
+        end
+        if cfg.axes then
+            for _, axis in ipairs(AXIS_DEFS) do
+                append_line(
+                    vertices,
+                    0, cfg.grid_y, 0,
+                    axis.dx * cfg.axes_len,
+                    cfg.grid_y + axis.dy * cfg.axes_len,
+                    axis.dz * cfg.axes_len,
+                    argb(axis.r, axis.g, axis.b, axis.a)
+                )
+            end
+        end
 
-    state.grid_lines = count
-    state.vertex_count = #vertices // 4
-    sdk.set_world_lines(vertices)
+        state.grid_lines = count
+        state.vertex_count = #vertices // 4
+        sdk.set_world_lines(vertices)
+    end
 end
 
 sdk.on_key_down(function(vk)
@@ -247,6 +283,7 @@ end)
 
 sdk.on_unload(function()
     sdk.clear_world_lines()
+    grid_active = false
     state.vertex_count = 0
     state.grid_lines = 0
     state.activation_count = 0

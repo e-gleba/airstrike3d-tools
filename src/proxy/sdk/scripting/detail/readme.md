@@ -16,7 +16,9 @@ The engine registers these Lua namespaces:
 - **`gmath`** — math utilities (`radians`, `cos`, `sin`, `normalize`, `cross`, `lookat_matrix`)
 - **`VK`** — virtual key constants (e.g. `VK.SHIFT`, `VK.F1`)
 - **`GL`** — OpenGL constants (e.g. `GL.MODELVIEW`, `GL.TRIANGLES`)
-- **`sdk`** — graphics, platform, callback registration (`sdk.on_frame`, `sdk.gl_enable`, `sdk.is_key_down`)
+- **`sdk`** — graphics, platform, callback registration (`sdk.on_frame`, `sdk.gl_enable`, `sdk.is_key_down`), including:
+  - `sdk.cheats_available()` / `sdk.cheat_trigger(code)` — feed the game's native per-character cheat dispatcher (signature-located at runtime; see `docs/re/cheats.md`). Unresolved on the ASProtect-packed 2.06 build, where callers fall back to `sdk.send_chars`.
+  - `sdk.set_texture_sampling(mode)` — `0..3` (`normal`, `point`, `linear`, `anisotropic`) per-stage filter override on textured 3D geometry. Direct3D 8 only; gate on `sdk.has_graphics_capability("texture_sampling")`.
 - **`ui`** — ImGui bindings (`ui.begin_window`, `ui.checkbox`, `ui.slider_float`)
 
 ### Callback Registration

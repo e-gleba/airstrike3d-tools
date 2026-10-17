@@ -113,6 +113,14 @@ return M
 - `sdk.show_cursor(show)`
 - `sdk.send_chars(text)`
 
+### Game Integration
+- `sdk.cheats_available()` → `boolean` — the running exe passed the cheat-dispatcher signature scan (`docs/re/cheats.md`). False on the ASProtect-packed 2.06 build.
+- `sdk.cheat_trigger(code)` → `boolean` — feed a cheat code through the game's native per-character dispatcher (effects, `cheat.wav`, status text stay engine-native). Prefer it over `sdk.send_chars`; fall back when `sdk.cheats_available()` is false.
+
+### Visual Experiments
+- `sdk.has_graphics_capability(name)` → `boolean` — `overlay`, `free_camera`, `world_lines`, `visual_override`, `texture_sampling`
+- `sdk.set_texture_sampling(mode)` — `0..3` (`normal`, `point`, `linear`, `anisotropic`); Direct3D 8 only, applied to textured 3D geometry
+
 ### Window
 - `sdk.get_window_rect()` → `left, top, right, bottom`
 
@@ -198,10 +206,12 @@ This plugin system leverages modern Lua features:
 ## Examples
 
 See included plugins:
-- `cheats.lua` — Cheat code system
+- `_ui_framework.lua` — ImGui workspace framework
+- `cheats.lua` — Cheat code system (native dispatcher with keystroke fallback)
 - `freecam.lua` — Free camera with WASD + mouse look
 - `wallhack.lua` — Visual overlay modes
 - `world_grid.lua` — 3D reference grid
+- `textures.lua` — Texture sampling experiments (Direct3D 8)
 
 ## Development
 

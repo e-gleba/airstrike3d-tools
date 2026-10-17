@@ -16,6 +16,7 @@
 #include "sdk/core/context.hpp"
 #include "sdk/core/contract.hpp"
 #include "sdk/core/logging.hpp"
+#include "sdk/game/cheats.hpp"
 #include "sdk/graphics/graphics.hpp"
 #include "sdk/graphics/rendering.hpp"
 #include "sdk/math/math.hpp"
@@ -522,6 +523,10 @@ struct engine::impl final
                              {
                                  return supports(capability::visual_override);
                              }
+                             if (name == "texture_sampling")
+                             {
+                                 return supports(capability::texture_sampling);
+                             }
                              return false;
                          })
             .addFunction("camera_enable", &set_camera_enabled)
@@ -592,13 +597,36 @@ struct engine::impl final
                                 static_cast<double>(
                                     std::numeric_limits<std::uint32_t>::max()),
                         "set_visual_mode: values are out of range");
-                    set_visual_settings({
-                        .mode       = static_cast<visual_mode>(mode),
-                        .alpha      = static_cast<float>(alpha),
-                        .depth_bias = static_cast<float>(bias),
-                        .argb       = static_cast<std::uint32_t>(argb),
-                    });
+                    auto settings       = get_visual_settings();
+                    settings.mode       = static_cast<visual_mode>(mode);
+                    settings.alpha      = static_cast<float>(alpha);
+                    settings.depth_bias = static_cast<float>(bias);
+                    settings.argb       = static_cast<std::uint32_t>(argb);
+                    set_visual_settings(settings);
                 })
+            .addFunction(
+                "set_texture_sampling",
+                [](std::int32_t sampling)
+                {
+                    require(sampling >= 0 &&
+                                static_cast<std::size_t>(sampling) <
+                                    k_texture_sampling_mode_count,
+                            "set_texture_sampling: invalid sampling mode");
+                    // Sampling is an independent experiment; it rides on the
+                    // current visual settings so a visual mode is not
+                    // clobbered.
+                    auto settings   = get_visual_settings();
+                    settings.sample = static_cast<texture_sampling>(sampling);
+                    set_visual_settings(std::move(settings));
+                })
+            // Game-native cheat dispatcher (signature-located; see
+            // docs/re/cheats.md). Unavailable on the ASProtect-packed 2.06
+            // build; call send_chars there.
+            .addFunction("cheats_available",
+                         &sdk::game::cheat::cheats_available)
+            .addFunction("cheat_trigger",
+                         [](const std::string& code)
+                         { return sdk::game::cheat::dispatch_cheat(code); })
             // Input
             .addFunction("is_key_down", &is_key_down)
             .addFunction("get_cursor_pos",

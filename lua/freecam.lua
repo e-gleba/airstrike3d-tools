@@ -2,7 +2,7 @@
 --- Free camera: WASD + mouse look, shared across OpenGL and Direct3D 8.
 ---
 --- @module freecam
---- @version 3.1.0
+--- @version 3.1.1
 ---
 --- Controls:
 ---   W/A/S/D       — Move
@@ -184,22 +184,29 @@ sdk.on_frame(function()
         * (is_key_down(VK_SHIFT) and cam.sprint_mult or 1)
         * ui.get_delta_time()
     local fx, fy, fz, rx, ry, rz = basis()
-    local moves = {
-        { VK_W, fx, fy, fz, 1 },
-        { VK_S, fx, fy, fz, -1 },
-        { VK_D, rx, ry, rz, 1 },
-        { VK_A, rx, ry, rz, -1 },
-        { VK_SPACE, 0, 1, 0, 1 },
-        { VK_CONTROL, 0, 1, 0, -1 },
-    }
-    for i = 1, #moves do
-        local key, ax, ay, az, sign = table.unpack(moves[i])
-        if is_key_down(key) then
-            local d = sign * step
-            cam.pos_x = cam.pos_x + ax * d
-            cam.pos_y = cam.pos_y + ay * d
-            cam.pos_z = cam.pos_z + az * d
-        end
+    -- Unrolled movement axes: allocating a descriptor table per frame showed
+    -- up as constant garbage for the incremental collector under Proton.
+    if is_key_down(VK_W) then
+        cam.pos_x, cam.pos_y, cam.pos_z =
+            cam.pos_x + fx * step, cam.pos_y + fy * step, cam.pos_z + fz * step
+    end
+    if is_key_down(VK_S) then
+        cam.pos_x, cam.pos_y, cam.pos_z =
+            cam.pos_x - fx * step, cam.pos_y - fy * step, cam.pos_z - fz * step
+    end
+    if is_key_down(VK_D) then
+        cam.pos_x, cam.pos_y, cam.pos_z =
+            cam.pos_x + rx * step, cam.pos_y + ry * step, cam.pos_z + rz * step
+    end
+    if is_key_down(VK_A) then
+        cam.pos_x, cam.pos_y, cam.pos_z =
+            cam.pos_x - rx * step, cam.pos_y - ry * step, cam.pos_z - rz * step
+    end
+    if is_key_down(VK_SPACE) then
+        cam.pos_y = cam.pos_y + step
+    end
+    if is_key_down(VK_CONTROL) then
+        cam.pos_y = cam.pos_y - step
     end
     publish_pose()
 end)

@@ -2,6 +2,7 @@ set(bass_proxy_sdk_sources
     dll_main.cpp
     sdk/core/hooks.cpp
     sdk/core/detail/logging_spdlog.cpp
+    sdk/game/detail/cheats_win32.cpp
     sdk/graphics/rendering.cpp
     sdk/graphics/detail/camera_math.cpp
     sdk/graphics/detail/d3d8_hooks.cpp

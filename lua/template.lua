@@ -108,8 +108,9 @@ sdk.on_key_down(function(vk)
     return false -- not consumed
 end)
 
--- Renderer-neutral graphics are available through sdk.camera_*,
--- sdk.set_world_lines(), and sdk.set_visual_mode(). Check a feature before use:
+-- Renderer-neutral graphics: sdk.camera_*, sdk.set_world_lines(),
+-- sdk.set_visual_mode() and sdk.set_texture_sampling(). Check a feature
+-- before use:
 local has_world_lines = sdk.has_graphics_capability("world_lines")
 
 -- ── UI Panel ────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 --- @module ui_framework
 --- @author Airstrike 3D Tools Team
 --- @license MIT
---- @version 3.0.0
+--- @version 3.0.1
 ---
 --- Plugin API:
 ---   TOOLS_UI.register_panel(id, title, draw_fn)
@@ -45,6 +45,7 @@ local THEME = {
 ---@field fps_count integer
 ---@field window_width integer
 ---@field window_height integer
+---@field cache_stale boolean
 local state = {
     panels = {},
     first_frame = true,
@@ -53,6 +54,7 @@ local state = {
     fps_count = 0,
     window_width = 840,
     window_height = 960,
+    cache_stale = false,
 }
 
 -- ── Error Handling ──────────────────────────────────────────────────────────
@@ -307,7 +309,8 @@ function M.register_panel(id, title, draw_fn)
         title = title,
         draw = draw_fn,
     }
-    
+    state.cache_stale = true
+
     sdk.log_info(format("Registered panel: %s", title))
     return true
 end
@@ -317,28 +320,38 @@ end
 ---@return boolean success
 function M.unregister_panel(id)
     if not validate_type(id, "string", "id") then return false end
-    
+
     if state.panels[id] then
         state.panels[id] = nil
+        state.cache_stale = true
         sdk.log_info(format("Unregistered panel: %s", id))
         return true
     end
-    
+
     sdk.log_warn(format("Panel '%s' not found", id))
     return false
 end
 
----Get sorted panel list
----@return {id: string, title: string, draw: fun()}[]
-local function get_sorted_panels()
-    local panels = {}
-    for _, panel in pairs(state.panels) do
-        insert(panels, panel)
+-- Sorted panel list + count, rebuilt only after a register/unregister. The
+-- overlay frame previously re-sorted the panel table every frame.
+local sorted_panels_cache = nil
+local panel_count_cache = 0
+
+---Synchronize the panel cache (cheap when fresh)
+local function refresh_panel_cache()
+    if sorted_panels_cache ~= nil and not state.cache_stale then
+        return
     end
-    sort(panels, function(a, b)
+    sorted_panels_cache = {}
+    panel_count_cache = 0
+    for _, panel in pairs(state.panels) do
+        insert(sorted_panels_cache, panel)
+        panel_count_cache = panel_count_cache + 1
+    end
+    sort(sorted_panels_cache, function(a, b)
         return a.title < b.title
     end)
-    return panels
+    state.cache_stale = false
 end
 
 -- ── FPS Tracking ────────────────────────────────────────────────────────────
@@ -383,8 +396,8 @@ sdk.on_overlay(function()
     
     -- Tab workspace
     if ui.tab_bar_begin("##workspace") then
-        local panels = get_sorted_panels()
-        for _, panel in ipairs(panels) do
+        refresh_panel_cache()
+        for _, panel in ipairs(sorted_panels_cache) do
             local tab_id = format("%s  ##%s", panel.title, panel.id)
             if ui.tab_item_begin(tab_id) then
                 -- Safe panel execution
@@ -394,20 +407,16 @@ sdk.on_overlay(function()
         end
         ui.tab_bar_end()
     end
-    
+
     -- Status bar
     ui.spacing()
     ui.separator()
-    
-    local panel_count = 0
-    for _ in pairs(state.panels) do
-        panel_count = panel_count + 1
-    end
-    
+
+    refresh_panel_cache()
     ui.text_disabled(format(
         "[INSERT] toggle UI  |  %.1f FPS  |  %d panels",
         state.fps,
-        panel_count
+        panel_count_cache
     ))
     
     ui.same_line()
@@ -422,16 +431,16 @@ end)
 -- ── Lifecycle ───────────────────────────────────────────────────────────────
 
 sdk.on_load(function()
-    local panel_count = 0
-    for _ in pairs(state.panels) do
-        panel_count = panel_count + 1
-    end
-    sdk.log_info(format("UI framework v3 ready (%d panels)", panel_count))
+    refresh_panel_cache()
+    sdk.log_info(format("UI framework v3 ready (%d panels)", panel_count_cache))
 end)
 
 sdk.on_unload(function()
     -- Cleanup
     state.panels = {}
+    sorted_panels_cache = nil
+    panel_count_cache = 0
+    state.cache_stale = true
     sdk.log_info("UI framework unloaded")
 end)
 

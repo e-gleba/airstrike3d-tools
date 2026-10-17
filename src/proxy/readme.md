@@ -27,6 +27,13 @@ Lua plugin scripts (LuaBridge3)
 - **Hook Analysis**: Real-time display of active function intercepts
 - **Debug Controls**: Wireframe toggle, clear color, ImGui theming
 - **Lua Scripting**: Plugin system for modding and automation
+- **Cheat Dispatch Interception**: The signature-located engine cheat dispatcher is
+  callable directly from Lua (`sdk.cheat_trigger`), so cheat effects,
+  `sounds\cheat.wav` and HUD status text stay engine-native without synthesizing
+  input (see `docs/re/cheats.md` for the radare2/r2ghidra analysis)
+- **Texture Sampling Experiments**: Per-stage D3D8 filter overrides
+  (point/linear/anisotropic) applied around each draw call,
+  gated by `capability::texture_sampling`
 
 ## Technical Implementation
 
@@ -57,6 +64,7 @@ src/proxy/
 ├── readme.md                   # This file
 └── sdk/                        # Version-agnostic SDK library
     ├── core/                   # Core utilities, types, contracts
+    ├── game/                   # Signature-located game entry points (cheats)
     ├── graphics/               # OpenGL bindings and constants
     ├── math/                   # Vector math utilities
     ├── overlay/                # ImGui overlay rendering

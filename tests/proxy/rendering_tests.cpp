@@ -24,7 +24,7 @@ int main()
     using namespace sdk::graphics;
 
     if (active_backend() != render_api::unknown ||
-        supports(capability::overlay))
+        supports(capability::overlay) || supports(capability::texture_sampling))
     {
         return EXIT_FAILURE;
     }
@@ -32,10 +32,21 @@ int main()
     detail::set_active_backend(render_api::direct3d8);
     if (!supports(capability::overlay) || !supports(capability::free_camera) ||
         !supports(capability::world_lines) ||
-        !supports(capability::visual_override))
+        !supports(capability::visual_override) ||
+        !supports(capability::texture_sampling))
     {
         return EXIT_FAILURE;
     }
+
+    // The OpenGL backend keeps visual overrides but has no stage-filter
+    // path, so texture_sampling is deliberately Direct3D-8-only.
+    detail::set_active_backend(render_api::opengl);
+    if (!supports(capability::visual_override) ||
+        supports(capability::texture_sampling))
+    {
+        return EXIT_FAILURE;
+    }
+    detail::set_active_backend(render_api::direct3d8);
 
     set_camera_enabled(true);
     set_camera_pose({
@@ -92,11 +103,13 @@ int main()
     }
 
     set_visual_settings({
-        .mode  = visual_mode::ghost,
-        .alpha = 2.0F,
+        .mode   = visual_mode::ghost,
+        .alpha  = 2.0F,
+        .sample = texture_sampling::point,
     });
     const auto visual = get_visual_settings();
-    if (visual.mode != visual_mode::ghost || visual.alpha != 1.0F)
+    if (visual.mode != visual_mode::ghost || visual.alpha != 1.0F ||
+        visual.sample != texture_sampling::point)
     {
         return EXIT_FAILURE;
     }
