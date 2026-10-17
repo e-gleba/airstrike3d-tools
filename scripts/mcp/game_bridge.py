@@ -49,7 +49,10 @@ SERVER_INSTRUCTIONS = (
     "statement; only nil, number and string return values are serialized. "
     "Cheat inputs go through sdk.cheat_trigger(code); visual experiments "
     "through sdk.set_visual_mode / sdk.set_texture_sampling / "
-    "sdk.set_fullscreen_4k."
+    "sdk.set_fullscreen_4k. game_status reports a frame heartbeat "
+    "(frames_age_seconds = seconds since the last BeginScene; -1 before "
+    "the first frame), so a stalled render loop still answers with a "
+    "growing age."
 )
 DEFAULT_PORT = "13373"
 DEFAULT_LOG_LINES = 60

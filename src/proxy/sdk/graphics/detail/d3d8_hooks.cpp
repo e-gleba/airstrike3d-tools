@@ -655,6 +655,9 @@ HRESULT STDMETHODCALLTYPE hk_begin_scene(IDirect3DDevice8* device)
     const auto result = original<scene_fn>(g_hooks.begin_scene)(device);
     if (SUCCEEDED(result) && !g_internal_render && is_primary(device))
     {
+        g_ctx.last_begin_scene_ns.store(
+            std::chrono::steady_clock::now().time_since_epoch().count(),
+            std::memory_order_release);
         guarded(
             [device]
             {
@@ -1026,12 +1029,15 @@ HRESULT STDMETHODCALLTYPE hk_create_device(IDirect3D8* direct3d,
             g_hooks.device.load(std::memory_order_acquire);
         if (current_device != nullptr && current_device != *output)
         {
-            sdk::log_warn("additional Direct3D 8 device ignored; primary "
-                          "device retained");
-            return result;
+            // The engine re-initializes D3D and abandons the old device
+            // (loading scene -> main menu): follow the new device so the
+            // frame pump and overlay keep working. The hook targets are
+            // class-wide vtable entries installed for the first device —
+            // no re-install.
+            sdk::log_info(
+                "Direct3D 8 device re-initialized; tracking the new device");
         }
-
-        if (!install_device_hooks(*output))
+        else if (!install_device_hooks(*output))
         {
             sdk::log_error(
                 "Direct3D 8 device created, but hooks are incomplete");

@@ -19,7 +19,9 @@ read-only option getters for `STATUS`, and it never sees a `lua_State*`.
   ```
 
   Ops: `STATUS` (answered on the listener thread: exe, backend,
-  `cheats_available()`, `fullscreen_4k`, uptime) and `RUN_LUA` (queued for
+  `cheats_available()`, `fullscreen_4k`, uptime, `frames_age_seconds` —
+  seconds since the last BeginScene, -1 before the first frame — so a
+  stalled render loop still answers) and `RUN_LUA` (queued for
   the render thread, resolved with a 5 s deadline).
 
 - `sdk/core/hooks.cpp` calls `start()` after plugin load (+1 line there).

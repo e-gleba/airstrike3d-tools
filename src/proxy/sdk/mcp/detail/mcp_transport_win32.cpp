@@ -280,14 +280,28 @@ SOCKET g_listener = INVALID_SOCKET;
                             std::chrono::steady_clock::now() - g_boot)
                             .count();
 
+    // Frame heartbeat: seconds since the last primary BeginScene; -1 until
+    // the first frame. The status thread answers from its own thread, so a
+    // frozen render loop still reports a growing age instead of timing out.
+    const auto last_frame_ns =
+        sdk::g_ctx.last_begin_scene_ns.load(std::memory_order_acquire);
+    const auto frames_age =
+        last_frame_ns == 0
+            ? -1
+            : std::chrono::duration_cast<std::chrono::seconds>(
+                  std::chrono::steady_clock::now().time_since_epoch() -
+                  std::chrono::steady_clock::duration{ last_frame_ns })
+                  .count();
+
     return std::format(
         "exe={}\nbackend={}\ncheats_available={}\nfullscreen_4k={}\n"
-        "uptime_seconds={}\n",
+        "uptime_seconds={}\nframes_age_seconds={}\n",
         exe_name,
         backend,
         game::cheat::cheats_available() ? "true" : "false",
         graphics::get_visual_settings().fullscreen_4k ? "true" : "false",
-        uptime);
+        uptime,
+        frames_age);
 }
 
 /// @brief Queues a `RUN_LUA` request and waits for the rendered outcome.
